@@ -1,0 +1,96 @@
+services:
+
+  reverse-proxy:
+    container_name: WSDD-Proxy-Server
+    image: nginxproxy/nginx-proxy
+    restart: always
+    ports:
+      - 80:80
+      - 443:443
+    depends_on:
+      - phpmyadmin
+    environment:
+      - HTTPS_METHOD=noredirect
+      - TRUST_DOWNSTREAM_PROXY=true
+      - ENABLE_WEBSOCKETS=true
+      - DEFAULT_PROXY_READ_TIMEOUT=3600
+      - DEFAULT_PROXY_CONNECT_TIMEOUT=300
+      - DEFAULT_PROXY_SEND_TIMEOUT=300
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./ssl:/etc/nginx/certs:rw
+    networks:
+      - wsdd-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    privileged: true
+    tty: true
+    labels:
+      - "wsdd.reverse-proxy.description=WSDD Proxy Server"
+      - "wsdd.reverse-proxy.role=proxy"
+  
+  database:
+    container_name: WSDD-MySql-Server
+    build:
+      context: ./bin/mysql
+      dockerfile: Dockerfile
+    restart: always
+    networks:
+      - wsdd-network
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - ./bin/mysql/data:/var/lib/mysql:rw
+      - ./bin/mysql/log:/var/log/mysql:rw
+    environment:
+      VIRTUAL_HOST: mysql.wsdd.dock
+      MYSQL_ROOT_PASSWORD: 1qazxsw2
+      MYSQL_DATABASE: wsdd-database
+      MYSQL_USER: tester
+      MYSQL_PASSWORD: 1qazxsw2
+    privileged: true
+    tty: true
+    labels:
+      - "wsdd.database.description=WSDD Database Server"
+      - "wsdd.database.role=database"
+      
+  phpmyadmin:
+    container_name: WSDD-phpMyAdmin-Server
+    image: phpmyadmin/phpmyadmin
+    restart: always
+    expose:
+      - 80
+    depends_on:
+      - database
+    environment:
+      VIRTUAL_HOST: pma.wsdd.dock
+      PMA_HOST: database
+      PMA_PORT: 3306
+      PMA_USER: root
+      PMA_PASSWORD: 1qazxsw2
+      MYSQL_ROOT_PASSWORD: 1qazxsw2
+      MYSQL_USER: tester
+      MYSQL_PASSWORD: 1qazxsw2
+      UPLOAD_LIMIT: 512M
+      MEMORY_LIMIT: 512M
+    volumes:
+      - /sessions
+      - ./bin/pma/php.ini:/usr/local/etc/php/conf.d/php-phpmyadmin.ini
+      - pma-code:/var/www/html
+    networks:
+      - wsdd-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    privileged: true
+    tty: true
+    labels:
+      - "wsdd.phpmyadmin.description=phpMyAdmin Server"
+      - "wsdd.phpmyadmin.role=phpmyadmin"
+
+volumes:
+  pma-code:
+    external: true
+
+networks:
+  wsdd-network:
+    external: true

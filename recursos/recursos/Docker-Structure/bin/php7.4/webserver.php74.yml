@@ -1,0 +1,24 @@
+services:
+  webserver74:
+    container_name: WSDD-Web-Server-PHP7.4
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    expose:
+      - "80"   # Exposes Web Server (Apache)
+      - "9000" # Exposes xDebug
+      - "10000" # Exposes Webmin
+    networks:
+      - wsdd-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "wsdd.webserver.description=Web Server php7.4"
+      - "wsdd.webserver.role=webserver"
+    privileged: true
+    tty: true
+
+networks:
+  wsdd-network:
+    external: true

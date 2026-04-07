@@ -1,0 +1,10 @@
+WebStack Deployer for Docker v1.0.1
+Copyright © 2026 Walter Núñez / Icaros Net S.A
+
+Software para uso exclusivo en desarrollo.
+Distribución y modificaciones solo mediante el repositorio oficial.
+
+Sin garantía. Use bajo su propio riesgo.
+Realice backups y control de versiones.
+
+Contacto: [wnunez@lh-2.net](mailto:wnunez@lh-2.net)

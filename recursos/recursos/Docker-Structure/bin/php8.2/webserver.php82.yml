@@ -1,0 +1,24 @@
+services:
+  webserver82:
+    container_name: WSDD-Web-Server-PHP8.2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: always
+    expose:
+      - "80"   # Exposes Web Server (Apache)
+      - "9003" # Exposes xDebug
+      - "10000" # Exposes Webmin
+    networks:
+      - wsdd-network
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    labels:
+      - "wsdd.webserver.description=Web Server php8.2"
+      - "wsdd.webserver.role=webserver"
+    privileged: true
+    tty: true
+
+networks:
+  wsdd-network:
+    external: true

@@ -1,0 +1,12 @@
+services:
+  webserver81:
+    environment:
+      VIRTUAL_HOST: php81.wsdd.dock,cron81.wsdd.dock,wm81.wsdd.dock
+      VIRTUAL_PORT: 80
+    volumes:
+      - ./dev:/var/www/html/dev
+      - ./vhost:/etc/apache2/sites-enabled
+      - ./php.ini:/usr/local/etc/php/php.ini
+      - ./cron:/etc/cron-task
+      - ./log/apache2:/var/log/apache2
+      - ./log/cron:/var/log/cron

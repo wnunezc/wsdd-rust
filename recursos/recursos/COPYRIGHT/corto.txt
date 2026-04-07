@@ -1,0 +1,24 @@
+Copyright © 2026 Walter Núñez / Icaros Net S.A.
+Todos los derechos reservados.
+
+WebStack Deployer for Docker versión 1.0.1 es software propietario distribuido bajo un modelo de código abierto controlado. El uso de este software está permitido únicamente para fines de desarrollo.
+
+No se permite:
+
+* Uso comercial sin autorización expresa del autor
+* Redistribución fuera del repositorio oficial de GitHub
+* Modificación del código fuera del repositorio oficial
+* Ingeniería inversa, descompilación o desmontaje del software
+
+Este software se proporciona "TAL CUAL", sin garantía de ningún tipo, expresa o implícita.
+El autor no se hace responsable por daños directos o indirectos derivados del uso del software.
+
+El usuario es responsable de:
+
+* Realizar copias de seguridad
+* Mantener control de versiones
+* Verificar los entornos generados por la aplicación
+
+Las actualizaciones del software se distribuyen exclusivamente a través del repositorio oficial de GitHub.
+
+Contacto: [wnunez@lh-2.net](mailto:wnunez@lh-2.net)

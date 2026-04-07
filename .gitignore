@@ -1,0 +1,23 @@
+/target/
+Cargo.lock
+
+# IDE
+.idea/
+.vs/
+*.iml
+
+# Recursos generados
+/src/resources/generated/
+
+# Credenciales — no subir a GitHub
+recursos/recursos.zip
+
+# Instaladores generados
+/target/wix/
+
+# Logs
+*.log
+
+# OS
+Thumbs.db
+.DS_Store

@@ -1,0 +1,2 @@
+# Example task Cronjob
+# * * * * * root /var/www/html/Asset/resource/cron/cron.sh >> /var/log/cron/cron.log 2>&1

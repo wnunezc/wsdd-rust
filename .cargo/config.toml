@@ -1,0 +1,7 @@
+[build]
+# Target principal: Windows x64
+target = "x86_64-pc-windows-msvc"
+
+[target.x86_64-pc-windows-msvc]
+# Linker por defecto para MSVC
+rustflags = ["-C", "target-feature=+crt-static"]

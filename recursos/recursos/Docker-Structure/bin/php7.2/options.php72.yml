@@ -1,0 +1,12 @@
+services:
+  webserver72:
+    environment:
+      VIRTUAL_HOST: php72.wsdd.dock,cron72.wsdd.dock,wm72.wsdd.dock
+      VIRTUAL_PORT: 80
+    volumes:
+      - ./dev:/var/www/html/dev
+      - ./vhost:/etc/apache2/sites-enabled
+      - ./php.ini:/usr/local/etc/php/php.ini
+      - ./cron:/etc/cron-task
+      - ./log/apache2:/var/log/apache2
+      - ./log/cron:/var/log/cron
