@@ -3,7 +3,7 @@
 Windows desktop application that automates the setup of a local web development environment
 using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, and hosts management.
 
-*Languages: [English](README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
+*Languages: [English](README.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [हिन्दी](docs/readme/README.hi.md) | [中文](docs/readme/README.zh.md)*
 
 ## System Requirements
 

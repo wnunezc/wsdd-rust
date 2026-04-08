@@ -3,7 +3,7 @@
 Windows डेस्कटॉप एप्लिकेशन जो Docker का उपयोग करके स्थानीय वेब डेवलपमेंट वातावरण की सेटअप प्रक्रिया को स्वचालित बनाता है।
 इसमें बहु-संस्करण PHP, लोकल SSL, MySQL, phpMyAdmin और hosts प्रबंधन शामिल है।
 
-*भाषाएँ: [English](README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
+*भाषाएँ: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
 ## सिस्टम आवश्यकताएँ
 
@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## लाइसेंस
 
-स्वामित्वाधीन — विवरण के लिए `LICENSE.hi.txt` देखें।
+स्वामित्वाधीन — विवरण के लिए `../legal/LICENSE.hi.txt` देखें।
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

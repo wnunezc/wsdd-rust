@@ -184,4 +184,4 @@ let ok = chocolatey::probe_installed(&runner).await?;
 
 ## Mejores prácticas adoptadas
 
-Ver `CLAUDE.md` sección "Arquitectura y mejores prácticas".
+Las reglas de arquitectura y mejores prácticas están documentadas en las instrucciones internas del proyecto.

@@ -3,7 +3,7 @@
 这是一个 Windows 桌面应用程序，用于自动化基于 Docker 的本地 Web 开发环境配置。
 它包含多版本 PHP、本地 SSL、MySQL、phpMyAdmin 以及 hosts 管理功能。
 
-*语言: [English](README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
+*语言: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
 ## 系统要求
 
@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## 许可
 
-专有许可 — 详情请参阅 `LICENSE.zh.txt`。
+专有许可 — 详情请参阅 `../legal/LICENSE.zh.txt`。
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

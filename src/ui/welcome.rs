@@ -26,10 +26,22 @@ use crate::ui::ActiveView;
 use egui_commonmark::CommonMarkViewer;
 
 static README_EN: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"));
-static README_ES: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.es.md"));
-static README_FR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.fr.md"));
-static README_HI: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.hi.md"));
-static README_ZH: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.zh.md"));
+static README_ES: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/readme/README.es.md"
+));
+static README_FR: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/readme/README.fr.md"
+));
+static README_HI: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/readme/README.hi.md"
+));
+static README_ZH: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/docs/readme/README.zh.md"
+));
 
 fn readme_for(language: Language) -> &'static str {
     match language {

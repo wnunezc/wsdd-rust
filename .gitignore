@@ -22,7 +22,5 @@ recursos/recursos.zip
 Thumbs.db
 .DS_Store
 
-# Internal docs — not for GitHub
+# Internal docs — local only
 CLAUDE.md
-MIGRATION.md
-.github/project-status/MIGRATION.md
