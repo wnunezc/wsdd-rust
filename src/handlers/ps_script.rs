@@ -269,9 +269,7 @@ pub async fn run_ps_command(
 
     tokio::task::spawn_blocking(move || runner.run_ps_sync(&cmd, work_dir.as_deref(), tx.as_ref()))
         .await
-        .map_err(|e| {
-            InfraError::Io(std::io::Error::other(e.to_string()))
-        })?
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
 }
 
 /// Ejecuta docker directamente sin pasar por PowerShell.
@@ -337,7 +335,7 @@ pub fn strip_ansi(input: &str) -> String {
         // Detectar secuencia ESC + '['
         if ch == '\x1B' && chars.peek() == Some(&'[') {
             chars.next(); // consumir '['
-            // Consumir hasta el byte de comando (letra ASCII)
+                          // Consumir hasta el byte de comando (letra ASCII)
             for c in chars.by_ref() {
                 if c.is_ascii_alphabetic() {
                     break;
@@ -361,7 +359,11 @@ fn exec_powershell(
     // Preferir pwsh (PS 7) sobre powershell.exe (PS 5.1).
     // PS 7 tiene manejo de errores consistente y no tiene los bugs de PS 5.1
     // (ConvertFrom-Json con null, Start-Transcript sin consola, etc.)
-    let ps_exe = if which_pwsh() { "pwsh.exe" } else { "powershell.exe" };
+    let ps_exe = if which_pwsh() {
+        "pwsh.exe"
+    } else {
+        "powershell.exe"
+    };
 
     // -NoProfile: evita que el perfil del usuario ejecute código ni escriba a stdout.
     //   Sin esto, un perfil que use Write-Host o Write-Output con codificación OEM/CP437

@@ -14,13 +14,14 @@
 // Contact: wnunez@lh-2.net
 // Equivalente a Forms/DisplaySelector.cs — selector de monitor
 use crate::app::WsddApp;
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     egui::CentralPanel::default().show(ctx, |ui| {
-        ui.heading("Seleccionar monitor");
+        ui.heading(tr("display_selector_title"));
         // TODO: migrar DisplaySelector.cs
-        if ui.button("Cerrar").clicked() {
+        if ui.button(tr("btn_close")).clicked() {
             app.ui.active = ActiveView::Main;
         }
     });

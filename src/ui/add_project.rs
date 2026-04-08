@@ -22,7 +22,8 @@ use std::sync::mpsc;
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::LogLine;
-use crate::models::project::{EntryPoint, PhpVersion, Project, ProjectStatus, normalize_domain};
+use crate::i18n::{tr, trf};
+use crate::models::project::{normalize_domain, EntryPoint, PhpVersion, Project, ProjectStatus};
 use crate::ui::ActiveView;
 
 /// Renderiza el formulario de nuevo proyecto.
@@ -39,8 +40,26 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         app.ui.form_work_path = path;
     }
 
+    let title = tr("add_title");
+    let name_label = format!("{}:", tr("add_project_name"));
+    let domain_label = format!("{}:", tr("add_domain"));
+    let php_label = format!("{}:", tr("add_php_version"));
+    let work_path_label = format!("{}:", tr("add_work_path"));
+    let entry_point_label = format!("{}:", tr("add_entry_point"));
+    let ssl_label = format!("{}:", tr("add_enable_ssl"));
+    let browse_label = tr("add_browse");
+    let create_label = tr("add_create");
+    let cancel_label = tr("btn_cancel");
+    let root_label = tr("add_root_label");
+    let public_label = tr("add_public_label");
+    let custom_label = tr("add_custom_label");
+    let ssl_checkbox = tr("add_ssl_mkcert");
+    let domain_hint = tr("add_domain_hint");
+    let work_path_hint = tr("add_work_path_hint");
+    let pick_folder_title = tr("add_select_dir");
+
     let mut open = true;
-    egui::Window::new("Agregar nuevo proyecto")
+    egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
@@ -54,15 +73,15 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 .spacing([12.0, 10.0])
                 .show(ui, |ui| {
                     // ── Nombre ────────────────────────────────────────────────
-                    ui.label("Nombre:");
+                    ui.label(&name_label);
                     ui.text_edit_singleline(&mut app.ui.form_name);
                     ui.end_row();
 
                     // ── Dominio — sufijo .dock visible ────────────────────────
-                    ui.label("Dominio:");
+                    ui.label(&domain_label);
                     ui.horizontal(|ui| {
                         ui.text_edit_singleline(&mut app.ui.form_domain)
-                            .on_hover_text("Ejemplo: miapp  →  se guardará como miapp.dock");
+                            .on_hover_text(&domain_hint);
                         ui.label(
                             egui::RichText::new(".dock")
                                 .monospace()
@@ -72,7 +91,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.end_row();
 
                     // ── PHP ───────────────────────────────────────────────────
-                    ui.label("PHP:");
+                    ui.label(&php_label);
                     egui::ComboBox::from_id_salt("php_version_combo")
                         .selected_text(app.ui.form_php.display_name())
                         .show_ui(ui, |ui| {
@@ -84,18 +103,18 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.end_row();
 
                     // ── Work Path — con botón Explorar ────────────────────────
-                    ui.label("Work Path:");
+                    ui.label(&work_path_label);
                     ui.horizontal(|ui| {
                         ui.text_edit_singleline(&mut app.ui.form_work_path)
-                            .on_hover_text("Ruta absoluta al directorio del código fuente");
+                            .on_hover_text(&work_path_hint);
 
-                        if ui.button("Explorar...").clicked() && app.ui.folder_pick_rx.is_none() {
+                        if ui.button(&browse_label).clicked() && app.ui.folder_pick_rx.is_none() {
                             let (tx, rx) = mpsc::channel::<Option<String>>();
                             app.ui.folder_pick_rx = Some(rx);
                             let ctx_clone = ctx.clone();
                             std::thread::spawn(move || {
                                 let result = rfd::FileDialog::new()
-                                    .set_title("Seleccionar directorio del proyecto")
+                                    .set_title(&pick_folder_title)
                                     .pick_folder()
                                     .map(|p| p.to_string_lossy().to_string());
                                 let _ = tx.send(result);
@@ -106,21 +125,14 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.end_row();
 
                     // ── Entry Point ───────────────────────────────────────────
-                    ui.label("Entry Point:");
+                    ui.label(&entry_point_label);
                     ui.vertical(|ui| {
-                        ui.radio_value(
-                            &mut app.ui.form_entry,
-                            EntryPoint::Root,
-                            "Raíz del proyecto",
-                        );
-                        ui.radio_value(
-                            &mut app.ui.form_entry,
-                            EntryPoint::Public,
-                            "/public  (Laravel, Symfony)",
-                        );
+                        ui.radio_value(&mut app.ui.form_entry, EntryPoint::Root, &root_label);
+                        ui.radio_value(&mut app.ui.form_entry, EntryPoint::Public, &public_label);
                         ui.horizontal(|ui| {
-                            let custom_selected = matches!(app.ui.form_entry, EntryPoint::Custom(_));
-                            if ui.radio(custom_selected, "Personalizado:").clicked() {
+                            let custom_selected =
+                                matches!(app.ui.form_entry, EntryPoint::Custom(_));
+                            if ui.radio(custom_selected, &custom_label).clicked() {
                                 app.ui.form_entry =
                                     EntryPoint::Custom(app.ui.form_entry_custom.clone());
                             }
@@ -138,11 +150,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.end_row();
 
                     // ── SSL ───────────────────────────────────────────────────
-                    ui.label("SSL:");
-                    ui.checkbox(
-                        &mut app.ui.form_ssl,
-                        "Generar certificado SSL con mkcert",
-                    );
+                    ui.label(&ssl_label);
+                    ui.checkbox(&mut app.ui.form_ssl, &ssl_checkbox);
                     ui.end_row();
                 });
 
@@ -155,10 +164,10 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             }
 
             ui.horizontal(|ui| {
-                if ui.button("Desplegar").clicked() {
+                if ui.button(&create_label).clicked() {
                     try_submit(app);
                 }
-                if ui.button("Cancelar").clicked() {
+                if ui.button(&cancel_label).clicked() {
                     app.ui.active = ActiveView::Main;
                 }
             });
@@ -176,11 +185,11 @@ fn try_submit(app: &mut WsddApp) {
     let work_path = app.ui.form_work_path.trim().to_string();
 
     if name.is_empty() {
-        app.ui.form_error = Some("El nombre no puede estar vacío.".to_string());
+        app.ui.form_error = Some(tr("error_name_empty"));
         return;
     }
     if domain_raw.is_empty() {
-        app.ui.form_error = Some("El dominio no puede estar vacío.".to_string());
+        app.ui.form_error = Some(tr("error_domain_empty"));
         return;
     }
     // Whitelist: solo caracteres válidos en un nombre de dominio.
@@ -194,38 +203,35 @@ fn try_submit(app: &mut WsddApp) {
         .trim_end_matches(".net")
         .trim_end_matches(".local")
         .trim_end_matches(".dock");
-    if !domain_base.chars().all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.') {
-        app.ui.form_error = Some(
-            "El dominio solo puede contener letras, números, guiones y puntos.".to_string(),
-        );
+    if !domain_base
+        .chars()
+        .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '.')
+    {
+        app.ui.form_error = Some(tr("error_domain_invalid"));
         return;
     }
     if work_path.is_empty() {
-        app.ui.form_error = Some("El Work Path no puede estar vacío.".to_string());
+        app.ui.form_error = Some(tr("error_work_path_empty"));
         return;
     }
     if !std::path::Path::new(&work_path).exists() {
-        app.ui.form_error = Some(format!("El directorio no existe: {work_path}"));
+        app.ui.form_error = Some(trf("error_work_path_missing", &[("path", &work_path)]));
         return;
     }
     if crate::handlers::project::exists(&name) {
-        app.ui.form_error =
-            Some(format!("Ya existe un proyecto con el nombre '{name}'."));
+        app.ui.form_error = Some(trf("error_project_name_exists", &[("name", &name)]));
         return;
     }
 
     let domain = normalize_domain(&domain_raw);
 
     if app.projects.iter().any(|p| p.domain == domain) {
-        app.ui.form_error =
-            Some(format!("Ya existe un proyecto con el dominio '{domain}'."));
+        app.ui.form_error = Some(trf("error_project_domain_exists", &[("domain", &domain)]));
         return;
     }
 
     let entry_point = match &app.ui.form_entry {
-        EntryPoint::Custom(_) => {
-            EntryPoint::Custom(app.ui.form_entry_custom.trim().to_string())
-        }
+        EntryPoint::Custom(_) => EntryPoint::Custom(app.ui.form_entry_custom.trim().to_string()),
         other => other.clone(),
     };
 

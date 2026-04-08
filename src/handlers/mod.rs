@@ -28,6 +28,6 @@ pub mod project;
 pub mod ps_script;
 pub mod requirements;
 pub mod setting;
-pub mod xml;
 pub mod wsl;
+pub mod xml;
 pub mod yml;

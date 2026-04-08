@@ -26,12 +26,13 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::app::WsddApp;
-use crate::handlers::docker::{ContainerInfo, list_containers_sync};
-use crate::handlers::ps_script::{launch, ScriptRunner};
+use crate::handlers::docker::{list_containers_sync, ContainerInfo};
 use crate::handlers::log_types::LogLevel;
+use crate::handlers::ps_script::{launch, ScriptRunner};
 use crate::handlers::setting::AppTheme;
-use crate::ui::{ActiveView, MainTab};
+use crate::i18n::{tr, trf};
 use crate::ui::{containers_panel, projects_panel};
+use crate::ui::{ActiveView, MainTab};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(3);
 
@@ -53,27 +54,41 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 // ─── Menú ─────────────────────────────────────────────────────────────────────
 
 fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
+    let menu_file = tr("menu_file");
+    let menu_docker = tr("menu_docker");
+    let menu_tools = tr("menu_tools");
+    let menu_help = tr("menu_help");
+    let add_project = tr("main_add_project");
+    let exit_label = tr("menu_exit");
+    let refresh_containers = tr("menu_refresh_containers");
+    let reload_docker = tr("menu_reload_docker");
+    let clear_logs = tr("menu_clear_logs");
+    let wsl_settings = tr("menu_wsl_settings");
+    let settings = tr("menu_settings");
+    let help = tr("menu_help");
+    let about = tr("menu_about");
+
     egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
-            ui.menu_button("Archivo", |ui| {
-                if ui.button("Agregar Proyecto").clicked() {
+            ui.menu_button(menu_file, |ui| {
+                if ui.button(&add_project).clicked() {
                     app.ui.reset_add_project_form();
                     app.ui.active = ActiveView::AddProject;
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button("Salir").clicked() {
+                if ui.button(&exit_label).clicked() {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 }
             });
 
-            ui.menu_button("Docker", |ui| {
-                if ui.button("Actualizar lista de contenedores").clicked() {
+            ui.menu_button(menu_docker, |ui| {
+                if ui.button(&refresh_containers).clicked() {
                     force_poll(ctx, app);
                     ui.close_menu();
                 }
                 ui.separator();
-                if ui.button("Recargar Docker Desktop").clicked() {
+                if ui.button(&reload_docker).clicked() {
                     let tx = app.main_log_tx.clone();
                     let runner = app.runner.clone();
                     std::thread::spawn(move || {
@@ -98,29 +113,29 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                     });
                     ui.close_menu();
                 }
-                if ui.button("Limpiar logs").clicked() {
+                if ui.button(&clear_logs).clicked() {
                     app.main_log.clear();
                     ui.close_menu();
                 }
             });
 
-            ui.menu_button("Herramientas", |ui| {
-                if ui.button("Configuracion WSL").clicked() {
+            ui.menu_button(menu_tools, |ui| {
+                if ui.button(&wsl_settings).clicked() {
                     app.ui.active = ActiveView::WslSettings;
                     ui.close_menu();
                 }
-                if ui.button("Configuracion").clicked() {
+                if ui.button(&settings).clicked() {
                     app.ui.active = ActiveView::Settings;
                     ui.close_menu();
                 }
             });
 
-            ui.menu_button("Ayuda", |ui| {
-                if ui.button("Ayuda").clicked() {
+            ui.menu_button(menu_help, |ui| {
+                if ui.button(&help).clicked() {
                     app.ui.active = ActiveView::Helps;
                     ui.close_menu();
                 }
-                if ui.button("Acerca de...").clicked() {
+                if ui.button(format!("{about}...")).clicked() {
                     app.ui.active = ActiveView::About;
                     ui.close_menu();
                 }
@@ -132,6 +147,20 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
 
 fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
+    let phpmyadmin = tr("toolbar_phpmyadmin");
+    let open_phpmyadmin = tr("toolbar_open_phpmyadmin");
+    let terminal_ps = tr("toolbar_terminal_ps");
+    let terminal_ps_hint = tr("toolbar_terminal_ps_hint");
+    let terminal_cmd = tr("toolbar_terminal_cmd");
+    let terminal_cmd_hint = tr("toolbar_terminal_cmd_hint");
+    let add_project = tr("main_add_project");
+    let add_project_hint = tr("toolbar_add_project_hint");
+    let refresh = tr("btn_refresh");
+    let refresh_hint = tr("menu_refresh_containers");
+    let reload_projects_label = tr("toolbar_reload_projects");
+    let reload_projects_hint = tr("toolbar_reload_projects_hint");
+    let theme_label = format!("{}:", tr("settings_theme"));
+
     egui::TopBottomPanel::top("toolbar").show(ctx, |ui| {
         ui.add_space(3.0);
         ui.horizontal(|ui| {
@@ -139,8 +168,8 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             let h = egui::vec2(0.0, 26.0);
 
             if ui
-                .add(egui::Button::new("⬡ phpMyAdmin").min_size(h))
-                .on_hover_text("Abrir phpMyAdmin en el navegador")
+                .add(egui::Button::new(format!("⬡ {phpmyadmin}")).min_size(h))
+                .on_hover_text(&open_phpmyadmin)
                 .clicked()
             {
                 launch("cmd", &["/c", "start", "http://pma.wsdd.dock"], None);
@@ -149,13 +178,18 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(2.0);
 
             if ui
-                .add(egui::Button::new("⚡ Terminal PS").min_size(h))
-                .on_hover_text("Abrir PowerShell en el entorno WSDD")
+                .add(egui::Button::new(format!("⚡ {terminal_ps}")).min_size(h))
+                .on_hover_text(&terminal_ps_hint)
                 .clicked()
             {
                 launch(
                     "pwsh.exe",
-                    &["-NoExit", "-NoProfile", "-Command", "cd C:\\WSDD-Environment"],
+                    &[
+                        "-NoExit",
+                        "-NoProfile",
+                        "-Command",
+                        "cd C:\\WSDD-Environment",
+                    ],
                     None,
                 );
             }
@@ -163,8 +197,8 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(2.0);
 
             if ui
-                .add(egui::Button::new("⬛ Terminal CMD").min_size(h))
-                .on_hover_text("Abrir CMD")
+                .add(egui::Button::new(format!("⬛ {terminal_cmd}")).min_size(h))
+                .on_hover_text(&terminal_cmd_hint)
                 .clicked()
             {
                 launch("cmd.exe", &["/k", "cd /d C:\\WSDD-Environment"], None);
@@ -175,8 +209,8 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(4.0);
 
             if ui
-                .add(egui::Button::new("＋ Proyecto").min_size(h))
-                .on_hover_text("Agregar nuevo proyecto")
+                .add(egui::Button::new(format!("＋ {add_project}")).min_size(h))
+                .on_hover_text(&add_project_hint)
                 .clicked()
             {
                 app.ui.reset_add_project_form();
@@ -188,8 +222,8 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(4.0);
 
             if ui
-                .add(egui::Button::new("↺ Refrescar").min_size(h))
-                .on_hover_text("Actualizar lista de contenedores")
+                .add(egui::Button::new(format!("↺ {refresh}")).min_size(h))
+                .on_hover_text(&refresh_hint)
                 .clicked()
             {
                 force_poll(ctx, app);
@@ -198,8 +232,8 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(2.0);
 
             if ui
-                .add(egui::Button::new("⟳ Proyectos").min_size(h))
-                .on_hover_text("Recargar proyectos desde disco")
+                .add(egui::Button::new(format!("⟳ {reload_projects_label}")).min_size(h))
+                .on_hover_text(&reload_projects_hint)
                 .clicked()
             {
                 reload_projects(app);
@@ -220,7 +254,7 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
                 if app.settings.theme != before {
                     let _ = app.settings.save();
                 }
-                ui.label("Tema:");
+                ui.label(&theme_label);
             });
         });
         ui.add_space(3.0);
@@ -230,6 +264,10 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
 // ─── Panel de log ─────────────────────────────────────────────────────────────
 
 fn render_log_panel(ctx: &egui::Context, app: &mut WsddApp) {
+    let log_title = tr("log_title");
+    let clear_label = tr("btn_clear");
+    let copy_label = tr("btn_copy");
+
     egui::TopBottomPanel::bottom("log_panel")
         .min_height(130.0)
         .max_height(300.0)
@@ -237,14 +275,16 @@ fn render_log_panel(ctx: &egui::Context, app: &mut WsddApp) {
         .show(ctx, |ui| {
             ui.add_space(4.0);
             ui.horizontal(|ui| {
-                ui.strong("Log");
+                ui.strong(log_title);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    if ui.small_button("Limpiar").clicked() {
+                    if ui.small_button(&clear_label).clicked() {
                         app.main_log.clear();
                     }
                     ui.add_space(4.0);
-                    if ui.small_button("Copiar").clicked() {
-                        let text: String = app.main_log.iter()
+                    if ui.small_button(&copy_label).clicked() {
+                        let text: String = app
+                            .main_log
+                            .iter()
                             .map(|l| l.text.as_str())
                             .collect::<Vec<_>>()
                             .join("\n");
@@ -261,26 +301,34 @@ fn render_log_panel(ctx: &egui::Context, app: &mut WsddApp) {
                     let dark = ui.visuals().dark_mode;
                     for line in &app.main_log {
                         let color = match line.level {
-                            LogLevel::Success => if dark {
-                                egui::Color32::from_rgb(80, 200, 80)
-                            } else {
-                                egui::Color32::from_rgb(0, 130, 0)
-                            },
-                            LogLevel::Warn => if dark {
-                                egui::Color32::from_rgb(240, 180, 40)
-                            } else {
-                                egui::Color32::from_rgb(160, 80, 0)
-                            },
-                            LogLevel::Error => if dark {
-                                egui::Color32::from_rgb(220, 60, 60)
-                            } else {
-                                egui::Color32::from_rgb(180, 0, 0)
-                            },
-                            LogLevel::Info => if dark {
-                                egui::Color32::LIGHT_GRAY
-                            } else {
-                                egui::Color32::from_rgb(50, 50, 50)
-                            },
+                            LogLevel::Success => {
+                                if dark {
+                                    egui::Color32::from_rgb(80, 200, 80)
+                                } else {
+                                    egui::Color32::from_rgb(0, 130, 0)
+                                }
+                            }
+                            LogLevel::Warn => {
+                                if dark {
+                                    egui::Color32::from_rgb(240, 180, 40)
+                                } else {
+                                    egui::Color32::from_rgb(160, 80, 0)
+                                }
+                            }
+                            LogLevel::Error => {
+                                if dark {
+                                    egui::Color32::from_rgb(220, 60, 60)
+                                } else {
+                                    egui::Color32::from_rgb(180, 0, 0)
+                                }
+                            }
+                            LogLevel::Info => {
+                                if dark {
+                                    egui::Color32::LIGHT_GRAY
+                                } else {
+                                    egui::Color32::from_rgb(50, 50, 50)
+                                }
+                            }
                         };
                         ui.colored_label(color, &line.text);
                     }
@@ -295,23 +343,28 @@ fn render_confirm_dialog(ctx: &egui::Context, app: &mut WsddApp) {
         Some(n) => n,
         None => return,
     };
+    let title = tr("confirm_delete_title");
+    let body = trf("confirm_delete_body", &[("name", &name)]);
+    let irreversible = tr("confirm_delete_irreversible");
+    let delete_label = tr("main_delete");
+    let cancel_label = tr("btn_cancel");
 
     let mut open = true;
-    egui::Window::new("Confirmar eliminación")
+    egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .open(&mut open)
         .show(ctx, |ui| {
-            ui.label(format!("¿Eliminar el proyecto '{name}'?"));
-            ui.label("Esta acción no se puede deshacer.");
+            ui.label(body);
+            ui.label(irreversible);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if ui.button("Eliminar").clicked() {
+                if ui.button(delete_label).clicked() {
                     projects_panel::do_remove_project(app, &name);
                     app.ui.confirm_remove_project = None;
                 }
-                if ui.button("Cancelar").clicked() {
+                if ui.button(cancel_label).clicked() {
                     app.ui.confirm_remove_project = None;
                 }
             });
@@ -325,12 +378,19 @@ fn render_confirm_dialog(ctx: &egui::Context, app: &mut WsddApp) {
 // ─── Panel central — tabs ─────────────────────────────────────────────────────
 
 fn render_center(ctx: &egui::Context, app: &mut WsddApp) {
+    let containers = tr("main_containers");
+    let projects = tr("main_projects");
+
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.horizontal(|ui| {
-            if tab_button(ui, "Contenedores", app.ui.active_main_tab == MainTab::Containers) {
+            if tab_button(
+                ui,
+                &containers,
+                app.ui.active_main_tab == MainTab::Containers,
+            ) {
                 app.ui.active_main_tab = MainTab::Containers;
             }
-            if tab_button(ui, "Proyectos", app.ui.active_main_tab == MainTab::Projects) {
+            if tab_button(ui, &projects, app.ui.active_main_tab == MainTab::Projects) {
                 app.ui.active_main_tab = MainTab::Projects;
                 reload_projects(app);
             }
@@ -411,9 +471,11 @@ fn reload_projects(app: &mut WsddApp) {
     match crate::handlers::project::list_all() {
         Ok(list) => app.projects = list,
         Err(e) => {
-            let _ = app.main_log_tx.send(crate::handlers::log_types::LogLine::error(format!(
-                "[Proyectos] Error al cargar: {e}"
-            )));
+            let _ = app
+                .main_log_tx
+                .send(crate::handlers::log_types::LogLine::error(format!(
+                    "[Proyectos] Error al cargar: {e}"
+                )));
         }
     }
 }

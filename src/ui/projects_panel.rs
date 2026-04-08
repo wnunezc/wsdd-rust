@@ -19,13 +19,14 @@
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::LogLine;
+use crate::i18n::tr;
 use crate::models::project::Project;
 use crate::ui::ActiveView;
 
 /// Renderiza la tabla de proyectos.
 pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     if app.projects.is_empty() {
-        ui.label("No hay proyectos. Usa Archivo → Agregar Proyecto para crear uno.");
+        ui.label(tr("projects_empty"));
         return;
     }
 
@@ -37,19 +38,26 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         Toolbox(String),
     }
     let mut pending: Option<PendingAction> = None;
+    let col_name = tr("col_name");
+    let col_domain = tr("col_domain");
+    let col_php = tr("col_php");
+    let col_ssl = tr("col_ssl");
+    let col_deploy = tr("col_deploy");
+    let col_remove = tr("col_remove");
+    let col_toolbox = tr("col_toolbox");
 
     egui::Grid::new("projects_grid")
         .num_columns(7)
         .striped(true)
         .min_col_width(90.0)
         .show(ui, |ui| {
-            ui.strong("Nombre");
-            ui.strong("Dominio");
-            ui.strong("PHP");
-            ui.strong("SSL");
-            ui.strong("Deploy");
-            ui.strong("Remove");
-            ui.strong("Toolbox");
+            ui.strong(col_name);
+            ui.strong(col_domain);
+            ui.strong(col_php);
+            ui.strong(col_ssl);
+            ui.strong(col_deploy.clone());
+            ui.strong(col_remove.clone());
+            ui.strong(col_toolbox.clone());
             ui.end_row();
 
             for p in &projects {
@@ -58,13 +66,13 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
                 ui.label(p.php_version.display_name());
                 ui.label(if p.ssl { "✓" } else { "—" });
 
-                if ui.button("Deploy").clicked() && pending.is_none() {
+                if ui.button(&col_deploy).clicked() && pending.is_none() {
                     pending = Some(PendingAction::Deploy(p.clone()));
                 }
-                if ui.button("Remove").clicked() && pending.is_none() {
+                if ui.button(&col_remove).clicked() && pending.is_none() {
                     pending = Some(PendingAction::Remove(p.name.clone()));
                 }
-                if ui.button("Toolbox").clicked() && pending.is_none() {
+                if ui.button(&col_toolbox).clicked() && pending.is_none() {
                     pending = Some(PendingAction::Toolbox(p.name.clone()));
                 }
 

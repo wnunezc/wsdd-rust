@@ -157,8 +157,7 @@ impl Default for WslConfig {
 // ── Ruta ─────────────────────────────────────────────────────────────────────
 
 fn wslconfig_path() -> PathBuf {
-    let profile =
-        std::env::var("USERPROFILE").unwrap_or_else(|_| r"C:\Users\Default".to_string());
+    let profile = std::env::var("USERPROFILE").unwrap_or_else(|_| r"C:\Users\Default".to_string());
     PathBuf::from(profile).join(".wslconfig")
 }
 
@@ -265,7 +264,10 @@ fn serialize(config: &WslConfig) -> String {
         bool_str(config.gui_applications)
     ));
     if config.memory_reclaim != MemoryReclaim::Disabled {
-        lines.push(format!("memoryReclaimFile={}", config.memory_reclaim.as_str()));
+        lines.push(format!(
+            "memoryReclaimFile={}",
+            config.memory_reclaim.as_str()
+        ));
     }
     lines.push(format!(
         "networkingMode={}",
@@ -280,5 +282,9 @@ fn serialize(config: &WslConfig) -> String {
 }
 
 fn bool_str(b: bool) -> &'static str {
-    if b { "true" } else { "false" }
+    if b {
+        "true"
+    } else {
+        "false"
+    }
 }

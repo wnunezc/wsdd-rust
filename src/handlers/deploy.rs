@@ -229,10 +229,7 @@ fn step_rebuild_php_container(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
-    let container_name = format!(
-        "WSDD-Web-Server-{}",
-        project.php_version.container_tag()
-    );
+    let container_name = format!("WSDD-Web-Server-{}", project.php_version.container_tag());
     let php_dir_name = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
 
@@ -336,18 +333,16 @@ fn step_update_vhost(project: &Project, tx: &LogSender) -> Result<(), InfraError
 }
 
 /// Genera el certificado SSL con mkcert y reinicia el proxy.
-fn step_setup_ssl(
-    project: &Project,
-    runner: &PsRunner,
-    tx: &LogSender,
-) -> Result<(), InfraError> {
+fn step_setup_ssl(project: &Project, runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
     std::fs::create_dir_all(SSL_DIR).map_err(InfraError::Io)?;
 
     let cert_file = format!("{}\\{}.crt", SSL_DIR, project.domain);
     let key_file = format!("{}\\{}.key", SSL_DIR, project.domain);
     let wildcard = format!("*.{}", project.domain);
 
-    let _ = tx.send(LogLine::info("[Deploy] Generando certificado SSL (mkcert)..."));
+    let _ = tx.send(LogLine::info(
+        "[Deploy] Generando certificado SSL (mkcert)...",
+    ));
     runner.run_ps_sync(
         &format!(
             "mkcert -cert-file \"{cert_file}\" -key-file \"{key_file}\" \"{domain}\" \"{wildcard}\"",
@@ -398,11 +393,7 @@ fn step_remove_options_yml(project: &Project, tx: &LogSender) {
 }
 
 fn step_remove_volume(project: &Project, runner: &PsRunner, tx: &LogSender) {
-    let volume_name = format!(
-        "{}-{}",
-        project.php_version.compose_tag(),
-        project.domain
-    );
+    let volume_name = format!("{}-{}", project.php_version.compose_tag(), project.domain);
     let _ = tx.send(LogLine::info(format!(
         "[Remove] Eliminando volumen '{}'...",
         volume_name
@@ -415,9 +406,7 @@ fn step_remove_volume(project: &Project, runner: &PsRunner, tx: &LogSender) {
             )));
         }
         Err(e) => {
-            let _ = tx.send(LogLine::warn(format!(
-                "[Remove] Advertencia volumen: {e}"
-            )));
+            let _ = tx.send(LogLine::warn(format!("[Remove] Advertencia volumen: {e}")));
         }
     }
 }

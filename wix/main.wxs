@@ -47,6 +47,36 @@
                             Source='wix\License.rtf'
                             KeyPath='yes'/>
                     </Component>
+                    <Component Id='LicenseTxt' Guid='*'>
+                        <File Id='LicenseTxtFile'
+                            Name='LICENSE.txt'
+                            DiskId='1'
+                            Source='recursos\recursos\COPYRIGHT\LICENSE.txt'/>
+                    </Component>
+                    <Component Id='LicenseTxtEs' Guid='*'>
+                        <File Id='LicenseTxtEsFile'
+                            Name='LICENSE.es.txt'
+                            DiskId='1'
+                            Source='recursos\recursos\COPYRIGHT\LICENSE.es.txt'/>
+                    </Component>
+                    <Component Id='LicenseTxtFr' Guid='*'>
+                        <File Id='LicenseTxtFrFile'
+                            Name='LICENSE.fr.txt'
+                            DiskId='1'
+                            Source='recursos\recursos\COPYRIGHT\LICENSE.fr.txt'/>
+                    </Component>
+                    <Component Id='LicenseTxtHi' Guid='*'>
+                        <File Id='LicenseTxtHiFile'
+                            Name='LICENSE.hi.txt'
+                            DiskId='1'
+                            Source='recursos\recursos\COPYRIGHT\LICENSE.hi.txt'/>
+                    </Component>
+                    <Component Id='LicenseTxtZh' Guid='*'>
+                        <File Id='LicenseTxtZhFile'
+                            Name='LICENSE.zh.txt'
+                            DiskId='1'
+                            Source='recursos\recursos\COPYRIGHT\LICENSE.zh.txt'/>
+                    </Component>
 
                     <Directory Id='Bin' Name='bin'>
                         <Component Id='binary0' Guid='*'>
@@ -80,13 +110,18 @@
         <Feature
             Id='Binaries'
             Title='Application'
-            Description='Installs WSDD and the license.'
+            Description='Installs WSDD and the license files.'
             Level='1'
             ConfigurableDirectory='APPLICATIONFOLDER'
             AllowAdvertise='no'
             Display='expand'
             Absent='disallow'>
             <ComponentRef Id='License'/>
+            <ComponentRef Id='LicenseTxt'/>
+            <ComponentRef Id='LicenseTxtEs'/>
+            <ComponentRef Id='LicenseTxtFr'/>
+            <ComponentRef Id='LicenseTxtHi'/>
+            <ComponentRef Id='LicenseTxtZh'/>
             <ComponentRef Id='binary0'/>
             <ComponentRef Id='ApplicationShortcut'/>
         </Feature>

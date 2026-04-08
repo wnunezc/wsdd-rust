@@ -16,6 +16,7 @@
 //! Equivalente a `Forms/Helps.cs` — con manual completo, secciones colapsables y buscador.
 
 use crate::app::WsddApp;
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 // ── Estructura del manual ──────────────────────────────────────────────────────
@@ -475,12 +476,18 @@ Logs de WSDD:
 // ── Render ────────────────────────────────────────────────────────────────────
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
+    let close_label = format!("  {}  ", tr("btn_close"));
+    let search_label = tr("help_search");
+    let search_hint = tr("help_search_hint");
+    let sections_found = tr("help_sections_found");
+    let no_results = tr("help_no_results");
+
     egui::CentralPanel::default().show(ctx, |ui| {
         // ── Cabecera ──────────────────────────────────────────────────────
         ui.horizontal(|ui| {
-            ui.heading("Manual de usuario — WSDD");
+            ui.heading(format!("{} — WSDD", tr("help_title")));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("  Cerrar  ").clicked() {
+                if ui.button(&close_label).clicked() {
                     app.ui.active = ActiveView::Main;
                     app.ui.helps_search.clear();
                 }
@@ -489,11 +496,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
         // ── Buscador ──────────────────────────────────────────────────────
         ui.horizontal(|ui| {
-            ui.label("Buscar:");
+            ui.label(&search_label);
             let search_field = ui.add(
                 egui::TextEdit::singleline(&mut app.ui.helps_search)
                     .desired_width(280.0)
-                    .hint_text("Escribe para filtrar secciones..."),
+                    .hint_text(&search_hint),
             );
             if ui.button("✗").clicked() {
                 app.ui.helps_search.clear();
@@ -522,7 +529,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 ui.visuals().weak_text_color()
             };
             ui.label(
-                egui::RichText::new(format!("{matches} secciones encontradas"))
+                egui::RichText::new(format!("{matches} {sections_found}"))
                     .size(11.0)
                     .color(color),
             );
@@ -539,10 +546,9 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                         continue;
                     }
 
-                    let header = egui::CollapsingHeader::new(
-                        egui::RichText::new(section.title).strong(),
-                    )
-                    .default_open(is_filtering); // auto-expandir si hay busqueda activa
+                    let header =
+                        egui::CollapsingHeader::new(egui::RichText::new(section.title).strong())
+                            .default_open(is_filtering); // auto-expandir si hay busqueda activa
 
                     header.show(ui, |ui| {
                         render_section_content(ui, section.content, &query, is_filtering);
@@ -552,14 +558,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
 
                 // Mensaje si no hay resultados
-                if is_filtering
-                    && !SECTIONS.iter().any(|s| section_matches(s, &query))
-                {
+                if is_filtering && !SECTIONS.iter().any(|s| section_matches(s, &query)) {
                     ui.add_space(20.0);
                     ui.vertical_centered(|ui| {
                         ui.label(
-                            egui::RichText::new("Sin resultados para esta busqueda.")
-                                .color(ui.visuals().weak_text_color()),
+                            egui::RichText::new(&no_results).color(ui.visuals().weak_text_color()),
                         );
                     });
                 }
@@ -573,8 +576,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
 /// Retorna true si el titulo o el contenido de la seccion contienen el query.
 fn section_matches(section: &Section, query: &str) -> bool {
-    section.title.to_lowercase().contains(query)
-        || section.content.to_lowercase().contains(query)
+    section.title.to_lowercase().contains(query) || section.content.to_lowercase().contains(query)
 }
 
 /// Renderiza el contenido de una seccion, resaltando los terminos buscados.

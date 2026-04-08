@@ -21,3 +21,8 @@ recursos/recursos.zip
 # OS
 Thumbs.db
 .DS_Store
+
+# Internal docs — not for GitHub
+CLAUDE.md
+MIGRATION.md
+.github/project-status/MIGRATION.md

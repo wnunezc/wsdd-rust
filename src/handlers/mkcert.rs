@@ -37,9 +37,7 @@ pub fn is_installed() -> bool {
     cmd.arg("--version");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    cmd.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 // ─── Instalación y certificados ───────────────────────────────────────────────
@@ -96,7 +94,9 @@ pub fn process_requirements(tx: &LogSender) -> bool {
         return true;
     }
 
-    let _ = tx.send(LogLine::warn("mkcert no encontrado. Instalando via Chocolatey..."));
+    let _ = tx.send(LogLine::warn(
+        "mkcert no encontrado. Instalando via Chocolatey...",
+    ));
 
     let runner = PsRunner::new();
     match runner.run_ps_sync("choco install mkcert -y", None, None) {

@@ -27,10 +27,14 @@ use std::path::Path;
 
 use crate::handlers::ps_script::WSDD_ENV;
 
-static PS_SCRIPT_ZIP: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/recursos/ps-script.zip"));
-static DOCKER_STRUCTURE_ZIP: &[u8] =
-    include_bytes!(concat!(env!("CARGO_MANIFEST_DIR"), "/recursos/docker-structure.zip"));
+static PS_SCRIPT_ZIP: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/ps-script.zip"
+));
+static DOCKER_STRUCTURE_ZIP: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/docker-structure.zip"
+));
 
 /// Inicializa el entorno WSDD extrayendo recursos si no existen.
 pub fn init() -> Result<()> {

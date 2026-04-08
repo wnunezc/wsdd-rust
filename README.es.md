@@ -3,7 +3,7 @@
 Aplicacion de escritorio Windows que automatiza la configuracion de un entorno de desarrollo web
 local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y gestion de hosts.
 
-*[Read in English](README.md)*
+*Idiomas: [English](README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
 ## Requisitos del sistema
 
@@ -76,7 +76,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0-rc.1 (Rust edition)
+- **Version**: 1.0.0-rc.2 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`
@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## Licencia
 
-Propietaria — ver `LICENSE.txt` para detalles.
+Propietaria — ver `LICENSE.es.txt` para detalles.
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

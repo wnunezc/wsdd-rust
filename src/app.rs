@@ -73,6 +73,7 @@ impl WsddApp {
         Self::setup_fonts(&cc.egui_ctx);
 
         let settings = AppSettings::load().unwrap_or_default();
+        crate::i18n::set_language(settings.language);
         let first_run = !settings.setup_completed;
 
         // Primera vez: Welcome → Loader
@@ -119,10 +120,8 @@ impl WsddApp {
     /// Noto Sans Symbols 2 cubre los rangos ausentes en Inter/JetBrains:
     /// flechas (→ ↺ ⟳), dingbats (✓ ✗), símbolos misc (⚡ ⬛ ⚙), etc.
     fn setup_fonts(ctx: &egui::Context) {
-        const JETBRAINS_MONO: &[u8] =
-            include_bytes!("../assets/JetBrainsMono-Regular.ttf");
-        const NOTO_SYMBOLS: &[u8] =
-            include_bytes!("../assets/NotoSansSymbols2-Regular.ttf");
+        const JETBRAINS_MONO: &[u8] = include_bytes!("../assets/JetBrainsMono-Regular.ttf");
+        const NOTO_SYMBOLS: &[u8] = include_bytes!("../assets/NotoSansSymbols2-Regular.ttf");
 
         let mut fonts = egui::FontDefinitions::default();
 
@@ -134,22 +133,36 @@ impl WsddApp {
             "noto_symbols".to_owned(),
             egui::FontData::from_static(NOTO_SYMBOLS),
         );
+        add_windows_font_if_exists(&mut fonts, "windows_cjk", r"C:\Windows\Fonts\msyh.ttc", 0);
+        add_windows_font_if_exists(
+            &mut fonts,
+            "windows_indic",
+            r"C:\Windows\Fonts\Nirmala.ttc",
+            0,
+        );
 
         // Monospace: JetBrains Mono primero, Noto Symbols como fallback
-        fonts.families
+        fonts
+            .families
             .entry(egui::FontFamily::Monospace)
             .or_default()
             .insert(0, "jetbrains_mono".to_owned());
-        fonts.families
+        fonts
+            .families
             .entry(egui::FontFamily::Monospace)
             .or_default()
             .push("noto_symbols".to_owned());
+        push_if_present(&mut fonts, egui::FontFamily::Monospace, "windows_cjk");
+        push_if_present(&mut fonts, egui::FontFamily::Monospace, "windows_indic");
 
         // Proportional: Inter sigue primero (default egui), Noto Symbols cubre huecos
-        fonts.families
+        fonts
+            .families
             .entry(egui::FontFamily::Proportional)
             .or_default()
             .push("noto_symbols".to_owned());
+        push_if_present(&mut fonts, egui::FontFamily::Proportional, "windows_cjk");
+        push_if_present(&mut fonts, egui::FontFamily::Proportional, "windows_indic");
 
         ctx.set_fonts(fonts);
     }
@@ -159,7 +172,9 @@ impl WsddApp {
         // Log principal — sobreescritura in-place por key (igual que loader)
         while let Ok(line) = self.main_log_rx.try_recv() {
             if let Some(ref key) = line.key.clone() {
-                if let Some(existing) = self.main_log.iter_mut()
+                if let Some(existing) = self
+                    .main_log
+                    .iter_mut()
                     .find(|l| l.key.as_deref() == Some(key.as_str()))
                 {
                     *existing = line;
@@ -167,7 +182,10 @@ impl WsddApp {
                     self.main_log.push(line);
                 }
             } else {
-                let is_dup = self.main_log.last().is_some_and(|last| last.text == line.text);
+                let is_dup = self
+                    .main_log
+                    .last()
+                    .is_some_and(|last| last.text == line.text);
                 if !is_dup {
                     self.main_log.push(line);
                 }
@@ -196,5 +214,33 @@ impl eframe::App for WsddApp {
         crate::ui::theme::apply(ctx, self.settings.theme);
         self.drain_channels();
         crate::ui::render(ctx, self);
+    }
+}
+
+fn add_windows_font_if_exists(
+    fonts: &mut egui::FontDefinitions,
+    name: &str,
+    path: &str,
+    index: u32,
+) {
+    if let Ok(bytes) = std::fs::read(path) {
+        fonts.font_data.insert(
+            name.to_owned(),
+            egui::FontData {
+                font: bytes.into(),
+                index,
+                tweak: Default::default(),
+            },
+        );
+    }
+}
+
+fn push_if_present(fonts: &mut egui::FontDefinitions, family: egui::FontFamily, name: &str) {
+    if fonts.font_data.contains_key(name) {
+        fonts
+            .families
+            .entry(family)
+            .or_default()
+            .push(name.to_owned());
     }
 }

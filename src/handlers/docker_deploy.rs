@@ -91,19 +91,27 @@ pub fn process_requirements_sync(runner: &PsRunner, tx: &LogSender) -> DockerReq
         .unwrap_or(false);
 
     if configured && running {
-        let _ = tx.send(LogLine::success("✓ Docker Desktop está configurado y en ejecución"));
+        let _ = tx.send(LogLine::success(
+            "✓ Docker Desktop está configurado y en ejecución",
+        ));
         return DockerRequirementOutcome::Ready;
     }
 
     // ── 3a. Settings correctos pero Docker no corre → solo iniciar ────────
     if configured {
-        let _ = tx.send(LogLine::warn("Docker Desktop no está en ejecución — iniciando..."));
+        let _ = tx.send(LogLine::warn(
+            "Docker Desktop no está en ejecución — iniciando...",
+        ));
         return run_script_outcome(runner, tx, "dd-start.ps1", "iniciar");
     }
 
     // ── 3b. Settings no aplicados → configurar y reiniciar ────────────────
-    let _ = tx.send(LogLine::warn("Aplicando configuración de Docker Desktop..."));
-    let _ = tx.send(LogLine::info("  (Docker se reiniciará — puede tardar hasta 2 minutos)"));
+    let _ = tx.send(LogLine::warn(
+        "Aplicando configuración de Docker Desktop...",
+    ));
+    let _ = tx.send(LogLine::info(
+        "  (Docker se reiniciará — puede tardar hasta 2 minutos)",
+    ));
     run_script_outcome(runner, tx, "dd-setting.ps1", "configurar")
 }
 
@@ -189,7 +197,9 @@ pub fn fix_mysql_permissions_sync(
 /// - `"Machine"` → HKLM: variable disponible para todos los usuarios y procesos de sistema.
 ///   Ambos son necesarios — no son duplicados.
 fn set_docker_host_env_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
-    let _ = tx.send(LogLine::info("Configurando DOCKER_HOST=tcp://localhost:2375..."));
+    let _ = tx.send(LogLine::info(
+        "Configurando DOCKER_HOST=tcp://localhost:2375...",
+    ));
     let cmds = [
         r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "User")"#,
         r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "Machine")"#,
@@ -197,7 +207,9 @@ fn set_docker_host_env_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), Inf
     for cmd in cmds {
         runner.run_ps_sync(cmd, None, None)?;
     }
-    let _ = tx.send(LogLine::success("✓ DOCKER_HOST configurado (User + Machine)"));
+    let _ = tx.send(LogLine::success(
+        "✓ DOCKER_HOST configurado (User + Machine)",
+    ));
     Ok(())
 }
 
@@ -331,7 +343,9 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
         Some(docker_dir),
         Some(&bridge),
     )?;
-    let _ = tx.send(LogLine::success("✓ Imágenes construidas y contenedores creados"));
+    let _ = tx.send(LogLine::success(
+        "✓ Imágenes construidas y contenedores creados",
+    ));
 
     // Paso 2: esperar 15s
     let _ = tx.send(LogLine::info(
@@ -341,7 +355,9 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
 
     // Paso 3: verificar
     if !check_base_containers_sync(runner)? {
-        let _ = tx.send(LogLine::error("✗ Los contenedores no se crearon correctamente"));
+        let _ = tx.send(LogLine::error(
+            "✗ Los contenedores no se crearon correctamente",
+        ));
         return Err(InfraError::UnexpectedOutput(
             "docker-compose create --build".to_string(),
             "contenedores no encontrados tras la creación".to_string(),
@@ -364,7 +380,9 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
     ));
     std::thread::sleep(std::time::Duration::from_secs(15));
 
-    let _ = tx.send(LogLine::success("✓ Contenedores WSDD desplegados correctamente"));
+    let _ = tx.send(LogLine::success(
+        "✓ Contenedores WSDD desplegados correctamente",
+    ));
     Ok(())
 }
 
@@ -395,7 +413,9 @@ fn show_running_containers_sync(runner: &PsRunner, tx: &LogSender) {
             }
         }
         Err(e) => {
-            let _ = tx.send(LogLine::warn(format!("No se pudo listar contenedores: {e}")));
+            let _ = tx.send(LogLine::warn(format!(
+                "No se pudo listar contenedores: {e}"
+            )));
         }
     }
 }
@@ -507,7 +527,11 @@ fn layer_status_category(status: &str) -> &str {
 /// Escribe una línea de cabecera con timestamp en el log de deploy.
 fn write_deploy_log_header(label: &str) {
     let log_path = deploy_log_path();
-    if let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(&log_path) {
+    if let Ok(mut f) = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&log_path)
+    {
         let secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -515,4 +539,3 @@ fn write_deploy_log_header(label: &str) {
         let _ = writeln!(f, "\n=== {label} [t={secs}] ===");
     }
 }
-

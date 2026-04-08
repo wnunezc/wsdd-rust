@@ -15,10 +15,10 @@
 // Equivalente a Handlers/HandlerHosts.cs
 // Modifica C:\Windows\System32\drivers\etc\hosts (requiere admin)
 
-use anyhow::{Context, Result};
-use std::fs;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
+use anyhow::{Context, Result};
+use std::fs;
 
 const HOSTS_PATH: &str = r"C:\Windows\System32\drivers\etc\hosts";
 const WSDD_MARKER_START: &str = "# WSDD Developer Area Docker";
@@ -132,7 +132,9 @@ pub fn update_host(extra_domains: Option<&[&str]>, tx: &LogSender) -> Result<()>
 
     write_hosts_file(updated.as_bytes(), Some(tx))?;
 
-    let _ = tx.send(LogLine::success("✓ Archivo hosts actualizado correctamente"));
+    let _ = tx.send(LogLine::success(
+        "✓ Archivo hosts actualizado correctamente",
+    ));
     for d in &domains {
         let _ = tx.send(LogLine::info(format!("  → http://{d}")));
     }
@@ -152,7 +154,9 @@ fn write_hosts_file(content: &[u8], tx: Option<&LogSender>) -> Result<()> {
         match fs::read(HOSTS_PATH) {
             Ok(actual) if actual == content => return Ok(()),
             Ok(_) => {
-                tracing::warn!("write_hosts: write() OK pero read-back no coincide — AV revirtió el archivo");
+                tracing::warn!(
+                    "write_hosts: write() OK pero read-back no coincide — AV revirtió el archivo"
+                );
             }
             Err(e) => {
                 tracing::warn!("write_hosts: write() OK pero read-back falló: {e}");
@@ -261,7 +265,9 @@ fn emit_mandatory_warnings(tx: &LogSender, exe_path: &str, av_names: &[&str]) {
     let _ = tx.send(LogLine::warn(
         "────────────────────────────────────────────────────────────",
     ));
-    let _ = tx.send(LogLine::warn("TAREA 1 — Agregar wsdd.exe a las excepciones del antivirus:"));
+    let _ = tx.send(LogLine::warn(
+        "TAREA 1 — Agregar wsdd.exe a las excepciones del antivirus:",
+    ));
     let _ = tx.send(LogLine::info(format!("  Ruta del ejecutable: {exe_path}")));
     let _ = tx.send(LogLine::info(""));
 
@@ -344,7 +350,10 @@ fn av_specific_steps(av_name: &str) -> Vec<&'static str> {
             "4. También agrega exclusión en 'Escudo avanzado de amenazas' si está activo",
             "5. Guarda y vuelve a abrir WSDD",
         ]
-    } else if lower.contains("defender") || lower.contains("microsoft") || lower.contains("windows security") {
+    } else if lower.contains("defender")
+        || lower.contains("microsoft")
+        || lower.contains("windows security")
+    {
         vec![
             "1. Abre Windows Security → Protección contra virus y amenazas",
             "2. Ve a 'Configuración de protección contra virus y amenazas'",
@@ -393,7 +402,9 @@ fn detect_installed_av() -> Vec<String> {
 /// obtener la información o si el token no está elevado.
 #[cfg(windows)]
 fn is_elevated() -> bool {
-    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     unsafe {

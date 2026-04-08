@@ -37,9 +37,7 @@ pub fn is_installed() -> bool {
     cmd.arg("--version");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.output()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
+    cmd.output().map(|o| o.status.success()).unwrap_or(false)
 }
 
 // ─── Instalación ──────────────────────────────────────────────────────────────
@@ -92,12 +90,16 @@ pub fn process_requirements(tx: &LogSender) -> bool {
                 let _ = tx.send(LogLine::success("✓ Chocolatey instalado correctamente"));
                 true
             } else {
-                let _ = tx.send(LogLine::error("✗ Chocolatey no responde tras la instalación"));
+                let _ = tx.send(LogLine::error(
+                    "✗ Chocolatey no responde tras la instalación",
+                ));
                 false
             }
         }
         Err(e) => {
-            let _ = tx.send(LogLine::error(format!("✗ Error instalando Chocolatey: {e}")));
+            let _ = tx.send(LogLine::error(format!(
+                "✗ Error instalando Chocolatey: {e}"
+            )));
             false
         }
     }

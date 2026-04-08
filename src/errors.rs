@@ -47,7 +47,9 @@ use thiserror::Error;
 #[derive(Debug, Error, PartialEq)]
 pub enum DomainError {
     /// La cadena no corresponde a ninguna versión PHP soportada por WSDD.
-    #[error("Versión PHP inválida: '{0}'. Versiones soportadas: 5.6, 7.2, 7.4, 8.1, 8.2, 8.3, 8.4")]
+    #[error(
+        "Versión PHP inválida: '{0}'. Versiones soportadas: 5.6, 7.2, 7.4, 8.1, 8.2, 8.3, 8.4"
+    )]
     InvalidPhpVersion(String),
 
     /// El dominio ingresado contiene caracteres no válidos o está vacío.

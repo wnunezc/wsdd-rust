@@ -33,7 +33,8 @@ use egui::{Color32, Frame, Layout, Margin, RichText, ScrollArea};
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::{LogLevel, LogLine};
-use crate::handlers::requirements::{LoaderOutcome, run_requirements};
+use crate::handlers::requirements::{run_requirements, LoaderOutcome};
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 // ─── Punto de entrada ─────────────────────────────────────────────────────────
@@ -92,7 +93,9 @@ fn drain_log(app: &mut WsddApp) {
                 // Actualización in-place: reemplazar la línea con la misma key
                 // si ya existe, o añadirla al final si es nueva.
                 // Usado para el progreso por capa de Docker (una línea por hash).
-                if let Some(existing) = app.ui.requirement_log
+                if let Some(existing) = app
+                    .ui
+                    .requirement_log
                     .iter_mut()
                     .find(|l| l.key.as_deref() == Some(key.as_str()))
                 {
@@ -133,6 +136,8 @@ fn render_silent_loader(ctx: &egui::Context) {
     let dots: String = ".".repeat(dot_count);
     // Padding fijo para que el texto no se desplace al cambiar la longitud
     let pad: String = " ".repeat(3usize.saturating_sub(dot_count));
+    let app_name = tr("app_name");
+    let checking = tr("loader_verifying_environment");
 
     egui::CentralPanel::default().show(ctx, |ui| {
         let avail_h = ui.available_height();
@@ -142,17 +147,12 @@ fn render_silent_loader(ctx: &egui::Context) {
         ui.vertical_centered(|ui| {
             ui.add_space(top_space);
 
-            ui.label(
-                RichText::new("WSDD")
-                    .size(104.0)
-                    .strong()
-                    .monospace(),
-            );
+            ui.label(RichText::new("WSDD").size(104.0).strong().monospace());
 
             ui.add_space(4.0);
 
             ui.label(
-                RichText::new("WebStack Deployer for Docker")
+                RichText::new(app_name)
                     .size(24.0)
                     .color(Color32::from_gray(140)),
             );
@@ -164,7 +164,7 @@ fn render_silent_loader(ctx: &egui::Context) {
             ui.add_space(14.0);
 
             ui.label(
-                RichText::new(format!("Verificando entorno{dots}{pad}"))
+                RichText::new(format!("{checking}{dots}{pad}"))
                     .size(24.0)
                     .color(Color32::from_gray(160))
                     .monospace(),
@@ -176,17 +176,17 @@ fn render_silent_loader(ctx: &egui::Context) {
 // ─── Renderizado completo ─────────────────────────────────────────────────────
 
 fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
+    let title = tr("loader_system_requirements");
+    let processing = tr("loader_processing");
+    let copy_label = tr("loader_copy_log");
+
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.vertical(|ui| {
             // Cabecera
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
-                ui.heading(
-                    RichText::new("Verificando requisitos del sistema")
-                        .size(20.0)
-                        .strong(),
-                );
+                ui.heading(RichText::new(&title).size(20.0).strong());
             });
             ui.add_space(6.0);
             ui.separator();
@@ -223,7 +223,7 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
                                 ui.horizontal(|ui| {
                                     ui.spinner();
                                     ui.label(
-                                        RichText::new(" Procesando...")
+                                        RichText::new(format!(" {processing}"))
                                             .color(Color32::GRAY)
                                             .monospace(),
                                     );
@@ -239,8 +239,11 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
                 ui.horizontal(|ui| {
                     ui.add_space(8.0);
                     // Botón Copiar — izquierda
-                    if ui.small_button("Copiar log").clicked() {
-                        let text: String = app.ui.requirement_log.iter()
+                    if ui.small_button(&copy_label).clicked() {
+                        let text: String = app
+                            .ui
+                            .requirement_log
+                            .iter()
                             .map(|l| l.text.as_str())
                             .collect::<Vec<_>>()
                             .join("\n");
@@ -265,17 +268,23 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
 fn render_buttons(ui: &mut egui::Ui, app: &mut WsddApp) {
     if app.loader_error {
         // Error bloqueante — Docker no instalado
-        if ui.button("  Salir  ").clicked() {
+        if ui.button(format!("  {}  ", tr("menu_exit"))).clicked() {
             std::process::exit(0);
         }
     } else if app.loader_needs_reboot {
         // Reinicio necesario tras instalar Docker
-        if ui.button("  Reiniciar sistema  ").clicked() {
+        if ui
+            .button(format!("  {}  ", tr("loader_restart_system")))
+            .clicked()
+        {
             relaunch_app();
         }
     } else {
         // Éxito — primer arranque muestra el botón (silent ya transitó antes)
-        if ui.button("  Abrir WSDD  ").clicked() {
+        if ui
+            .button(format!("  {}  ", tr("loader_open_wsdd")))
+            .clicked()
+        {
             app.ui.active = ActiveView::Main;
         }
     }
@@ -286,17 +295,17 @@ fn render_buttons(ui: &mut egui::Ui, app: &mut WsddApp) {
 fn level_color(level: &LogLevel, dark: bool) -> Color32 {
     if dark {
         match level {
-            LogLevel::Info    => Color32::from_rgb(200, 200, 200),
+            LogLevel::Info => Color32::from_rgb(200, 200, 200),
             LogLevel::Success => Color32::from_rgb(100, 220, 100),
-            LogLevel::Warn    => Color32::from_rgb(255, 200, 0),
-            LogLevel::Error   => Color32::from_rgb(255, 80, 80),
+            LogLevel::Warn => Color32::from_rgb(255, 200, 0),
+            LogLevel::Error => Color32::from_rgb(255, 80, 80),
         }
     } else {
         match level {
-            LogLevel::Info    => Color32::from_rgb(50, 50, 50),
+            LogLevel::Info => Color32::from_rgb(50, 50, 50),
             LogLevel::Success => Color32::from_rgb(0, 130, 0),
-            LogLevel::Warn    => Color32::from_rgb(160, 80, 0),
-            LogLevel::Error   => Color32::from_rgb(180, 0, 0),
+            LogLevel::Warn => Color32::from_rgb(160, 80, 0),
+            LogLevel::Error => Color32::from_rgb(180, 0, 0),
         }
     }
 }

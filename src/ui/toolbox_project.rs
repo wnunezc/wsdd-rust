@@ -20,6 +20,7 @@
 
 use crate::app::WsddApp;
 use crate::handlers::ps_script::launch;
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 /// Renderiza el panel de herramientas del proyecto.
@@ -40,11 +41,16 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         }
     };
 
-    let title = format!("Herramientas — {}", project.name);
+    let title = format!("{} — {}", tr("col_toolbox"), project.name);
     let url = if project.ssl {
         format!("https://{}", project.domain)
     } else {
         format!("http://{}", project.domain)
+    };
+    let entry_point = if project.entry_point.as_path().is_empty() {
+        tr("info_root")
+    } else {
+        project.entry_point.as_path().to_string()
     };
 
     let mut open = true;
@@ -55,15 +61,27 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         .min_width(360.0)
         .open(&mut open)
         .show(ctx, |ui| {
+            let actions = tr("toolbox_actions");
+            let project_info = tr("toolbox_project_info");
+            let open_folder = tr("main_open_folder");
+            let open_browser = tr("main_open_browser");
+            let close_label = tr("btn_close");
+            let info_name = format!("{}:", tr("col_name"));
+            let info_domain = format!("{}:", tr("col_domain"));
+            let info_php = format!("{}:", tr("col_php"));
+            let info_work_path = format!("{}:", tr("info_work_path"));
+            let info_entry_point = format!("{}:", tr("info_entry_point"));
+            let info_ssl = format!("{}:", tr("col_ssl"));
+
             ui.add_space(4.0);
 
             // ── Acciones rápidas ──────────────────────────────────────────
-            ui.strong("Acciones");
+            ui.strong(actions);
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
                 if ui
-                    .button("📁 Abrir carpeta")
+                    .button(format!("📁 {open_folder}"))
                     .on_hover_text(&project.work_path)
                     .clicked()
                 {
@@ -71,7 +89,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
 
                 if ui
-                    .button("🌐 Abrir en navegador")
+                    .button(format!("🌐 {open_browser}"))
                     .on_hover_text(&url)
                     .clicked()
                 {
@@ -83,45 +101,45 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.separator();
 
             // ── Info del proyecto ─────────────────────────────────────────
-            ui.strong("Información del proyecto");
+            ui.strong(project_info);
             ui.add_space(4.0);
 
             egui::Grid::new("toolbox_project_info")
                 .num_columns(2)
                 .spacing([12.0, 6.0])
                 .show(ui, |ui| {
-                    ui.label("Nombre:");
+                    ui.label(&info_name);
                     ui.label(&project.name);
                     ui.end_row();
 
-                    ui.label("Dominio:");
+                    ui.label(&info_domain);
                     ui.label(&project.domain);
                     ui.end_row();
 
-                    ui.label("PHP:");
+                    ui.label(&info_php);
                     ui.label(project.php_version.display_name());
                     ui.end_row();
 
-                    ui.label("Work Path:");
+                    ui.label(&info_work_path);
                     ui.label(&project.work_path);
                     ui.end_row();
 
-                    ui.label("Entry Point:");
-                    ui.label(if project.entry_point.as_path().is_empty() {
-                        "Raíz"
-                    } else {
-                        project.entry_point.as_path()
-                    });
+                    ui.label(&info_entry_point);
+                    ui.label(&entry_point);
                     ui.end_row();
 
-                    ui.label("SSL:");
-                    ui.label(if project.ssl { "Sí" } else { "No" });
+                    ui.label(&info_ssl);
+                    ui.label(if project.ssl {
+                        tr("btn_yes")
+                    } else {
+                        tr("btn_no")
+                    });
                     ui.end_row();
                 });
 
             ui.add_space(12.0);
 
-            if ui.button("Cerrar").clicked() {
+            if ui.button(close_label).clicked() {
                 app.ui.toolbox_project_name = None;
                 app.ui.active = ActiveView::Main;
             }

@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
 use crate::errors::InfraError;
+use crate::i18n::Language;
 
 const CONFIG_FILE: &str = r"C:\WSDD-Environment\wsdd-config.json";
 
@@ -47,7 +48,12 @@ impl AppTheme {
     }
 
     pub fn all() -> &'static [Self] {
-        &[Self::NeutralDark, Self::BlueTint, Self::WarmDark, Self::Light]
+        &[
+            Self::NeutralDark,
+            Self::BlueTint,
+            Self::WarmDark,
+            Self::Light,
+        ]
     }
 }
 
@@ -68,6 +74,9 @@ fn default_php_timezone() -> String {
 fn default_webmin_version() -> String {
     "2.021".to_string()
 }
+fn default_language() -> Language {
+    Language::default()
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -78,6 +87,9 @@ pub struct AppSettings {
     pub projects_path: String,
     pub wsl_distro: Option<String>,
     pub selected_monitor: i32,
+    /// Idioma activo de la UI. Default: English.
+    #[serde(default = "default_language")]
+    pub language: Language,
     /// Tema de color activo. Default: NeutralDark.
     #[serde(default)]
     pub theme: AppTheme,
@@ -118,6 +130,7 @@ impl Default for AppSettings {
             projects_path: r"C:\WSDD-Projects".to_string(),
             wsl_distro: None,
             selected_monitor: 0,
+            language: default_language(),
             theme: AppTheme::default(),
             log_max_lines: default_log_max_lines(),
             php_memory_limit: default_php_memory_limit(),

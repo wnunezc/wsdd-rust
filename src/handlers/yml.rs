@@ -111,7 +111,10 @@ pub fn add_project_to_options_yml(
 
     // ── 4. Declaración global de volumes ──────────────────────────────────
     // Buscar `volumes:` al nivel raíz (sin indentación)
-    if let Some(global_idx) = lines.iter().position(|l| l.trim() == "volumes:" && !l.starts_with(' ')) {
+    if let Some(global_idx) = lines
+        .iter()
+        .position(|l| l.trim() == "volumes:" && !l.starts_with(' '))
+    {
         // La sección ya existe — insertar al final de sus entradas
         let mut insert_at = global_idx + 1;
         while insert_at < lines.len()
@@ -158,9 +161,20 @@ pub fn remove_project_from_options_yml(
     }
 
     // ── 2. VIRTUAL_HOST — eliminar project_ref de la lista ────────────────
-    if let Some(idx) = lines.iter().position(|l| l.trim_start().starts_with("VIRTUAL_HOST:")) {
-        let indent: String = lines[idx].chars().take_while(|c| c.is_whitespace()).collect();
-        let hosts_str = lines[idx].split_once(':').map(|x| x.1).unwrap_or("").trim().to_string();
+    if let Some(idx) = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with("VIRTUAL_HOST:"))
+    {
+        let indent: String = lines[idx]
+            .chars()
+            .take_while(|c| c.is_whitespace())
+            .collect();
+        let hosts_str = lines[idx]
+            .split_once(':')
+            .map(|x| x.1)
+            .unwrap_or("")
+            .trim()
+            .to_string();
         let updated: Vec<&str> = hosts_str
             .split(',')
             .map(|h| h.trim())
@@ -196,9 +210,7 @@ pub fn remove_project_from_options_yml(
 /// // → r"C:\WSDD-Environment\Docker-Structure\bin\php8.3\options.php83.yml"
 /// ```
 pub fn options_path(php_dir_name: &str, compose_tag: &str) -> String {
-    format!(
-        r"C:\WSDD-Environment\Docker-Structure\bin\{php_dir_name}\options.{compose_tag}.yml"
-    )
+    format!(r"C:\WSDD-Environment\Docker-Structure\bin\{php_dir_name}\options.{compose_tag}.yml")
 }
 
 // ─── Helpers privados ─────────────────────────────────────────────────────────
@@ -239,16 +251,17 @@ services:
         let path = dir.join("test_options.yml");
         std::fs::write(&path, sample_yml()).unwrap();
 
-        add_project_to_options_yml(
-            path.to_str().unwrap(),
-            "myapp.dock",
-            "php83",
-        )
-        .unwrap();
+        add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
 
         let content = std::fs::read_to_string(&path).unwrap();
-        assert!(content.contains("myapp.dock"), "VIRTUAL_HOST debe incluir myapp.dock");
-        assert!(content.contains("php83-myapp.dock:/var/www/html/myapp.dock"), "volume mount");
+        assert!(
+            content.contains("myapp.dock"),
+            "VIRTUAL_HOST debe incluir myapp.dock"
+        );
+        assert!(
+            content.contains("php83-myapp.dock:/var/www/html/myapp.dock"),
+            "volume mount"
+        );
         assert!(content.contains("volumes:"), "sección global volumes");
         assert!(content.contains("external: true"), "volume externo");
     }
@@ -265,7 +278,10 @@ services:
         add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
         let after_second = std::fs::read_to_string(&path).unwrap();
 
-        assert_eq!(after_first, after_second, "segunda llamada no debe cambiar nada");
+        assert_eq!(
+            after_first, after_second,
+            "segunda llamada no debe cambiar nada"
+        );
     }
 
     #[test]
@@ -278,7 +294,13 @@ services:
         remove_project_from_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
 
         let content = std::fs::read_to_string(&path).unwrap();
-        assert!(!content.contains("myapp.dock"), "no debe quedar rastro del proyecto");
-        assert!(!content.contains("php83-myapp.dock"), "volume mount eliminado");
+        assert!(
+            !content.contains("myapp.dock"),
+            "no debe quedar rastro del proyecto"
+        );
+        assert!(
+            !content.contains("php83-myapp.dock"),
+            "volume mount eliminado"
+        );
     }
 }

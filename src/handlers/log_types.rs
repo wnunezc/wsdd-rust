@@ -54,19 +54,35 @@ pub struct LogLine {
 
 impl LogLine {
     pub fn info(text: impl Into<String>) -> Self {
-        Self { text: text.into(), level: LogLevel::Info, key: None }
+        Self {
+            text: text.into(),
+            level: LogLevel::Info,
+            key: None,
+        }
     }
 
     pub fn success(text: impl Into<String>) -> Self {
-        Self { text: text.into(), level: LogLevel::Success, key: None }
+        Self {
+            text: text.into(),
+            level: LogLevel::Success,
+            key: None,
+        }
     }
 
     pub fn warn(text: impl Into<String>) -> Self {
-        Self { text: text.into(), level: LogLevel::Warn, key: None }
+        Self {
+            text: text.into(),
+            level: LogLevel::Warn,
+            key: None,
+        }
     }
 
     pub fn error(text: impl Into<String>) -> Self {
-        Self { text: text.into(), level: LogLevel::Error, key: None }
+        Self {
+            text: text.into(),
+            level: LogLevel::Error,
+            key: None,
+        }
     }
 
     /// Asigna una key para actualizaciones in-place.

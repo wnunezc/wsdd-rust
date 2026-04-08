@@ -18,14 +18,17 @@
 //! Equivalente a la sección de contenedores en `Forms/Main.cs`.
 
 use crate::app::WsddApp;
-use crate::handlers::docker::{ContainerInfo, restart_container_sync, start_container_sync, stop_container_sync};
+use crate::handlers::docker::{
+    restart_container_sync, start_container_sync, stop_container_sync, ContainerInfo,
+};
 use crate::handlers::log_types::LogLine;
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 /// Renderiza la tabla de contenedores.
 pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     if app.containers.is_empty() {
-        ui.label("No hay contenedores WSDD detectados.");
+        ui.label(tr("containers_empty"));
         return;
     }
 
@@ -36,18 +39,27 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         Toolbox(String),
     }
     let mut pending: Option<PendingAction> = None;
+    let col_name = tr("col_name");
+    let col_status = tr("col_status");
+    let col_start = tr("main_start");
+    let col_stop = tr("main_stop");
+    let col_restart = tr("main_restart");
+    let col_toolbox = tr("col_toolbox");
+    let start_label = format!("▶ {}", tr("main_start"));
+    let stop_label = format!("■ {}", tr("main_stop"));
+    let restart_label = format!("↺ {}", tr("main_restart"));
 
     egui::Grid::new("containers_grid")
         .num_columns(6)
         .striped(true)
         .min_col_width(110.0)
         .show(ui, |ui| {
-            ui.strong("Nombre");
-            ui.strong("Estado");
-            ui.strong("Start");
-            ui.strong("Stop");
-            ui.strong("Restart");
-            ui.strong("Toolbox");
+            ui.strong(col_name);
+            ui.strong(col_status);
+            ui.strong(col_start);
+            ui.strong(col_stop);
+            ui.strong(col_restart);
+            ui.strong(col_toolbox.clone());
             ui.end_row();
 
             for c in &containers {
@@ -61,21 +73,21 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
                     ui.colored_label(egui::Color32::from_rgb(200, 80, 80), &c.status);
                 }
 
-                let start_btn = ui.add_enabled(!running, egui::Button::new("▶ Start"));
+                let start_btn = ui.add_enabled(!running, egui::Button::new(&start_label));
                 if start_btn.clicked() && pending.is_none() {
                     pending = Some(PendingAction::ContainerOp("start", c.name.clone()));
                 }
 
-                let stop_btn = ui.add_enabled(running, egui::Button::new("■ Stop"));
+                let stop_btn = ui.add_enabled(running, egui::Button::new(&stop_label));
                 if stop_btn.clicked() && pending.is_none() {
                     pending = Some(PendingAction::ContainerOp("stop", c.name.clone()));
                 }
 
-                if ui.button("↺ Restart").clicked() && pending.is_none() {
+                if ui.button(&restart_label).clicked() && pending.is_none() {
                     pending = Some(PendingAction::ContainerOp("restart", c.name.clone()));
                 }
 
-                if ui.button("Toolbox").clicked() && pending.is_none() {
+                if ui.button(&col_toolbox).clicked() && pending.is_none() {
                     pending = Some(PendingAction::Toolbox(c.name.clone()));
                 }
 

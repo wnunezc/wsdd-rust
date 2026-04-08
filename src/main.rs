@@ -7,6 +7,7 @@
 mod app;
 mod errors;
 mod handlers;
+mod i18n;
 mod models;
 mod resources;
 mod ui;
@@ -29,6 +30,10 @@ fn main() -> Result<()> {
     handlers::requirements::ensure_admin()?;
 
     resources::init()?;
+
+    // Initialize i18n with user's language preference (or default)
+    let settings = handlers::setting::AppSettings::load().unwrap_or_default();
+    i18n::init(settings.language);
 
     #[cfg(windows)]
     let title = "WebStack Deployer for Docker  ◈ Administrador";
@@ -58,7 +63,11 @@ fn load_icon() -> egui::IconData {
         Ok(img) => {
             let rgba = img.into_rgba8();
             let (width, height) = rgba.dimensions();
-            egui::IconData { rgba: rgba.into_raw(), width, height }
+            egui::IconData {
+                rgba: rgba.into_raw(),
+                width,
+                height,
+            }
         }
         Err(e) => {
             tracing::warn!("No se pudo cargar el icono: {e}");

@@ -18,9 +18,7 @@ use std::process::Command;
 
 /// Abre una URL en el navegador por defecto.
 pub fn open_url(url: &str) -> Result<()> {
-    Command::new("cmd")
-        .args(["/c", "start", url])
-        .spawn()?;
+    Command::new("cmd").args(["/c", "start", url]).spawn()?;
     Ok(())
 }
 

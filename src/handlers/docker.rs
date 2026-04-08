@@ -30,7 +30,7 @@
 //! ```
 
 use crate::errors::InfraError;
-use crate::handlers::ps_script::{OutputSender, ProcOutput, PsRunner, ScriptRunner, run_docker};
+use crate::handlers::ps_script::{run_docker, OutputSender, ProcOutput, PsRunner, ScriptRunner};
 
 /// Nombre de la red Docker compartida entre todos los contenedores WSDD.
 pub const WSDD_NETWORK: &str = "wsdd-network";
@@ -93,11 +93,10 @@ pub async fn probe_configured(runner: &PsRunner) -> Result<bool, InfraError> {
 /// [`InfraError::ScriptFailed`] si PowerShell no puede ejecutarse.
 pub async fn probe_running(runner: &PsRunner) -> Result<bool, InfraError> {
     let runner = runner.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        runner.run_script_sync("dd-isrunning.ps1", None, None)
-    })
-    .await
-    .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))??;
+    let result =
+        tokio::task::spawn_blocking(move || runner.run_script_sync("dd-isrunning.ps1", None, None))
+            .await
+            .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))??;
 
     Ok(result.contains("Running"))
 }
@@ -116,10 +115,7 @@ pub async fn probe_running(runner: &PsRunner) -> Result<bool, InfraError> {
 /// # Errors
 /// [`InfraError::ScriptFailed`] si PowerShell falla.
 /// [`InfraError::UnexpectedOutput`] si Docker no arrancó correctamente.
-pub async fn apply_settings(
-    runner: &PsRunner,
-    tx: Option<OutputSender>,
-) -> Result<(), InfraError> {
+pub async fn apply_settings(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
     let runner = runner.clone();
     let result = tokio::task::spawn_blocking(move || {
         runner.run_script_sync("dd-setting.ps1", None, tx.as_ref())
@@ -145,12 +141,10 @@ pub async fn apply_settings(
 /// [`InfraError::ScriptFailed`] si el script falla.
 pub async fn start(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
     let runner = runner.clone();
-    tokio::task::spawn_blocking(move || {
-        runner.run_script_sync("dd-start.ps1", None, tx.as_ref())
-    })
-    .await
-    .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
-    .map(|_| ())
+    tokio::task::spawn_blocking(move || runner.run_script_sync("dd-start.ps1", None, tx.as_ref()))
+        .await
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
+        .map(|_| ())
 }
 
 /// Detiene Docker Desktop y todos sus procesos.
@@ -161,12 +155,10 @@ pub async fn start(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), In
 /// [`InfraError::ScriptFailed`] si el script falla.
 pub async fn stop(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
     let runner = runner.clone();
-    tokio::task::spawn_blocking(move || {
-        runner.run_script_sync("dd-stop.ps1", None, tx.as_ref())
-    })
-    .await
-    .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
-    .map(|_| ())
+    tokio::task::spawn_blocking(move || runner.run_script_sync("dd-stop.ps1", None, tx.as_ref()))
+        .await
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
+        .map(|_| ())
 }
 
 /// Apaga WSL completamente (`wsl --shutdown`).
@@ -272,11 +264,9 @@ pub async fn ensure_network(
     }
     let cmd = format!("docker network create --driver bridge {WSDD_NETWORK}");
     let runner = runner.clone();
-    let result = tokio::task::spawn_blocking(move || {
-        runner.run_ps_sync(&cmd, None, tx.as_ref())
-    })
-    .await
-    .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))??;
+    let result = tokio::task::spawn_blocking(move || runner.run_ps_sync(&cmd, None, tx.as_ref()))
+        .await
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))??;
 
     // Verificar que se creó correctamente
     network_exists().await.inspect(|&exists| {
@@ -347,9 +337,7 @@ pub async fn set_docker_host_env(runner: &PsRunner) -> Result<(), InfraError> {
         let r = runner_ref.clone();
         tokio::task::spawn_blocking(move || r.run_ps_sync(&cmd, None, None))
             .await
-            .map_err(|e| {
-                InfraError::Io(std::io::Error::other(e.to_string()))
-            })??;
+            .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))??;
     }
     Ok(())
 }

@@ -21,6 +21,7 @@ use crate::app::WsddApp;
 use crate::handlers::docker::restart_container_sync;
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::{launch, launch_shell_window};
+use crate::i18n::tr;
 use crate::ui::ActiveView;
 
 /// Renderiza el panel de herramientas del contenedor.
@@ -39,39 +40,50 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let mut spawn_restart = false;
     let mut open = true;
 
-    egui::Window::new(format!("Herramientas — {}", name))
+    egui::Window::new(format!("{} — {}", tr("col_toolbox"), name))
         .collapsible(false)
         .resizable(false)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .min_width(360.0)
         .open(&mut open)
         .show(ctx, |ui| {
+            let operations = tr("toolbox_operations");
+            let urls_title = tr("toolbox_urls");
+            let status_title = tr("col_status");
+            let close_label = tr("btn_close");
+            let restart_label = tr("main_restart");
+            let logs_label = tr("main_view_logs");
+            let name_label = format!("{}:", tr("col_name"));
+            let image_label = format!("{}:", tr("col_image"));
+            let status_label = format!("{}:", tr("col_status"));
+            let ports_label = format!("{}:", tr("col_ports"));
+
             ui.add_space(4.0);
 
             // ── Acciones del contenedor ───────────────────────────────────
-            ui.strong("Operaciones");
+            ui.strong(operations);
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
                 if ui
-                    .button("⬛ TTY")
-                    .on_hover_text("Abrir sesión interactiva en el contenedor")
+                    .button(format!("⬛ {}", tr("toolbox_tty")))
+                    .on_hover_text(tr("toolbox_tty_hint"))
                     .clicked()
                 {
                     launch_shell_window(&format!("docker exec -it {name} sh"));
                 }
 
                 if ui
-                    .button("↺ Reiniciar")
-                    .on_hover_text("Reiniciar el contenedor")
+                    .button(format!("↺ {restart_label}"))
+                    .on_hover_text(&restart_label)
                     .clicked()
                 {
                     spawn_restart = true;
                 }
 
                 if ui
-                    .button("📋 Logs")
-                    .on_hover_text("Seguir logs del contenedor en tiempo real")
+                    .button(format!("📋 {logs_label}"))
+                    .on_hover_text(tr("toolbox_logs_hint"))
                     .clicked()
                 {
                     launch_shell_window(&format!("docker logs {name} -f"));
@@ -83,7 +95,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 if !c.urls.is_empty() {
                     ui.add_space(12.0);
                     ui.separator();
-                    ui.strong("URLs");
+                    ui.strong(urls_title);
                     ui.add_space(4.0);
 
                     for url in &c.urls {
@@ -101,21 +113,21 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 // Estado
                 ui.add_space(12.0);
                 ui.separator();
-                ui.strong("Estado");
+                ui.strong(status_title);
                 ui.add_space(4.0);
                 egui::Grid::new("toolbox_container_info")
                     .num_columns(2)
                     .spacing([12.0, 6.0])
                     .show(ui, |ui| {
-                        ui.label("Nombre:");
+                        ui.label(&name_label);
                         ui.label(&c.name);
                         ui.end_row();
 
-                        ui.label("Imagen:");
+                        ui.label(&image_label);
                         ui.label(&c.image);
                         ui.end_row();
 
-                        ui.label("Estado:");
+                        ui.label(&status_label);
                         if c.is_running() {
                             ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &c.status);
                         } else {
@@ -124,7 +136,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                         ui.end_row();
 
                         if !c.ports.is_empty() {
-                            ui.label("Puertos:");
+                            ui.label(&ports_label);
                             ui.label(&c.ports);
                             ui.end_row();
                         }
@@ -133,7 +145,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
             ui.add_space(12.0);
 
-            if ui.button("Cerrar").clicked() {
+            if ui.button(close_label).clicked() {
                 app.ui.toolbox_container_name = None;
                 app.ui.active = ActiveView::Main;
             }

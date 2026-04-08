@@ -98,7 +98,9 @@ pub fn run_requirements(
     let _ = tx_log_separator(&log_tx);
     let _ = log_tx.send(LogLine::info("Inicializando entorno Docker..."));
     if let Err(e) = docker_deploy::deploy_environment_sync(&runner, &log_tx) {
-        let _ = log_tx.send(LogLine::error(format!("✗ Error al inicializar entorno: {e}")));
+        let _ = log_tx.send(LogLine::error(format!(
+            "✗ Error al inicializar entorno: {e}"
+        )));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
@@ -106,7 +108,9 @@ pub fn run_requirements(
     // ── 5. Hosts ──────────────────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
     if let Err(e) = hosts::update_host(None, &log_tx) {
-        let _ = log_tx.send(LogLine::error(format!("✗ Error al actualizar archivo hosts: {e:#}")));
+        let _ = log_tx.send(LogLine::error(format!(
+            "✗ Error al actualizar archivo hosts: {e:#}"
+        )));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
@@ -132,17 +136,20 @@ pub fn run_requirements(
 }
 
 fn tx_log_separator(tx: &LogSender) -> Result<(), mpsc::SendError<LogLine>> {
-    tx.send(LogLine::info("─────────────────────────────────────────────"))
+    tx.send(LogLine::info(
+        "─────────────────────────────────────────────",
+    ))
 }
 
 // ─── Admin / UAC ──────────────────────────────────────────────────────────────
-
 
 /// Verifica que la aplicacion se ejecuta con privilegios de administrador.
 /// Si no, relanza el proceso elevado (UAC).
 #[cfg(windows)]
 pub fn ensure_admin() -> Result<()> {
-    use windows::Win32::Security::{GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY};
+    use windows::Win32::Security::{
+        GetTokenInformation, TokenElevation, TOKEN_ELEVATION, TOKEN_QUERY,
+    };
     use windows::Win32::System::Threading::{GetCurrentProcess, OpenProcessToken};
 
     let elevated = unsafe {
@@ -172,9 +179,9 @@ pub fn ensure_admin() -> Result<()> {
 fn relaunch_as_admin() -> Result<()> {
     use std::ffi::OsStr;
     use std::os::windows::ffi::OsStrExt;
+    use windows::core::PCWSTR;
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
-    use windows::core::PCWSTR;
 
     let exe = std::env::current_exe()?;
     let exe_wide: Vec<u16> = OsStr::new(exe.as_os_str())

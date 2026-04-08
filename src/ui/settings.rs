@@ -19,6 +19,7 @@
 //! Los cambios se descartan si el usuario cancela.
 
 use crate::app::WsddApp;
+use crate::i18n::{self, tr, Language};
 use crate::ui::ActiveView;
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
@@ -29,20 +30,37 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
     let mut save = false;
     let mut cancel = false;
+    let title = format!("⚙ {}", tr("settings_title"));
+    let cancel_label = format!("  {}  ", tr("btn_cancel"));
+    let save_label = format!("  {}  ", tr("btn_save"));
+    let general_title = tr("settings_general");
+    let php_title = tr("settings_php");
+    let tools_title = tr("settings_tools_section");
+    let projects_path_label = format!("{}:", tr("settings_projects_path"));
+    let language_label = format!("{}:", tr("settings_language"));
+    let docker_path_label = format!("{}:", tr("settings_docker_path"));
+    let wsl_distro_label = format!("{}:", tr("settings_wsl_distro"));
+    let log_lines_label = format!("{}:", tr("settings_log_lines"));
+    let auto_start_label = format!("{}:", tr("settings_auto_start"));
+    let php_note = tr("settings_apply_new_php_note");
+    let php_memory_label = format!("{}:", tr("settings_php_memory"));
+    let php_upload_label = format!("{}:", tr("settings_php_upload"));
+    let php_timezone_label = format!("{}:", tr("settings_php_timezone"));
+    let webmin_version_label = format!("{}:", tr("settings_webmin_version"));
 
     egui::CentralPanel::default().show(ctx, |ui| {
         let draft = app.ui.settings_draft.as_mut().unwrap();
 
         // ── Cabecera ──────────────────────────────────────────────────────
         ui.horizontal(|ui| {
-            ui.heading("⚙ Configuracion");
+            ui.heading(&title);
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("  Cancelar  ").clicked() {
+                if ui.button(&cancel_label).clicked() {
                     cancel = true;
                 }
                 ui.add_space(4.0);
                 if ui
-                    .add(egui::Button::new("  Guardar  ").fill(egui::Color32::from_rgb(34, 139, 34)))
+                    .add(egui::Button::new(&save_label).fill(egui::Color32::from_rgb(34, 139, 34)))
                     .clicked()
                 {
                     save = true;
@@ -54,7 +72,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
         egui::ScrollArea::vertical().show(ui, |ui| {
             // ── General ───────────────────────────────────────────────────
-            egui::CollapsingHeader::new(egui::RichText::new("General").strong())
+            egui::CollapsingHeader::new(egui::RichText::new(&general_title).strong())
                 .default_open(true)
                 .show(ui, |ui| {
                     egui::Grid::new("settings_general")
@@ -62,7 +80,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                         .spacing([12.0, 8.0])
                         .min_col_width(180.0)
                         .show(ui, |ui| {
-                            ui.label("Ruta de proyectos:");
+                            ui.label(&projects_path_label);
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.projects_path)
                                     .desired_width(300.0)
@@ -70,7 +88,22 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("Docker Desktop (path):");
+                            ui.label(&language_label);
+                            egui::ComboBox::from_id_salt("settings_language")
+                                .selected_text(draft.language.native_name())
+                                .width(180.0)
+                                .show_ui(ui, |ui| {
+                                    for &language in Language::all() {
+                                        ui.selectable_value(
+                                            &mut draft.language,
+                                            language,
+                                            language.native_name(),
+                                        );
+                                    }
+                                });
+                            ui.end_row();
+
+                            ui.label(&docker_path_label);
                             let docker_val =
                                 draft.docker_path.get_or_insert_with(String::new);
                             ui.add(
@@ -82,7 +115,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("WSL Distro:");
+                            ui.label(&wsl_distro_label);
                             let distro_val =
                                 draft.wsl_distro.get_or_insert_with(String::new);
                             ui.add(
@@ -92,7 +125,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("Max lineas en log:");
+                            ui.label(&log_lines_label);
                             ui.add(
                                 egui::DragValue::new(&mut draft.log_max_lines)
                                     .range(100..=10000)
@@ -100,8 +133,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("Auto-iniciar contenedores:");
-                            ui.checkbox(&mut draft.auto_start_containers, "Al arrancar WSDD");
+                            ui.label(&auto_start_label);
+                            ui.checkbox(&mut draft.auto_start_containers, "");
                             ui.end_row();
                         });
                 });
@@ -109,14 +142,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(8.0);
 
             // ── PHP ───────────────────────────────────────────────────────
-            egui::CollapsingHeader::new(egui::RichText::new("PHP — contenedores Docker").strong())
+            egui::CollapsingHeader::new(egui::RichText::new(&php_title).strong())
                 .default_open(true)
                 .show(ui, |ui| {
                     ui.label(
-                        egui::RichText::new(
-                            "Estos valores se aplican al generar nuevos contenedores PHP. \
-                             No afectan contenedores existentes.",
-                        )
+                        egui::RichText::new(&php_note)
                         .size(11.0)
                         .color(ui.visuals().weak_text_color()),
                     );
@@ -127,7 +157,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                         .spacing([12.0, 8.0])
                         .min_col_width(180.0)
                         .show(ui, |ui| {
-                            ui.label("memory_limit:");
+                            ui.label(&php_memory_label);
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.php_memory_limit)
                                     .desired_width(100.0)
@@ -135,7 +165,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("upload_max_filesize / post_max_size:");
+                            ui.label(&php_upload_label);
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.php_upload_max_filesize)
                                     .desired_width(100.0)
@@ -143,7 +173,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             );
                             ui.end_row();
 
-                            ui.label("Timezone:");
+                            ui.label(&php_timezone_label);
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.php_timezone)
                                     .desired_width(200.0)
@@ -157,7 +187,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
             // ── Herramientas ──────────────────────────────────────────────
             egui::CollapsingHeader::new(
-                egui::RichText::new("Herramientas integradas").strong(),
+                egui::RichText::new(&tools_title).strong(),
             )
             .default_open(true)
             .show(ui, |ui| {
@@ -166,7 +196,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     .spacing([12.0, 8.0])
                     .min_col_width(180.0)
                     .show(ui, |ui| {
-                        ui.label("Version de Webmin:");
+                        ui.label(&webmin_version_label);
                         ui.horizontal(|ui| {
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.webmin_version)
@@ -174,7 +204,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                                     .hint_text("2.021"),
                             );
                             ui.label(
-                                egui::RichText::new("(Dockerfiles PHP)")
+                                egui::RichText::new("(PHP Dockerfiles)")
                                     .size(11.0)
                                     .color(ui.visuals().weak_text_color()),
                             );
@@ -190,6 +220,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     // ── Aplicar accion fuera del closure ─────────────────────────────────────
     if save {
         if let Some(mut draft) = app.ui.settings_draft.take() {
+            let selected_language = draft.language;
             // Normalizar strings vacíos a None en campos opcionales
             if draft.docker_path.as_deref() == Some("") {
                 draft.docker_path = None;
@@ -198,6 +229,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 draft.wsl_distro = None;
             }
             app.settings = draft;
+            i18n::set_language(selected_language);
             if let Err(e) = app.settings.save() {
                 tracing::error!("Error guardando configuracion: {e}");
             }

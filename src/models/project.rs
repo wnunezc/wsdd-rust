@@ -149,7 +149,6 @@ impl fmt::Display for PhpVersion {
     }
 }
 
-
 // ─── EntryPoint ───────────────────────────────────────────────────────────────
 
 /// Punto de entrada del servidor web del proyecto.
@@ -250,7 +249,12 @@ pub struct Project {
 
 impl Project {
     /// Crea un proyecto normalizando el dominio (agrega `.dock` automáticamente).
-    pub fn new(name: String, domain_input: &str, php_version: PhpVersion, work_path: String) -> Self {
+    pub fn new(
+        name: String,
+        domain_input: &str,
+        php_version: PhpVersion,
+        work_path: String,
+    ) -> Self {
         let domain = normalize_domain(domain_input);
         Self {
             name,

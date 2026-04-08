@@ -21,23 +21,46 @@
 //   4. Salir → termina el proceso
 
 use crate::app::WsddApp;
+use crate::i18n::{tr, Language};
 use crate::ui::ActiveView;
 use egui_commonmark::CommonMarkViewer;
 
-static README: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"));
+static README_EN: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.md"));
+static README_ES: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.es.md"));
+static README_FR: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.fr.md"));
+static README_HI: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.hi.md"));
+static README_ZH: &str = include_str!(concat!(env!("CARGO_MANIFEST_DIR"), "/README.zh.md"));
+
+fn readme_for(language: Language) -> &'static str {
+    match language {
+        Language::En => README_EN,
+        Language::Es => README_ES,
+        Language::Fr => README_FR,
+        Language::Hi => README_HI,
+        Language::Zh => README_ZH,
+    }
+}
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
+    let readme = readme_for(app.settings.language);
+    let app_name = tr("app_name");
+    let subtitle = tr("welcome_subtitle");
+    let checkbox = tr("welcome_checkbox_accept");
+    let exit_label = format!("  {}  ", tr("menu_exit"));
+    let continue_label = format!("  {}  ", tr("btn_continue"));
+
     egui::CentralPanel::default().show(ctx, |ui| {
         ui.vertical(|ui| {
             // ── Cabecera ──────────────────────────────────────────────────────
             ui.add_space(16.0);
             ui.horizontal(|ui| {
                 ui.add_space(8.0);
-                ui.heading(
-                    egui::RichText::new("WebStack Deployer for Docker")
-                        .size(22.0)
-                        .strong(),
-                );
+                ui.heading(egui::RichText::new(app_name).size(22.0).strong());
+            });
+            ui.add_space(4.0);
+            ui.horizontal(|ui| {
+                ui.add_space(8.0);
+                ui.label(egui::RichText::new(subtitle).color(ui.visuals().weak_text_color()));
             });
             ui.add_space(6.0);
             ui.separator();
@@ -53,7 +76,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 .auto_shrink([false, false])
                 .show(ui, |ui| {
                     ui.add_space(4.0);
-                    CommonMarkViewer::new().show(ui, &mut app.ui.md_cache, README);
+                    CommonMarkViewer::new().show(ui, &mut app.ui.md_cache, readme);
                     ui.add_space(8.0);
                 });
 
@@ -65,26 +88,21 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 ui.add_space(8.0);
 
                 // Checkbox — habilita el botón Comenzar
-                ui.checkbox(
-                    &mut app.ui.readme_checked,
-                    "He leído las instrucciones y entiendo los requisitos",
-                );
+                ui.checkbox(&mut app.ui.readme_checked, checkbox);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.add_space(8.0);
 
                     // Botón Salir — siempre habilitado
-                    if ui.button("  Salir  ").clicked() {
+                    if ui.button(&exit_label).clicked() {
                         std::process::exit(0);
                     }
 
                     ui.add_space(8.0);
 
                     // Botón Comenzar — solo si checkbox marcado
-                    let comenzar = ui.add_enabled(
-                        app.ui.readme_checked,
-                        egui::Button::new("  Comenzar configuración  "),
-                    );
+                    let comenzar =
+                        ui.add_enabled(app.ui.readme_checked, egui::Button::new(&continue_label));
                     if comenzar.clicked() {
                         app.settings.setup_completed = true;
                         app.ui.active = ActiveView::Loader;

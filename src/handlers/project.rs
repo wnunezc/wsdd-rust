@@ -72,7 +72,9 @@ pub fn list_all() -> Result<Vec<Project>, InfraError> {
         }
         match load_from_file(&path) {
             Ok(p) => projects.push(p),
-            Err(e) => tracing::warn!(file = %path.display(), error = %e, "no se pudo cargar proyecto"),
+            Err(e) => {
+                tracing::warn!(file = %path.display(), error = %e, "no se pudo cargar proyecto")
+            }
         }
     }
 
@@ -108,8 +110,7 @@ fn project_path(name: &str) -> PathBuf {
 
 fn load_from_file(path: &Path) -> Result<Project, InfraError> {
     let content = std::fs::read_to_string(path).map_err(InfraError::Io)?;
-    serde_json::from_str(&content)
-        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
+    serde_json::from_str(&content).map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -148,7 +149,8 @@ mod tests {
             let json = serde_json::to_string_pretty(&p).unwrap();
             std::fs::write(&path, json).unwrap();
 
-            let loaded: Project = serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            let loaded: Project =
+                serde_json::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
             assert_eq!(loaded.name, "testapp");
             assert_eq!(loaded.domain, "testapp.dock");
             assert_eq!(loaded.php_version, PhpVersion::Php83);

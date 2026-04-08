@@ -44,45 +44,45 @@ fn build(theme: AppTheme) -> Visuals {
 fn neutral_dark() -> Visuals {
     let mut v = Visuals::dark();
 
-    v.panel_fill         = Color32::from_rgb(26, 26, 26);
-    v.window_fill        = Color32::from_rgb(30, 30, 30);
-    v.faint_bg_color     = Color32::from_rgb(35, 35, 35);
-    v.extreme_bg_color   = Color32::from_rgb(18, 18, 18);
-    v.hyperlink_color    = Color32::from_rgb(74, 159, 222);
-    v.warn_fg_color      = Color32::from_rgb(255, 200, 87);
-    v.error_fg_color     = Color32::from_rgb(255, 85, 85);
-    v.window_stroke      = Stroke::new(1.0, Color32::from_rgb(55, 55, 55));
-    v.window_rounding    = Rounding::same(6.0);
+    v.panel_fill = Color32::from_rgb(26, 26, 26);
+    v.window_fill = Color32::from_rgb(30, 30, 30);
+    v.faint_bg_color = Color32::from_rgb(35, 35, 35);
+    v.extreme_bg_color = Color32::from_rgb(18, 18, 18);
+    v.hyperlink_color = Color32::from_rgb(74, 159, 222);
+    v.warn_fg_color = Color32::from_rgb(255, 200, 87);
+    v.error_fg_color = Color32::from_rgb(255, 85, 85);
+    v.window_stroke = Stroke::new(1.0, Color32::from_rgb(55, 55, 55));
+    v.window_rounding = Rounding::same(6.0);
 
     // Widget inactivo (estado base de botones, inputs, etc.)
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(220, 220, 220));
-    v.widgets.noninteractive.bg_fill   = Color32::from_rgb(26, 26, 26);
+    v.widgets.noninteractive.bg_fill = Color32::from_rgb(26, 26, 26);
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(55, 55, 55));
 
-    v.widgets.inactive.fg_stroke  = Stroke::new(1.0, Color32::WHITE);
-    v.widgets.inactive.bg_fill    = Color32::from_rgb(42, 42, 42);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    v.widgets.inactive.bg_fill = Color32::from_rgb(42, 42, 42);
     v.widgets.inactive.weak_bg_fill = Color32::from_rgb(42, 42, 42);
-    v.widgets.inactive.bg_stroke  = Stroke::new(1.0, Color32::from_rgb(68, 68, 68));
-    v.widgets.inactive.rounding   = Rounding::same(4.0);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(68, 68, 68));
+    v.widgets.inactive.rounding = Rounding::same(4.0);
 
-    v.widgets.hovered.fg_stroke   = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.hovered.bg_fill     = Color32::from_rgb(58, 58, 58);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.hovered.bg_fill = Color32::from_rgb(58, 58, 58);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(58, 58, 58);
-    v.widgets.hovered.bg_stroke   = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
-    v.widgets.hovered.rounding    = Rounding::same(4.0);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
+    v.widgets.hovered.rounding = Rounding::same(4.0);
 
-    v.widgets.active.fg_stroke    = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.active.bg_fill      = Color32::from_rgb(74, 74, 74);
+    v.widgets.active.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.active.bg_fill = Color32::from_rgb(74, 74, 74);
     v.widgets.active.weak_bg_fill = Color32::from_rgb(74, 74, 74);
-    v.widgets.active.bg_stroke    = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
-    v.widgets.active.rounding     = Rounding::same(4.0);
+    v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
+    v.widgets.active.rounding = Rounding::same(4.0);
 
-    v.widgets.open.fg_stroke      = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.open.bg_fill        = Color32::from_rgb(50, 50, 50);
-    v.widgets.open.bg_stroke      = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
+    v.widgets.open.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.open.bg_fill = Color32::from_rgb(50, 50, 50);
+    v.widgets.open.bg_stroke = Stroke::new(1.0, Color32::from_rgb(100, 148, 220));
 
-    v.selection.bg_fill           = Color32::from_rgb(74, 159, 222).linear_multiply(0.4);
-    v.selection.stroke            = Stroke::new(1.0, Color32::from_rgb(74, 159, 222));
+    v.selection.bg_fill = Color32::from_rgb(74, 159, 222).linear_multiply(0.4);
+    v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(74, 159, 222));
 
     v
 }
@@ -95,44 +95,44 @@ fn neutral_dark() -> Visuals {
 fn blue_tint() -> Visuals {
     let mut v = Visuals::dark();
 
-    v.panel_fill         = Color32::from_rgb(19, 21, 31);
-    v.window_fill        = Color32::from_rgb(26, 29, 46);
-    v.faint_bg_color     = Color32::from_rgb(22, 25, 38);
-    v.extreme_bg_color   = Color32::from_rgb(13, 14, 22);
-    v.hyperlink_color    = Color32::from_rgb(91, 138, 245);
-    v.warn_fg_color      = Color32::from_rgb(251, 176, 64);
-    v.error_fg_color     = Color32::from_rgb(248, 113, 113);
-    v.window_stroke      = Stroke::new(1.0, Color32::from_rgb(42, 45, 64));
-    v.window_rounding    = Rounding::same(6.0);
+    v.panel_fill = Color32::from_rgb(19, 21, 31);
+    v.window_fill = Color32::from_rgb(26, 29, 46);
+    v.faint_bg_color = Color32::from_rgb(22, 25, 38);
+    v.extreme_bg_color = Color32::from_rgb(13, 14, 22);
+    v.hyperlink_color = Color32::from_rgb(91, 138, 245);
+    v.warn_fg_color = Color32::from_rgb(251, 176, 64);
+    v.error_fg_color = Color32::from_rgb(248, 113, 113);
+    v.window_stroke = Stroke::new(1.0, Color32::from_rgb(42, 45, 64));
+    v.window_rounding = Rounding::same(6.0);
 
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(200, 208, 224));
-    v.widgets.noninteractive.bg_fill   = Color32::from_rgb(19, 21, 31);
+    v.widgets.noninteractive.bg_fill = Color32::from_rgb(19, 21, 31);
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(42, 45, 64));
 
-    v.widgets.inactive.fg_stroke  = Stroke::new(1.0, Color32::WHITE);
-    v.widgets.inactive.bg_fill    = Color32::from_rgb(30, 34, 53);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, Color32::WHITE);
+    v.widgets.inactive.bg_fill = Color32::from_rgb(30, 34, 53);
     v.widgets.inactive.weak_bg_fill = Color32::from_rgb(30, 34, 53);
-    v.widgets.inactive.bg_stroke  = Stroke::new(1.0, Color32::from_rgb(58, 64, 96));
-    v.widgets.inactive.rounding   = Rounding::same(4.0);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(58, 64, 96));
+    v.widgets.inactive.rounding = Rounding::same(4.0);
 
-    v.widgets.hovered.fg_stroke   = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.hovered.bg_fill     = Color32::from_rgb(42, 48, 80);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.hovered.bg_fill = Color32::from_rgb(42, 48, 80);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(42, 48, 80);
-    v.widgets.hovered.bg_stroke   = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
-    v.widgets.hovered.rounding    = Rounding::same(4.0);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
+    v.widgets.hovered.rounding = Rounding::same(4.0);
 
-    v.widgets.active.fg_stroke    = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.active.bg_fill      = Color32::from_rgb(53, 61, 101);
+    v.widgets.active.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.active.bg_fill = Color32::from_rgb(53, 61, 101);
     v.widgets.active.weak_bg_fill = Color32::from_rgb(53, 61, 101);
-    v.widgets.active.bg_stroke    = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
-    v.widgets.active.rounding     = Rounding::same(4.0);
+    v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
+    v.widgets.active.rounding = Rounding::same(4.0);
 
-    v.widgets.open.fg_stroke      = Stroke::new(1.5, Color32::WHITE);
-    v.widgets.open.bg_fill        = Color32::from_rgb(38, 44, 72);
-    v.widgets.open.bg_stroke      = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
+    v.widgets.open.fg_stroke = Stroke::new(1.5, Color32::WHITE);
+    v.widgets.open.bg_fill = Color32::from_rgb(38, 44, 72);
+    v.widgets.open.bg_stroke = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
 
-    v.selection.bg_fill           = Color32::from_rgb(91, 138, 245).linear_multiply(0.35);
-    v.selection.stroke            = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
+    v.selection.bg_fill = Color32::from_rgb(91, 138, 245).linear_multiply(0.35);
+    v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(91, 138, 245));
 
     v
 }
@@ -145,46 +145,46 @@ fn blue_tint() -> Visuals {
 fn warm_dark() -> Visuals {
     let mut v = Visuals::dark();
 
-    v.panel_fill         = Color32::from_rgb(28, 28, 26);
-    v.window_fill        = Color32::from_rgb(36, 36, 32);
-    v.faint_bg_color     = Color32::from_rgb(32, 32, 29);
-    v.extreme_bg_color   = Color32::from_rgb(18, 18, 16);
-    v.hyperlink_color    = Color32::from_rgb(102, 217, 232);  // cyan Monokai
-    v.warn_fg_color      = Color32::from_rgb(230, 219, 116);  // amarillo Monokai
-    v.error_fg_color     = Color32::from_rgb(249, 38, 114);   // magenta Monokai
-    v.window_stroke      = Stroke::new(1.0, Color32::from_rgb(54, 54, 48));
-    v.window_rounding    = Rounding::same(6.0);
+    v.panel_fill = Color32::from_rgb(28, 28, 26);
+    v.window_fill = Color32::from_rgb(36, 36, 32);
+    v.faint_bg_color = Color32::from_rgb(32, 32, 29);
+    v.extreme_bg_color = Color32::from_rgb(18, 18, 16);
+    v.hyperlink_color = Color32::from_rgb(102, 217, 232); // cyan Monokai
+    v.warn_fg_color = Color32::from_rgb(230, 219, 116); // amarillo Monokai
+    v.error_fg_color = Color32::from_rgb(249, 38, 114); // magenta Monokai
+    v.window_stroke = Stroke::new(1.0, Color32::from_rgb(54, 54, 48));
+    v.window_rounding = Rounding::same(6.0);
 
-    let text_warm = Color32::from_rgb(248, 248, 242);         // #F8F8F2
+    let text_warm = Color32::from_rgb(248, 248, 242); // #F8F8F2
 
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, Color32::from_rgb(224, 221, 213));
-    v.widgets.noninteractive.bg_fill   = Color32::from_rgb(28, 28, 26);
+    v.widgets.noninteractive.bg_fill = Color32::from_rgb(28, 28, 26);
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(54, 54, 48));
 
-    v.widgets.inactive.fg_stroke  = Stroke::new(1.0, text_warm);
-    v.widgets.inactive.bg_fill    = Color32::from_rgb(45, 45, 40);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, text_warm);
+    v.widgets.inactive.bg_fill = Color32::from_rgb(45, 45, 40);
     v.widgets.inactive.weak_bg_fill = Color32::from_rgb(45, 45, 40);
-    v.widgets.inactive.bg_stroke  = Stroke::new(1.0, Color32::from_rgb(74, 74, 64));
-    v.widgets.inactive.rounding   = Rounding::same(4.0);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, Color32::from_rgb(74, 74, 64));
+    v.widgets.inactive.rounding = Rounding::same(4.0);
 
-    v.widgets.hovered.fg_stroke   = Stroke::new(1.5, text_warm);
-    v.widgets.hovered.bg_fill     = Color32::from_rgb(61, 61, 53);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.5, text_warm);
+    v.widgets.hovered.bg_fill = Color32::from_rgb(61, 61, 53);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(61, 61, 53);
-    v.widgets.hovered.bg_stroke   = Stroke::new(1.0, Color32::from_rgb(166, 226, 46));   // lima
-    v.widgets.hovered.rounding    = Rounding::same(4.0);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, Color32::from_rgb(166, 226, 46)); // lima
+    v.widgets.hovered.rounding = Rounding::same(4.0);
 
-    v.widgets.active.fg_stroke    = Stroke::new(1.5, text_warm);
-    v.widgets.active.bg_fill      = Color32::from_rgb(80, 80, 69);
+    v.widgets.active.fg_stroke = Stroke::new(1.5, text_warm);
+    v.widgets.active.bg_fill = Color32::from_rgb(80, 80, 69);
     v.widgets.active.weak_bg_fill = Color32::from_rgb(80, 80, 69);
-    v.widgets.active.bg_stroke    = Stroke::new(1.0, Color32::from_rgb(166, 226, 46));
-    v.widgets.active.rounding     = Rounding::same(4.0);
+    v.widgets.active.bg_stroke = Stroke::new(1.0, Color32::from_rgb(166, 226, 46));
+    v.widgets.active.rounding = Rounding::same(4.0);
 
-    v.widgets.open.fg_stroke      = Stroke::new(1.5, text_warm);
-    v.widgets.open.bg_fill        = Color32::from_rgb(55, 55, 48);
-    v.widgets.open.bg_stroke      = Stroke::new(1.0, Color32::from_rgb(102, 217, 232));
+    v.widgets.open.fg_stroke = Stroke::new(1.5, text_warm);
+    v.widgets.open.bg_fill = Color32::from_rgb(55, 55, 48);
+    v.widgets.open.bg_stroke = Stroke::new(1.0, Color32::from_rgb(102, 217, 232));
 
-    v.selection.bg_fill           = Color32::from_rgb(102, 217, 232).linear_multiply(0.3);
-    v.selection.stroke            = Stroke::new(1.0, Color32::from_rgb(102, 217, 232));
+    v.selection.bg_fill = Color32::from_rgb(102, 217, 232).linear_multiply(0.3);
+    v.selection.stroke = Stroke::new(1.0, Color32::from_rgb(102, 217, 232));
 
     v
 }
@@ -197,48 +197,48 @@ fn warm_dark() -> Visuals {
 fn light() -> Visuals {
     let mut v = Visuals::light();
 
-    let text_dark    = Color32::from_rgb(30, 30, 30);
-    let accent_blue  = Color32::from_rgb(0, 102, 204);
-    let border       = Color32::from_rgb(200, 200, 200);
+    let text_dark = Color32::from_rgb(30, 30, 30);
+    let accent_blue = Color32::from_rgb(0, 102, 204);
+    let border = Color32::from_rgb(200, 200, 200);
 
-    v.panel_fill         = Color32::from_rgb(245, 245, 245);
-    v.window_fill        = Color32::WHITE;
-    v.faint_bg_color     = Color32::from_rgb(235, 235, 235);
-    v.extreme_bg_color   = Color32::from_rgb(255, 255, 255);
-    v.hyperlink_color    = accent_blue;
-    v.warn_fg_color      = Color32::from_rgb(180, 100, 0);
-    v.error_fg_color     = Color32::from_rgb(200, 30, 30);
-    v.window_stroke      = Stroke::new(1.0, border);
-    v.window_rounding    = Rounding::same(6.0);
+    v.panel_fill = Color32::from_rgb(245, 245, 245);
+    v.window_fill = Color32::WHITE;
+    v.faint_bg_color = Color32::from_rgb(235, 235, 235);
+    v.extreme_bg_color = Color32::from_rgb(255, 255, 255);
+    v.hyperlink_color = accent_blue;
+    v.warn_fg_color = Color32::from_rgb(180, 100, 0);
+    v.error_fg_color = Color32::from_rgb(200, 30, 30);
+    v.window_stroke = Stroke::new(1.0, border);
+    v.window_rounding = Rounding::same(6.0);
 
     v.widgets.noninteractive.fg_stroke = Stroke::new(1.0, text_dark);
-    v.widgets.noninteractive.bg_fill   = Color32::from_rgb(245, 245, 245);
+    v.widgets.noninteractive.bg_fill = Color32::from_rgb(245, 245, 245);
     v.widgets.noninteractive.bg_stroke = Stroke::new(1.0, border);
 
-    v.widgets.inactive.fg_stroke   = Stroke::new(1.0, text_dark);
-    v.widgets.inactive.bg_fill     = Color32::from_rgb(240, 240, 240);
+    v.widgets.inactive.fg_stroke = Stroke::new(1.0, text_dark);
+    v.widgets.inactive.bg_fill = Color32::from_rgb(240, 240, 240);
     v.widgets.inactive.weak_bg_fill = Color32::from_rgb(240, 240, 240);
-    v.widgets.inactive.bg_stroke   = Stroke::new(1.0, border);
-    v.widgets.inactive.rounding    = Rounding::same(4.0);
+    v.widgets.inactive.bg_stroke = Stroke::new(1.0, border);
+    v.widgets.inactive.rounding = Rounding::same(4.0);
 
-    v.widgets.hovered.fg_stroke    = Stroke::new(1.5, text_dark);
-    v.widgets.hovered.bg_fill      = Color32::from_rgb(220, 235, 255);
+    v.widgets.hovered.fg_stroke = Stroke::new(1.5, text_dark);
+    v.widgets.hovered.bg_fill = Color32::from_rgb(220, 235, 255);
     v.widgets.hovered.weak_bg_fill = Color32::from_rgb(220, 235, 255);
-    v.widgets.hovered.bg_stroke    = Stroke::new(1.0, accent_blue);
-    v.widgets.hovered.rounding     = Rounding::same(4.0);
+    v.widgets.hovered.bg_stroke = Stroke::new(1.0, accent_blue);
+    v.widgets.hovered.rounding = Rounding::same(4.0);
 
-    v.widgets.active.fg_stroke     = Stroke::new(1.5, text_dark);
-    v.widgets.active.bg_fill       = Color32::from_rgb(190, 220, 255);
-    v.widgets.active.weak_bg_fill  = Color32::from_rgb(190, 220, 255);
-    v.widgets.active.bg_stroke     = Stroke::new(1.0, accent_blue);
-    v.widgets.active.rounding      = Rounding::same(4.0);
+    v.widgets.active.fg_stroke = Stroke::new(1.5, text_dark);
+    v.widgets.active.bg_fill = Color32::from_rgb(190, 220, 255);
+    v.widgets.active.weak_bg_fill = Color32::from_rgb(190, 220, 255);
+    v.widgets.active.bg_stroke = Stroke::new(1.0, accent_blue);
+    v.widgets.active.rounding = Rounding::same(4.0);
 
-    v.widgets.open.fg_stroke       = Stroke::new(1.5, text_dark);
-    v.widgets.open.bg_fill         = Color32::from_rgb(210, 228, 252);
-    v.widgets.open.bg_stroke       = Stroke::new(1.0, accent_blue);
+    v.widgets.open.fg_stroke = Stroke::new(1.5, text_dark);
+    v.widgets.open.bg_fill = Color32::from_rgb(210, 228, 252);
+    v.widgets.open.bg_stroke = Stroke::new(1.0, accent_blue);
 
-    v.selection.bg_fill            = accent_blue.linear_multiply(0.25);
-    v.selection.stroke             = Stroke::new(1.0, accent_blue);
+    v.selection.bg_fill = accent_blue.linear_multiply(0.25);
+    v.selection.stroke = Stroke::new(1.0, accent_blue);
 
     v
 }
