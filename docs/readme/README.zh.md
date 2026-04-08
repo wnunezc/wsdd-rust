@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## 许可
 
-专有许可 — 详情请参阅 `../legal/LICENSE.zh.txt`。
+专有许可 — 详情请参阅 `../legal/LICENSE.zh.md`。
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

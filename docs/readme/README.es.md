@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## Licencia
 
-Propietaria — ver `../legal/LICENSE.es.txt` para detalles.
+Propietaria — ver `../legal/LICENSE.es.md` para detalles.
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

@@ -84,5 +84,5 @@ C:\WSDD-Environment\
 
 ## लाइसेंस
 
-स्वामित्वाधीन — विवरण के लिए `../legal/LICENSE.hi.txt` देखें।
+स्वामित्वाधीन — विवरण के लिए `../legal/LICENSE.hi.md` देखें।
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.
