@@ -21,6 +21,7 @@
   "menu_help": "帮助",
   "menu_exit": "退出",
   "menu_about": "关于",
+  "menu_support_report_bug": "支持 / 报告问题...",
   "menu_docker": "Docker",
   "menu_refresh_containers": "刷新容器列表",
   "menu_reload_docker": "重载 Docker Desktop",

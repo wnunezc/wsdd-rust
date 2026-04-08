@@ -21,6 +21,7 @@
   "menu_help": "Aide",
   "menu_exit": "Quitter",
   "menu_about": "A propos",
+  "menu_support_report_bug": "Support / Signaler un bug...",
   "menu_docker": "Docker",
   "menu_refresh_containers": "Actualiser la liste des conteneurs",
   "menu_reload_docker": "Recharger Docker Desktop",

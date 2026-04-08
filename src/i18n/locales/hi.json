@@ -21,6 +21,7 @@
   "menu_help": "सहायता",
   "menu_exit": "बाहर निकलें",
   "menu_about": "परिचय",
+  "menu_support_report_bug": "सहायता / बग रिपोर्ट करें...",
   "menu_docker": "Docker",
   "menu_refresh_containers": "कंटेनर सूची रिफ्रेश करें",
   "menu_reload_docker": "Docker Desktop दोबारा लोड करें",

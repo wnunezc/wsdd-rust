@@ -1,4 +1,4 @@
-WebStack Deployer for Docker v1.0.0-rc.2
+WebStack Deployer for Docker v1.0.0-rc.3
 Copyright © 2026 Walter Núñez / Icaros Net S.A
 
 Software para uso exclusivo en desarrollo.

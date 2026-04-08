@@ -27,6 +27,7 @@ use std::time::Duration;
 
 use crate::app::WsddApp;
 use crate::handlers::docker::{list_containers_sync, ContainerInfo};
+use crate::handlers::external_app;
 use crate::handlers::log_types::LogLevel;
 use crate::handlers::ps_script::{launch, ScriptRunner};
 use crate::handlers::setting::AppTheme;
@@ -35,6 +36,7 @@ use crate::ui::{containers_panel, projects_panel};
 use crate::ui::{ActiveView, MainTab};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(3);
+const SUPPORT_ISSUES_URL: &str = "https://github.com/wnunezc/wsdd-rust/issues/new";
 
 /// Punto de entrada del panel principal.
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
@@ -67,6 +69,7 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
     let settings = tr("menu_settings");
     let help = tr("menu_help");
     let about = tr("menu_about");
+    let support = tr("menu_support_report_bug");
 
     egui::TopBottomPanel::top("menu_bar").show(ctx, |ui| {
         egui::menu::bar(ui, |ui| {
@@ -137,6 +140,15 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                 }
                 if ui.button(format!("{about}...")).clicked() {
                     app.ui.active = ActiveView::About;
+                    ui.close_menu();
+                }
+                ui.separator();
+                if ui.button(&support).clicked() {
+                    if let Err(e) = external_app::open_url(SUPPORT_ISSUES_URL) {
+                        let _ = app.main_log_tx.send(crate::handlers::log_types::LogLine::error(
+                            format!("[Support] Could not open GitHub Issues: {e}"),
+                        ));
+                    }
                     ui.close_menu();
                 }
             });
