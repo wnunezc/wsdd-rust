@@ -1,8 +1,8 @@
-# WSDD — Mapa de Migración C# → Rust
+# WSDD — Mapa de Migracion C# → Rust
 
 ## Estado actual
 
-| Versión | Ruta | Progreso |
+| Version | Ruta | Progreso |
 |---|---|---|
 | C# (referencia) | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | 100% |
 | Rust (activa) | `Projects\Desktop\WSDD\` | ~8% |

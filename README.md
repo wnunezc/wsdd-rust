@@ -1,86 +1,88 @@
 # WebStack Deployer for Docker (WSDD)
 
-Aplicacion de escritorio Windows que automatiza la configuracion de un entorno de desarrollo web
-local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y gestion de hosts.
+Windows desktop application that automates the setup of a local web development environment
+using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, and hosts management.
 
-## Requisitos del sistema
+*[Leer en Espanol](README.es.md)*
 
-- **Sistema operativo**: Windows 10 / Windows 11
-- **Privilegios**: Administrador (obligatorio)
-- **Docker Desktop**: Se instala automaticamente si no esta presente
-- **WSL 2**: Se configura automaticamente
-- **Chocolatey**: Se instala automaticamente si no esta presente
+## System Requirements
 
-## Que hace esta aplicacion
+- **Operating System**: Windows 10 / Windows 11
+- **Privileges**: Administrator (required)
+- **Docker Desktop**: Automatically installed if not present
+- **WSL 2**: Automatically configured
+- **Chocolatey**: Automatically installed if not present
 
-1. **Verifica e instala dependencias**: Docker Desktop, WSL 2, Chocolatey, MKCert
-2. **Configura el stack Docker**: Nginx reverse proxy, MySQL, phpMyAdmin
-3. **Gestiona proyectos web**: Crea contenedores PHP por version con Apache + Xdebug
-4. **SSL local automatico**: Certificados MKCert por dominio, sin advertencias del navegador
-5. **Hosts automaticos**: Modifica `C:\Windows\System32\drivers\etc\hosts` por ti
+## What This Application Does
 
-## Contenedores Docker del stack
+1. **Verifies and installs dependencies**: Docker Desktop, WSL 2, Chocolatey, MKCert
+2. **Configures the Docker stack**: Nginx reverse proxy, MySQL, phpMyAdmin
+3. **Manages web projects**: Creates PHP containers per version with Apache + Xdebug
+4. **Automatic local SSL**: MKCert certificates per domain, no browser warnings
+5. **Automatic hosts**: Modifies `C:\Windows\System32\drivers\etc\hosts` for you
 
-### Servicios base (siempre activos)
-- **WSDD-Proxy-Server** — Nginx reverse proxy (puertos 80 / 443)
-- **WSDD-MySql-Server** — MySQL 8 (puerto 3306)
+## Docker Stack Containers
+
+### Base Services (always active)
+- **WSDD-Proxy-Server** — Nginx reverse proxy (ports 80 / 443)
+- **WSDD-MySql-Server** — MySQL 8 (port 3306)
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
 
-### Contenedores PHP (uno por version usada)
-Versiones disponibles: 5.6 · 7.2 · 7.4 · 8.1 · 8.2 · 8.3 · 8.4
+### PHP Containers (one per version used)
+Available versions: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
 
-Por cada version activada se crean las URLs de desarrollo:
-- `php{version}.wsdd.dock` — Entorno PHP principal
-- `cron{version}.wsdd.dock` — Gestor de cron jobs
-- `wm{version}.wsdd.dock` — Webmin (administracion del servidor)
+For each activated version, the following development URLs are created:
+- `php{version}.wsdd.dock` — Main PHP environment
+- `cron{version}.wsdd.dock` — Cron jobs manager
+- `wm{version}.wsdd.dock` — Webmin (server administration)
 
-## Estructura del entorno en disco
+## Disk Environment Structure
 
-La aplicacion crea y gestiona el directorio `C:\WSDD-Environment\`:
+The application creates and manages the `C:\WSDD-Environment\` directory:
 
 ```
 C:\WSDD-Environment\
-├── PS-Script\          — Scripts PowerShell de automatizacion
-├── Docker-Structure\   — docker-compose e imagenes PHP
-├── certs\              — Certificados SSL por dominio
-└── wsdd-config.json    — Configuracion de la aplicacion
+├── PS-Script\          — PowerShell automation scripts
+├── Docker-Structure\   — docker-compose and PHP images
+├── certs\              — SSL certificates per domain
+└── wsdd-config.json    — Application configuration
 ```
 
-## Primer arranque — proceso automatico
+## First Launch — Automatic Process
 
-1. La aplicacion verifica que tiene privilegios de administrador
-2. Extrae los recursos embebidos a `C:\WSDD-Environment\`
-3. Comprueba Chocolatey → instala si falta
-4. Comprueba Docker Desktop → instala si falta (requiere reinicio)
-5. Comprueba MKCert → instala y configura CA local
-6. Levanta el stack Docker base
-7. Muestra el panel principal
+1. The application verifies it has administrator privileges
+2. Extracts embedded resources to `C:\WSDD-Environment\`
+3. Checks Chocolatey → installs if missing
+4. Checks Docker Desktop → installs if missing (requires restart)
+5. Checks MKCert → installs and configures local CA
+6. Starts the base Docker stack
+7. Shows the main panel
 
-> **Nota**: La instalacion de Docker Desktop puede requerir reinicio del sistema.
-> La aplicacion retomara automaticamente tras el reinicio.
+> **Note**: Docker Desktop installation may require a system restart.
+> The application will automatically resume after restart.
 
-## Uso despues del primer arranque
+## Usage After First Launch
 
-### Agregar un proyecto
-1. Haz clic en "Agregar Proyecto"
-2. Elige el dominio local (ej: `miproyecto.wsdd.dock`)
-3. Selecciona la version de PHP
-4. La aplicacion crea el contenedor, el certificado SSL y la entrada de hosts
+### Adding a Project
+1. Click "Add Project"
+2. Choose the local domain (e.g., `myproject.wsdd.dock`)
+3. Select the PHP version
+4. The application creates the container, SSL certificate, and hosts entry
 
-### Gestionar contenedores
-- Inicia / detiene contenedores individuales desde el panel principal
-- Abre logs en tiempo real con un clic
-- Reinicia el stack completo desde el menu
+### Managing Containers
+- Start / stop individual containers from the main panel
+- Open real-time logs with one click
+- Restart the complete stack from the menu
 
-## Informacion tecnica
+## Technical Information
 
 - **Version**: 1.0.0-rc.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
-- **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`
-- **Logs**: Variable de entorno `RUST_LOG=wsdd=debug` para logs detallados
+- **Configuration**: JSON at `C:\WSDD-Environment\wsdd-config.json`
+- **Logs**: Environment variable `RUST_LOG=wsdd=debug` for detailed logs
 
-## Licencia
+## License
 
-Propietaria — ver `LICENSE.txt` para detalles.
+Proprietary — see `LICENSE.txt` for details.
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.
