@@ -5,6 +5,8 @@ avec Docker. Inclut PHP multi-version, SSL local, MySQL, phpMyAdmin et la gestio
 
 *Langues: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
+*Liens rapides: [Carte de migration](../../MIGRATION.md) | [Licence](../legal/LICENSE.fr.md) | [Depot principal](../../README.md) | [Signaler un bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+
 ## Configuration systeme requise
 
 - **Systeme d'exploitation**: Windows 10 / Windows 11
@@ -84,5 +86,5 @@ C:\WSDD-Environment\
 
 ## Licence
 
-Proprietaire — voir `../legal/LICENSE.fr.md` pour les details.
+Proprietaire — voir [LICENSE.fr.md](../legal/LICENSE.fr.md) pour les details.
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

@@ -5,6 +5,20 @@ using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, and host
 
 *Languages: [English](README.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [हिन्दी](docs/readme/README.hi.md) | [中文](docs/readme/README.zh.md)*
 
+*Quick links: [Migration Map](MIGRATION.md) | [License](LICENSE.md) | [Notice](NOTICE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Report a Bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+
+## About WSDD
+
+WSDD is a Windows-first local stack manager for PHP + Docker development. It automates the
+first-run environment setup, provisions per-project PHP containers, configures local SSL with
+MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
+single desktop app.
+
+- **Current stage**: Release Candidate `1.0.0-rc.3`
+- **Primary distribution package**: Windows MSI installer
+- **Current UI languages**: English, Spanish, French, Hindi, Chinese
+- **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
+
 ## System Requirements
 
 - **Operating System**: Windows 10 / Windows 11
@@ -84,5 +98,7 @@ C:\WSDD-Environment\
 
 ## License
 
-Proprietary — see `LICENSE.md` for details.
+Proprietary. See [LICENSE.md](LICENSE.md) for terms,
+[NOTICE.md](NOTICE.md) for component attribution, and
+[THIRD_PARTY_LICENSES.md](THIRD_PARTY_LICENSES.md) for referenced license families.
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

@@ -1,24 +1,16 @@
-THIRD PARTY LICENSES
+# Third-Party Licenses
 
-Este software utiliza componentes de terceros distribuidos bajo licencias permisivas.
+This software uses third-party components distributed under permissive licenses.
 
-MIT License
-Apache License 2.0
-SIL Open Font License
-Unlicense
+## License families referenced by this project
 
-Los textos completos de estas licencias pueden consultarse en:
+- [MIT License](https://opensource.org/licenses/MIT)
+- [Apache License 2.0](https://www.apache.org/licenses/LICENSE-2.0)
+- [SIL Open Font License](https://scripts.sil.org/OFL)
+- [Unlicense](https://unlicense.org/)
 
-MIT License
-https://opensource.org/licenses/MIT
+## Notes
 
-Apache License 2.0
-https://www.apache.org/licenses/LICENSE-2.0
-
-SIL Open Font License
-https://scripts.sil.org/OFL
-
-Unlicense
-https://unlicense.org/
-
-Los copyrights individuales pertenecen a sus respectivos autores.
+- The full dependency attribution list is summarized in [NOTICE.md](NOTICE.md).
+- Individual copyrights remain with their respective authors.
+- External tools keep their own distribution and licensing terms.

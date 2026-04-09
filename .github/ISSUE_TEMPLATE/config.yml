@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: WSDD README
+    url: https://github.com/wnunezc/wsdd-rust/blob/main/README.md
+    about: Review the project overview, requirements, and usage instructions.
+  - name: WSDD Migration Map
+    url: https://github.com/wnunezc/wsdd-rust/blob/main/MIGRATION.md
+    about: Check the C# to Rust migration map and implementation status.

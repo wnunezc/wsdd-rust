@@ -5,6 +5,8 @@
 
 *语言: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
+*快速链接: [迁移地图](../../MIGRATION.md) | [许可](../legal/LICENSE.zh.md) | [主仓库](../../README.md) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
+
 ## 系统要求
 
 - **操作系统**: Windows 10 / Windows 11
@@ -84,5 +86,5 @@ C:\WSDD-Environment\
 
 ## 许可
 
-专有许可 — 详情请参阅 `../legal/LICENSE.zh.md`。
+专有许可 — 详情请参阅 [LICENSE.zh.md](../legal/LICENSE.zh.md)。
 Copyright (c) 2026 Walter Nunez / Icaros Net S.A. All Rights Reserved.

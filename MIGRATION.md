@@ -1,187 +1,78 @@
-# WSDD — Mapa de Migracion C# → Rust
+# WSDD — Migration Map C# to Rust
 
-## Estado actual
+## Current status
 
-| Version | Ruta | Progreso |
+| Version | Path | Status |
 |---|---|---|
-| C# (referencia) | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | 100% |
-| Rust (activa) | `Projects\Desktop\WSDD\` | ~8% |
+| C# reference | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | Archived reference implementation |
+| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.3`) |
 
----
+The Rust codebase is now the active implementation of WSDD. The original C# WinForms project
+remains as a reference for historical behavior and edge cases.
 
-## Mapa de componentes
+## Migration summary
 
-### Handlers
+The initial desktop migration is functionally in place:
 
-| C# | Rust | Estado | Fase |
-|---|---|---|---|
-| `Program.cs` | `main.rs` | ✅ | — |
-| `HandlerWSDD.cs` | `app.rs` + `handlers/requirements.rs` | 🔶 Parcial | 1 |
-| `PSScript.cs` | `handlers/ps_script.rs` | ✅ Fase 1 | 1 |
-| `Requirement.cs` | `handlers/requirements.rs` | ❌ | 3 |
-| `HandlerDocker.cs` | `handlers/docker.rs` | 🔶 Stubs | 3–4 |
-| `HandlerChocolatey.cs` | `handlers/chocolatey.rs` | 🔶 Stubs | 3 |
-| `HandlerMKCert.cs` | `handlers/mkcert.rs` | ❌ | 3 |
-| `HandlerHosts.cs` | `handlers/hosts.rs` | 🔶 Parcial | 4 |
-| `HandlerProject.cs` | `handlers/project.rs` | ❌ | 5 |
-| `HandlerYml.cs` | `handlers/yml.rs` | ❌ | 5 |
-| `HandlerXML.cs` | `handlers/xml.rs` | ❌ | 5 |
-| `HandlerSetting.cs` | `handlers/setting.rs` | ✅ | — |
-| `HandlerMenu.cs` | `ui/main_window.rs` (inline) | ❌ | 5 |
-| `HandlerLogViewer.cs` | `handlers/log_viewer.rs` | ❌ | 5 |
-| `HandlerDisplay.cs` | N/A (egui gestiona monitores) | ✅ N/A | — |
-| `HandlerExternalApp.cs` | `handlers/external_app.rs` | ❌ | 6 |
-| `OutputToTerminal.cs` | `handlers/output.rs` | 🔶 | 3 |
+- Windows desktop UI implemented with `egui` / `eframe`
+- First-run flow implemented: admin check, resource extraction, settings bootstrap
+- Main panel implemented: containers, projects, logs, toolbar, menu actions
+- Project management implemented: add project, deploy, remove, toolbox flows
+- Settings, WSL settings, About, and Helps views implemented
+- Multilingual UI available in `en`, `es`, `fr`, `hi`, and `zh`
+- MSI installer flow implemented with WiX / `cargo-wix`
 
-### Formularios / UI
+## Major component map
 
-| C# Form | Rust | Estado | Fase |
-|---|---|---|---|
-| `Main.cs` | `ui/main_window.rs` | 🔶 Esqueleto | 5 |
-| `Wellcome.cs` | `ui/welcome.rs` | 🔶 Incompleto | 2 |
-| `Loader.cs` | `ui/loader.rs` | 🔶 Esqueleto | 3 |
-| `AddNewProject.cs` | `ui/add_project.rs` | ❌ | 6 |
-| `ToolBoxContainer.cs` | `ui/toolbox_container.rs` | ❌ | 6 |
-| `ToolBoxProject.cs` | `ui/toolbox_project.rs` | ❌ | 6 |
-| `Setting.cs` | `ui/settings.rs` | ❌ | 7 |
-| `WSLGeneralSetting.cs` | `ui/wsl_settings.rs` | ❌ | 7 |
-| `About.cs` | `ui/about.rs` | ❌ | 7 |
-| `Helps.cs` | `ui/helps.rs` | ❌ | 7 |
-| `DisplaySelector.cs` | N/A | ✅ N/A | — |
-
-### Modelos
-
-| C# | Rust | Notas |
+| C# area | Rust area | Notes |
 |---|---|---|
-| `class Project` | `models/project.rs::Project` | ✅ Actualizado Fase 1 |
-| `class AppSettings` | `handlers/setting.rs::AppSettings` | ✅ |
-| `class DockerContainer` | `models/project.rs::DockerContainer` | ✅ Fase 1 (struct base — campos runtime en Fase 4) |
+| `Program.cs` | `src/main.rs` | Entry point, admin validation, startup bootstrap |
+| `HandlerWSDD.cs` | `src/app.rs` | Global application state |
+| `PSScript.cs` | `src/handlers/ps_script.rs` | Script runner and process integration |
+| `HandlerDocker.cs` | `src/handlers/docker.rs` | Docker operations and container listing |
+| `HandlerProject.cs` | `src/handlers/project.rs` | Project persistence and listing |
+| `HandlerHosts.cs` | `src/handlers/hosts.rs` | Windows hosts integration |
+| `HandlerYml.cs` | `src/handlers/yml.rs` | Compose/options file mutations |
+| `HandlerSetting.cs` | `src/handlers/setting.rs` | App settings and persistence |
+| `HandlerExternalApp.cs` | `src/handlers/external_app.rs` | Browser, explorer, external app launching |
+| `Main.cs` | `src/ui/main_window.rs` | Main workspace, toolbar, menu, logs |
+| `Wellcome.cs` | `src/ui/welcome.rs` | Welcome flow and embedded README |
+| `Loader.cs` | `src/ui/loader.rs` | Startup requirement checks |
+| `AddNewProject.cs` | `src/ui/add_project.rs` | Add-project form and flow |
+| `ToolBoxContainer.cs` | `src/ui/toolbox_container.rs` | Container toolbox |
+| `ToolBoxProject.cs` | `src/ui/toolbox_project.rs` | Project toolbox |
+| `Setting.cs` | `src/ui/settings.rs` | Runtime settings UI |
+| `WSLGeneralSetting.cs` | `src/ui/wsl_settings.rs` | WSL tuning UI |
+| `About.cs` | `src/ui/about.rs` | About screen |
+| `Helps.cs` | `src/ui/helps.rs` | In-app help/manual screen |
 
----
+## Reference paths
 
-## Diferencias de modelo — Project
+- Active Rust project: `D:\OpsZone\DevWorkspace\Projects\Desktop\WSDD\`
+- Archived C# reference: `D:\OpsZone\DevWorkspace\Finished\WSDD-CSharp\WebStack Deployer for Docker\`
 
-| Campo C# | Campo Rust | Notas |
-|---|---|---|
-| `Name` | `name` | ✅ |
-| `CustomUrl` (e.g. `"myapp.dock"`) | `domain` | ✅ incluye `.dock` |
-| `SSL` | `ssl` | ✅ |
-| `PhpLabel` (e.g. `"php8.3"`) | `php_version.dir_name()` | ✅ via enum |
-| `PhpVersion` (e.g. `"php83"`) | `php_version.compose_tag()` | ✅ via enum |
-| `WorkPath` | `work_path` | ✅ |
-| `EntryPoint` | `entry_point` | ✅ Fase 1 |
-| — | `status` | Mejora Rust: estado en el modelo |
+## Current Rust structure
 
----
-
-## Scripts PowerShell — Inventario
-
-| Script | Qué hace | Keyword de éxito | Usado en |
-|---|---|---|---|
-| `dd-isinstalled.ps1` | Detecta `Docker Desktop.exe` en Program Files | `"Installed"` | `docker::probe_installed()` |
-| `dd-issettingup.ps1` | Verifica `settings.json` Docker con flags WSDD | `"Updated"` | `docker::probe_configured()` |
-| `dd-isrunning.ps1` | Ejecuta `docker ps` sin error | `"Running"` | `docker::probe_running()` |
-| `dd-setting.ps1` | Parchea `settings.json` + restart Docker completo | `"Continue"` | `docker::apply_settings()` |
-| `dd-start.ps1` | Inicia servicio + Desktop + espera pipe + access | `"Continue"` | `docker::start()` |
-| `dd-stop.ps1` | Para servicio + mata procesos Docker | — | `docker::stop()` |
-| `dd-detector.ps1` | Detección avanzada (versión + running) | `"Running"` | Reservado |
-| `dd-fixmysqlpermission.ps1` | `FullControl` en `Docker-Structure/data` | — | Menu: FixMySql |
-| `wsl-shutdown.ps1` | `wsl --shutdown` | — | `docker::stop_wsl()` |
-| `dd-addproject.ps1` | (vacío — sin implementar en C#) | — | Fase 6 |
-
-> ⚠️ **Bug conocido en C#**: `dd-fixmysqlpermission.ps1` usa `C:\ProgramData\WSDD-Environment\`
-> en lugar de `C:\WSDD-Environment\`. En Rust se usará la ruta correcta.
-
----
-
-## Marcadores del archivo `hosts`
-
-El archivo `C:\Windows\System32\drivers\etc\hosts` usa bloques con marcadores WSDD:
-
-```
-# WSDD Developer Area Docker
-127.0.0.1 pma.wsdd.dock
-127.0.0.1 mysql.wsdd.dock
-# WSDD End of Area
+```text
+src/
+├── main.rs
+├── app.rs
+├── handlers/
+├── i18n/
+├── models/
+├── resources/
+└── ui/
 ```
 
-La versión Rust usa los mismos marcadores para compatibilidad.
+## What remains outside the original migration
 
----
+The current pending work is no longer “core migration” work. It is follow-up product roadmap:
 
-## Flujo de primer arranque
+- **Block F**: launcher and updater flow
+- **Block G**: backup and restore for Docker environments and individual projects
 
-```
-main() → ensure_admin() (UAC)
-       → resources::init()       ← extrae recursos.zip → C:\WSDD-Environment\
-       → AppSettings::load()     ← lee wsdd-config.json
-       → si setup_completed=false:
-           WelcomeView:
-             - Muestra README
-             - Checkbox "Acepto" habilita el botón
-             - Al aceptar → LoaderView
-           LoaderView (Requirement process):
-             1. Docker: probe_installed → probe_configured → probe_running
-                └─ Si no configurado: apply_settings() vía dd-setting.ps1
-             2. Chocolatey: probe_installed → si no: instalar
-             3. MKCert: probe_installed → si no: choco install + mkcert -install
-             4. DeployEnvironment:
-                ├─ Set DOCKER_HOST=tcp://localhost:2375
-                ├─ docker network create wsdd-network
-                ├─ docker volume create pma-code
-                ├─ docker-compose -f init.yml create --build
-                ├─ docker-compose -f init.yml up -d
-                ├─ hosts::update(["pma.wsdd.dock", "mysql.wsdd.dock"])
-                └─ settings.setup_completed = true → save
-       → MainView
-```
+## Notes
 
----
-
-## Evaluación individual de scripts
-
-Cada handler expone funciones `probe_*` que ejecutan un único script
-y retornan el resultado tipado. Esto permite validar scripts de forma aislada:
-
-```rust
-// Evaluar individualmente sin ejecutar el flujo completo:
-let runner = PsRunner::new();
-let ok = docker::probe_installed(&runner).await?;
-let ok = docker::probe_running(&runner).await?;
-let ok = chocolatey::probe_installed(&runner).await?;
-```
-
----
-
-## Mejoras sobre C# implementadas en Rust
-
-| Feature | C# | Rust |
-|---|---|---|
-| Eliminar proyecto | Código comentado | Implementar completo (Fase 6) |
-| WSL General Settings (guardar) | Botón Save vacío | Implementar escritura `.wslconfig` (Fase 7) |
-| Settings form | Form vacío | Implementar configuración real (Fase 7) |
-| Ruta fix MySQL | Bug: usa ProgramData | Corregida (Fase 5) |
-| Modelo Project | Strings en todos lados | Tipos fuertes: `PhpVersion`, `EntryPoint` |
-| Output terminal | RichTextBox Windows | egui ScrollArea (cross-platform) |
-| Errors | Exceptions no tipadas | `thiserror` jerarquía tipada |
-| Logging | Debug.Output | `tracing` estructurado |
-
----
-
-## Plan de fases
-
-| Fase | Objetivo | Archivos principales |
-|---|---|---|
-| **1** | Motor PS + modelos + arquitectura | `ps_script.rs`, `errors.rs`, `models/project.rs` |
-| **2** | Welcome Wizard completo | `ui/welcome.rs`, `app.rs` |
-| **3** | Loader + Requirements | `ui/loader.rs`, `handlers/requirements.rs`, `docker.rs`, `chocolatey.rs`, `mkcert.rs` |
-| **4** | Handlers core | `docker.rs` completo, `hosts.rs`, `yml.rs` |
-| **5** | Panel principal | `ui/main_window.rs`, `handlers/project.rs`, `log_viewer.rs` |
-| **6** | Toolboxes + AddProject | `ui/toolbox_*.rs`, `ui/add_project.rs`, `external_app.rs` |
-| **7** | Settings y herramientas | `ui/settings.rs`, `ui/wsl_settings.rs`, `about.rs`, `helps.rs` |
-
----
-
-## Mejores prácticas adoptadas
-
-Las reglas de arquitectura y mejores prácticas están documentadas en las instrucciones internas del proyecto.
+- Public documentation is centered on [README.md](README.md).
+- Release packaging currently targets a Windows MSI installer.
+- GitHub publication is performed from `clean-main` to avoid leaking unrelated local work from `main`.
