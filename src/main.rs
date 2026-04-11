@@ -13,6 +13,7 @@ mod resources;
 mod ui;
 
 use anyhow::Result;
+use rfd::{MessageButtons, MessageDialog, MessageLevel};
 
 fn main() -> Result<()> {
     // Inicializar tracing (reemplaza env_logger)
@@ -32,7 +33,15 @@ fn main() -> Result<()> {
     resources::init()?;
 
     // Initialize i18n with user's language preference (or default)
-    let settings = handlers::setting::AppSettings::load().unwrap_or_default();
+    let settings = match handlers::setting::AppSettings::load() {
+        Ok(settings) => settings,
+        Err(e) => {
+            show_startup_error(&format!(
+                "No se pudo cargar la configuracion de WSDD.\n\n{e}\n\nLa instalacion se conserva, pero la app se cerrara para evitar usar defaults incompatibles."
+            ));
+            return Err(anyhow::anyhow!("error cargando configuracion: {e}"));
+        }
+    };
     i18n::init(settings.language);
 
     #[cfg(windows)]
@@ -52,9 +61,18 @@ fn main() -> Result<()> {
     eframe::run_native(
         "WSDD",
         options,
-        Box::new(|cc| Ok(Box::new(app::WsddApp::new(cc)))),
+        Box::new(move |cc| Ok(Box::new(app::WsddApp::new(cc, settings.clone())))),
     )
     .map_err(|e| anyhow::anyhow!("UI error: {e}"))
+}
+
+fn show_startup_error(message: &str) {
+    let _ = MessageDialog::new()
+        .set_level(MessageLevel::Error)
+        .set_title("WSDD Configuration Error")
+        .set_description(message)
+        .set_buttons(MessageButtons::Ok)
+        .show();
 }
 
 fn load_icon() -> egui::IconData {

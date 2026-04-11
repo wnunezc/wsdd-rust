@@ -105,6 +105,12 @@ pub enum InfraError {
     /// Error al serializar/deserializar JSON.
     #[error("Error de serialización JSON: {0}")]
     Json(#[from] serde_json::Error),
+
+    /// La configuración en disco pertenece a una versión de esquema no soportada.
+    #[error(
+        "Versión de configuración incompatible: {found}. Máxima soportada por esta app: {max_supported}"
+    )]
+    UnsupportedConfigVersion { found: u32, max_supported: u32 },
 }
 
 // ─── Error de Aplicación (raíz) ──────────────────────────────────────────────

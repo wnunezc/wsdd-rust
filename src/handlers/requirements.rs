@@ -71,7 +71,16 @@ pub fn run_requirements(
     let runner = crate::handlers::ps_script::PsRunner::new();
 
     // Cargar settings al inicio — se guardan al final solo si todo OK
-    let mut settings = AppSettings::load().unwrap_or_default();
+    let mut settings = match AppSettings::load() {
+        Ok(settings) => settings,
+        Err(e) => {
+            let _ = log_tx.send(LogLine::error(format!(
+                "✗ Configuracion incompatible o invalida: {e}"
+            )));
+            let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+            return;
+        }
+    };
 
     // ── 1. Docker ──────────────────────────────────────────────────────────
     let docker_outcome = docker_deploy::process_requirements_sync(&runner, &log_tx);

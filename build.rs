@@ -17,6 +17,8 @@
 // Embebe el icono en el exe (PE resources) y declara requireAdministrator via winres.
 
 fn main() {
+    println!("cargo:rerun-if-changed=Cargo.toml");
+    println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
     // Recompilar si cambian recursos
     println!("cargo:rerun-if-changed=recursos/recursos.zip");
     println!("cargo:rerun-if-changed=recursos/recursos/PS-Script/");
@@ -30,6 +32,10 @@ fn main() {
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/WSDD-64.ico");
         res.set_manifest_file("wsdd.manifest");
+        if let Ok(version) = std::env::var("CARGO_PKG_VERSION") {
+            res.set("FileVersion", &version);
+            res.set("ProductVersion", &version);
+        }
         if let Err(e) = res.compile() {
             eprintln!("winres error: {e}");
             std::process::exit(1);

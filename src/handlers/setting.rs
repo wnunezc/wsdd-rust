@@ -22,6 +22,7 @@ use crate::errors::InfraError;
 use crate::i18n::Language;
 
 const CONFIG_FILE: &str = r"C:\WSDD-Environment\wsdd-config.json";
+const CURRENT_CONFIG_VERSION: u32 = 1;
 
 /// Paleta de colores de la UI. Persistida en wsdd-config.json.
 #[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
@@ -77,11 +78,17 @@ fn default_webmin_version() -> String {
 fn default_language() -> Language {
     Language::default()
 }
+fn default_config_version() -> u32 {
+    CURRENT_CONFIG_VERSION
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
+    /// Versión del esquema persistido de `wsdd-config.json`.
+    #[serde(default = "default_config_version")]
+    pub config_version: u32,
     pub setup_completed: bool,
     pub docker_path: Option<String>,
     pub projects_path: String,
@@ -125,6 +132,7 @@ pub struct AppSettings {
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
+            config_version: default_config_version(),
             setup_completed: false,
             docker_path: None,
             projects_path: r"C:\WSDD-Projects".to_string(),
@@ -150,7 +158,8 @@ impl AppSettings {
             return Ok(Self::default());
         }
         let content = std::fs::read_to_string(&path)?;
-        Ok(serde_json::from_str(&content)?)
+        let settings: Self = serde_json::from_str(&content)?;
+        settings.validate_loaded()
     }
 
     /// Persiste la configuracion en disco.
@@ -162,5 +171,102 @@ impl AppSettings {
         let content = serde_json::to_string_pretty(self)?;
         std::fs::write(&path, content)?;
         Ok(())
+    }
+
+    fn validate_loaded(mut self) -> Result<Self, InfraError> {
+        if self.config_version > CURRENT_CONFIG_VERSION {
+            return Err(InfraError::UnsupportedConfigVersion {
+                found: self.config_version,
+                max_supported: CURRENT_CONFIG_VERSION,
+            });
+        }
+
+        if self.config_version == 0 {
+            self.config_version = default_config_version();
+        }
+
+        if self.projects_path.trim().is_empty() {
+            self.projects_path = Self::default().projects_path;
+        }
+
+        if self.log_max_lines == 0 {
+            self.log_max_lines = default_log_max_lines();
+        }
+
+        if self.php_memory_limit.trim().is_empty() {
+            self.php_memory_limit = default_php_memory_limit();
+        }
+
+        if self.php_upload_max_filesize.trim().is_empty() {
+            self.php_upload_max_filesize = default_php_upload_max_filesize();
+        }
+
+        if self.php_timezone.trim().is_empty() {
+            self.php_timezone = default_php_timezone();
+        }
+
+        if self.webmin_version.trim().is_empty() {
+            self.webmin_version = default_webmin_version();
+        }
+
+        Ok(self)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn default_settings_use_current_config_version() {
+        let settings = AppSettings::default();
+        assert_eq!(settings.config_version, CURRENT_CONFIG_VERSION);
+    }
+
+    #[test]
+    fn legacy_settings_are_normalized() {
+        let settings = AppSettings {
+            config_version: 0,
+            projects_path: String::new(),
+            log_max_lines: 0,
+            php_memory_limit: String::new(),
+            php_upload_max_filesize: String::new(),
+            php_timezone: String::new(),
+            webmin_version: String::new(),
+            ..AppSettings::default()
+        };
+
+        let normalized = settings
+            .validate_loaded()
+            .expect("legacy config should load");
+        assert_eq!(normalized.config_version, CURRENT_CONFIG_VERSION);
+        assert_eq!(normalized.projects_path, r"C:\WSDD-Projects");
+        assert_eq!(normalized.log_max_lines, 500);
+        assert_eq!(normalized.php_memory_limit, "512M");
+        assert_eq!(normalized.php_upload_max_filesize, "256M");
+        assert_eq!(normalized.php_timezone, "UTC");
+        assert_eq!(normalized.webmin_version, "2.021");
+    }
+
+    #[test]
+    fn future_config_version_is_rejected() {
+        let settings = AppSettings {
+            config_version: CURRENT_CONFIG_VERSION + 1,
+            ..AppSettings::default()
+        };
+
+        let err = settings
+            .validate_loaded()
+            .expect_err("future config must fail");
+        match err {
+            InfraError::UnsupportedConfigVersion {
+                found,
+                max_supported,
+            } => {
+                assert_eq!(found, CURRENT_CONFIG_VERSION + 1);
+                assert_eq!(max_supported, CURRENT_CONFIG_VERSION);
+            }
+            other => panic!("unexpected error: {other}"),
+        }
     }
 }

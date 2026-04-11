@@ -72,5 +72,5 @@ opt-level = 0
 debug = true
 
 [workspace]
-members = ["wsdd-launcher"]
+members = ["wsdd-launcher", "xtask"]
 default-members = [".", "wsdd-launcher"]

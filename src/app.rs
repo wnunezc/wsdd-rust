@@ -69,10 +69,9 @@ pub struct WsddApp {
 }
 
 impl WsddApp {
-    pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, settings: AppSettings) -> Self {
         Self::setup_fonts(&cc.egui_ctx);
 
-        let settings = AppSettings::load().unwrap_or_default();
         crate::i18n::set_language(settings.language);
         let first_run = !settings.setup_completed;
 
