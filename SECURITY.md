@@ -9,7 +9,7 @@ At this moment, the actively maintained line is:
 
 | Version line | Supported |
 |---|---|
-| `1.0.0-rc.6` and newer | Yes |
+| `1.0.0-rc.7` and newer | Yes |
 | Older release candidates | No |
 
 ## Reporting a vulnerability

@@ -1,7 +1,7 @@
 Copyright © 2026 Walter Núñez / Icaros Net S.A.
 Todos los derechos reservados.
 
-WebStack Deployer for Docker versión 1.0.0-rc.6 es software propietario distribuido bajo un modelo de código abierto controlado. El uso de este software está permitido únicamente para fines de desarrollo.
+WebStack Deployer for Docker versión 1.0.0-rc.7 es software propietario distribuido bajo un modelo de código abierto controlado. El uso de este software está permitido únicamente para fines de desarrollo.
 
 No se permite:
 
