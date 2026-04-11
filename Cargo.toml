@@ -1,6 +1,6 @@
 [package]
 name = "wsdd"
-version = "1.0.0-rc.4"
+version = "1.0.0-rc.5"
 edition = "2021"
 description = "WebStack Deployer for Docker - Rust edition"
 authors = ["Walter Nunez / Icaros Net S.A"]
