@@ -78,7 +78,7 @@ C:\WSDD-Environment\
 
 ## Informations techniques
 
-- **Version**: 1.0.0-rc.5 (edition Rust)
+- **Version**: 1.0.0-rc.6 (edition Rust)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: JSON dans `C:\WSDD-Environment\wsdd-config.json`

@@ -18,8 +18,8 @@ const APPLY_UPDATE_ARG: &str = "--apply-update";
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
-    if let Some(msi_path) = apply_update_arg(&args) {
-        return run_updater_mode(msi_path);
+    if let Some(request) = apply_update_request(&args) {
+        return run_updater_mode(request);
     }
 
     let install_dir = install_dir()?;
@@ -49,7 +49,7 @@ fn main() -> Result<()> {
             if answer == MessageDialogResult::Yes {
                 match prepare_update(&update) {
                     Ok(msi_path) => {
-                        spawn_temp_updater(&msi_path)?;
+                        spawn_temp_updater(&msi_path, &install_dir)?;
                         return Ok(());
                     }
                     Err(e) => {
@@ -76,44 +76,55 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn apply_update_arg(args: &[String]) -> Option<PathBuf> {
-    if args.len() == 3 && args[1] == APPLY_UPDATE_ARG {
-        return Some(PathBuf::from(&args[2]));
+fn apply_update_request(args: &[String]) -> Option<UpdateRequest> {
+    if args.len() >= 3 && args[1] == APPLY_UPDATE_ARG {
+        return Some(UpdateRequest {
+            msi_path: PathBuf::from(&args[2]),
+            install_dir: args.get(3).map(PathBuf::from),
+        });
     }
     None
 }
 
-fn run_updater_mode(msi_path: PathBuf) -> Result<()> {
-    let install_dir = install_dir()?;
-    let local_wsdd = wsdd_exe_path(&install_dir);
-
-    if !msi_path.exists() {
-        return Err(anyhow!("MSI no encontrado: {}", msi_path.display()));
+fn run_updater_mode(request: UpdateRequest) -> Result<()> {
+    if !request.msi_path.exists() {
+        return Err(anyhow!("MSI no encontrado: {}", request.msi_path.display()));
     }
 
     let status = Command::new("msiexec.exe")
-        .args(["/i", &msi_path.to_string_lossy(), "/qn", "/norestart"])
+        .args([
+            "/i",
+            &request.msi_path.to_string_lossy(),
+            "/qn",
+            "/norestart",
+        ])
         .status()
         .context("No se pudo lanzar msiexec")?;
 
     if !status.success() {
+        let exit_code = status
+            .code()
+            .map(|code| code.to_string())
+            .unwrap_or_else(|| "desconocido".to_string());
         show_error(
             "WSDD Launcher",
-            "La instalacion silenciosa del MSI fallo. WSDD no fue actualizado.",
+            &format!(
+                "La instalacion silenciosa del MSI fallo. WSDD no fue actualizado.\n\nCodigo de salida: {exit_code}"
+            ),
         );
-        return Err(anyhow!("msiexec devolvio exit code no exitoso"));
+        return Err(anyhow!("msiexec devolvio exit code {exit_code}"));
     }
 
-    if !local_wsdd.exists() {
+    let Some(local_wsdd) = resolve_installed_wsdd_path(request.install_dir.as_deref()) else {
         show_error(
             "WSDD Launcher",
-            "La actualizacion termino pero wsdd.exe no fue encontrado despues del MSI.",
+            "La actualizacion termino pero wsdd.exe no fue encontrado en la ubicacion instalada despues del MSI.",
         );
         return Err(anyhow!(
             "wsdd.exe no encontrado despues de instalar {}",
-            msi_path.display()
+            request.msi_path.display()
         ));
-    }
+    };
 
     launch_local_wsdd(&local_wsdd)?;
     Ok(())
@@ -186,9 +197,11 @@ fn download_file(url: &str, destination: &Path) -> Result<()> {
     Ok(())
 }
 
-fn spawn_temp_updater(msi_path: &Path) -> Result<()> {
+fn spawn_temp_updater(msi_path: &Path, install_dir: &Path) -> Result<()> {
     let current = env::current_exe().context("No se pudo resolver current_exe del launcher")?;
     let temp_launcher = env::temp_dir().join("wsdd-launcher-updater.exe");
+    let msi_arg = msi_path.to_string_lossy().into_owned();
+    let install_arg = install_dir.to_string_lossy().into_owned();
 
     fs::copy(&current, &temp_launcher).with_context(|| {
         format!(
@@ -198,7 +211,7 @@ fn spawn_temp_updater(msi_path: &Path) -> Result<()> {
     })?;
 
     Command::new(&temp_launcher)
-        .args([APPLY_UPDATE_ARG, &msi_path.to_string_lossy()])
+        .args([APPLY_UPDATE_ARG, &msi_arg, &install_arg])
         .spawn()
         .with_context(|| format!("No se pudo lanzar {}", temp_launcher.display()))?;
 
@@ -227,6 +240,55 @@ fn install_dir() -> Result<PathBuf> {
 
 fn wsdd_exe_path(install_dir: &Path) -> PathBuf {
     install_dir.join("wsdd.exe")
+}
+
+fn resolve_installed_wsdd_path(preferred_install_dir: Option<&Path>) -> Option<PathBuf> {
+    let current_exe_dir = install_dir().ok();
+    let fallback_dirs = install_dir_candidates_from_sources(
+        preferred_install_dir,
+        current_exe_dir.as_deref(),
+        &program_files_install_dirs(),
+    );
+
+    fallback_dirs
+        .into_iter()
+        .map(|dir| wsdd_exe_path(&dir))
+        .find(|wsdd_path| wsdd_path.exists())
+}
+
+fn program_files_install_dirs() -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    for key in ["ProgramW6432", "ProgramFiles", "ProgramFiles(x86)"] {
+        if let Some(base) = env::var_os(key) {
+            push_unique_path(
+                &mut dirs,
+                Some(PathBuf::from(base).join("WSDD").join("bin")),
+            );
+        }
+    }
+    dirs
+}
+
+fn install_dir_candidates_from_sources(
+    preferred_install_dir: Option<&Path>,
+    current_exe_dir: Option<&Path>,
+    program_files_dirs: &[PathBuf],
+) -> Vec<PathBuf> {
+    let mut dirs = Vec::new();
+    push_unique_path(&mut dirs, preferred_install_dir.map(Path::to_path_buf));
+    push_unique_path(&mut dirs, current_exe_dir.map(Path::to_path_buf));
+    for dir in program_files_dirs {
+        push_unique_path(&mut dirs, Some(dir.clone()));
+    }
+    dirs
+}
+
+fn push_unique_path(paths: &mut Vec<PathBuf>, candidate: Option<PathBuf>) {
+    if let Some(candidate) = candidate {
+        if !paths.iter().any(|existing| existing == &candidate) {
+            paths.push(candidate);
+        }
+    }
 }
 
 fn normalize_tag(tag: &str) -> &str {
@@ -279,6 +341,12 @@ struct ReleaseInfo {
     msi_url: String,
 }
 
+#[derive(Debug, Clone)]
+struct UpdateRequest {
+    msi_path: PathBuf,
+    install_dir: Option<PathBuf>,
+}
+
 #[derive(Debug, Deserialize)]
 struct GitHubRelease {
     tag_name: String,
@@ -290,4 +358,60 @@ struct GitHubRelease {
 struct GitHubAsset {
     name: String,
     browser_download_url: String,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apply_update_request_accepts_install_dir_argument() {
+        let args = vec![
+            "wsdd-launcher.exe".to_string(),
+            APPLY_UPDATE_ARG.to_string(),
+            r"C:\Temp\wsdd.msi".to_string(),
+            r"C:\Program Files\WSDD\bin".to_string(),
+        ];
+
+        let request = apply_update_request(&args).expect("request should parse");
+        assert_eq!(request.msi_path, PathBuf::from(r"C:\Temp\wsdd.msi"));
+        assert_eq!(
+            request.install_dir,
+            Some(PathBuf::from(r"C:\Program Files\WSDD\bin"))
+        );
+    }
+
+    #[test]
+    fn apply_update_request_keeps_backward_compatibility() {
+        let args = vec![
+            "wsdd-launcher.exe".to_string(),
+            APPLY_UPDATE_ARG.to_string(),
+            r"C:\Temp\wsdd.msi".to_string(),
+        ];
+
+        let request = apply_update_request(&args).expect("request should parse");
+        assert_eq!(request.msi_path, PathBuf::from(r"C:\Temp\wsdd.msi"));
+        assert_eq!(request.install_dir, None);
+    }
+
+    #[test]
+    fn install_dir_candidates_prioritize_explicit_install_dir() {
+        let program_files_dirs = vec![
+            PathBuf::from(r"C:\Program Files\WSDD\bin"),
+            PathBuf::from(r"C:\Program Files (x86)\WSDD\bin"),
+            PathBuf::from(r"C:\Program Files\WSDD\bin"),
+        ];
+
+        let dirs = install_dir_candidates_from_sources(
+            Some(Path::new(r"D:\Apps\WSDD\bin")),
+            Some(Path::new(r"C:\Users\user\AppData\Local\Temp")),
+            &program_files_dirs,
+        );
+
+        assert_eq!(dirs[0], PathBuf::from(r"D:\Apps\WSDD\bin"));
+        assert_eq!(dirs[1], PathBuf::from(r"C:\Users\user\AppData\Local\Temp"));
+        assert_eq!(dirs[2], PathBuf::from(r"C:\Program Files\WSDD\bin"));
+        assert_eq!(dirs[3], PathBuf::from(r"C:\Program Files (x86)\WSDD\bin"));
+        assert_eq!(dirs.len(), 4);
+    }
 }

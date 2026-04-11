@@ -5,7 +5,7 @@
 | Version | Path | Status |
 |---|---|---|
 | C# reference | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | Archived reference implementation |
-| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.5`) |
+| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.6`) |
 
 The Rust codebase is now the active implementation of WSDD. The original C# WinForms project
 remains as a reference for historical behavior and edge cases.
