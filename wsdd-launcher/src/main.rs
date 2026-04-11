@@ -1,0 +1,293 @@
+#![windows_subsystem = "windows"]
+
+use std::env;
+use std::fs::{self, File};
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anyhow::{anyhow, Context, Result};
+use reqwest::blocking::Client;
+use rfd::{MessageButtons, MessageDialog, MessageDialogResult, MessageLevel};
+use semver::Version;
+use serde::Deserialize;
+
+const RELEASES_LATEST_URL: &str = "https://api.github.com/repos/wnunezc/wsdd-rust/releases/latest";
+const USER_AGENT: &str = "wsdd-launcher";
+const MSIEXT: &str = ".msi";
+const APPLY_UPDATE_ARG: &str = "--apply-update";
+
+fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
+    if let Some(msi_path) = apply_update_arg(&args) {
+        return run_updater_mode(msi_path);
+    }
+
+    let install_dir = install_dir()?;
+    let local_wsdd = wsdd_exe_path(&install_dir);
+
+    if !local_wsdd.exists() {
+        show_error(
+            "WSDD Launcher",
+            "No se encontro wsdd.exe junto al launcher.",
+        );
+        return Err(anyhow!(
+            "wsdd.exe no encontrado en {}",
+            local_wsdd.display()
+        ));
+    }
+
+    match check_for_update() {
+        Ok(Some(update)) => {
+            let body = update_prompt_text(&update);
+            let answer = MessageDialog::new()
+                .set_level(MessageLevel::Info)
+                .set_title("WSDD Update Available")
+                .set_description(&body)
+                .set_buttons(MessageButtons::YesNo)
+                .show();
+
+            if answer == MessageDialogResult::Yes {
+                match prepare_update(&update) {
+                    Ok(msi_path) => {
+                        spawn_temp_updater(&msi_path)?;
+                        return Ok(());
+                    }
+                    Err(e) => {
+                        show_error(
+                            "WSDD Launcher",
+                            &format!("No se pudo preparar la actualizacion.\n\n{e}"),
+                        );
+                    }
+                }
+            }
+
+            launch_local_wsdd(&local_wsdd)?;
+        }
+        Ok(None) => {
+            launch_local_wsdd(&local_wsdd)?;
+        }
+        Err(e) => {
+            // Si falla la consulta remota, no bloquear la app principal.
+            eprintln!("update check failed: {e}");
+            launch_local_wsdd(&local_wsdd)?;
+        }
+    }
+
+    Ok(())
+}
+
+fn apply_update_arg(args: &[String]) -> Option<PathBuf> {
+    if args.len() == 3 && args[1] == APPLY_UPDATE_ARG {
+        return Some(PathBuf::from(&args[2]));
+    }
+    None
+}
+
+fn run_updater_mode(msi_path: PathBuf) -> Result<()> {
+    let install_dir = install_dir()?;
+    let local_wsdd = wsdd_exe_path(&install_dir);
+
+    if !msi_path.exists() {
+        return Err(anyhow!("MSI no encontrado: {}", msi_path.display()));
+    }
+
+    let status = Command::new("msiexec.exe")
+        .args(["/i", &msi_path.to_string_lossy(), "/qn", "/norestart"])
+        .status()
+        .context("No se pudo lanzar msiexec")?;
+
+    if !status.success() {
+        show_error(
+            "WSDD Launcher",
+            "La instalacion silenciosa del MSI fallo. WSDD no fue actualizado.",
+        );
+        return Err(anyhow!("msiexec devolvio exit code no exitoso"));
+    }
+
+    if !local_wsdd.exists() {
+        show_error(
+            "WSDD Launcher",
+            "La actualizacion termino pero wsdd.exe no fue encontrado despues del MSI.",
+        );
+        return Err(anyhow!(
+            "wsdd.exe no encontrado despues de instalar {}",
+            msi_path.display()
+        ));
+    }
+
+    launch_local_wsdd(&local_wsdd)?;
+    Ok(())
+}
+
+fn check_for_update() -> Result<Option<ReleaseInfo>> {
+    let client = Client::builder()
+        .build()
+        .context("No se pudo crear cliente HTTP")?;
+    let release: GitHubRelease = client
+        .get(RELEASES_LATEST_URL)
+        .header("User-Agent", USER_AGENT)
+        .header("Accept", "application/vnd.github+json")
+        .send()
+        .context("No se pudo consultar GitHub Releases")?
+        .error_for_status()
+        .context("GitHub Releases respondio con error")?
+        .json()
+        .context("No se pudo parsear la respuesta de GitHub Releases")?;
+
+    let current = Version::parse(env!("CARGO_PKG_VERSION"))
+        .context("No se pudo parsear la version local del launcher")?;
+    let latest = Version::parse(normalize_tag(&release.tag_name))
+        .with_context(|| format!("Tag de release invalido: {}", release.tag_name))?;
+
+    if latest <= current {
+        return Ok(None);
+    }
+
+    let asset = release
+        .assets
+        .iter()
+        .find(|asset| asset.name.to_ascii_lowercase().ends_with(MSIEXT))
+        .ok_or_else(|| anyhow!("La release no contiene un asset MSI"))?;
+
+    Ok(Some(ReleaseInfo {
+        version: latest.to_string(),
+        changelog: release.body,
+        msi_url: asset.browser_download_url.clone(),
+    }))
+}
+
+fn prepare_update(update: &ReleaseInfo) -> Result<PathBuf> {
+    let temp_dir = env::temp_dir().join("wsdd-launcher");
+    fs::create_dir_all(&temp_dir).context("No se pudo crear directorio temporal del launcher")?;
+
+    let msi_path = temp_dir.join(format!("wsdd-{}.msi", update.version));
+    download_file(&update.msi_url, &msi_path)?;
+    Ok(msi_path)
+}
+
+fn download_file(url: &str, destination: &Path) -> Result<()> {
+    let client = Client::builder()
+        .build()
+        .context("No se pudo crear cliente HTTP")?;
+    let mut response = client
+        .get(url)
+        .header("User-Agent", USER_AGENT)
+        .send()
+        .with_context(|| format!("No se pudo descargar {url}"))?
+        .error_for_status()
+        .with_context(|| format!("Descarga MSI fallo desde {url}"))?;
+
+    let mut file = File::create(destination)
+        .with_context(|| format!("No se pudo crear {}", destination.display()))?;
+    response
+        .copy_to(&mut file)
+        .with_context(|| format!("No se pudo escribir {}", destination.display()))?;
+
+    Ok(())
+}
+
+fn spawn_temp_updater(msi_path: &Path) -> Result<()> {
+    let current = env::current_exe().context("No se pudo resolver current_exe del launcher")?;
+    let temp_launcher = env::temp_dir().join("wsdd-launcher-updater.exe");
+
+    fs::copy(&current, &temp_launcher).with_context(|| {
+        format!(
+            "No se pudo copiar el launcher temporal a {}",
+            temp_launcher.display()
+        )
+    })?;
+
+    Command::new(&temp_launcher)
+        .args([APPLY_UPDATE_ARG, &msi_path.to_string_lossy()])
+        .spawn()
+        .with_context(|| format!("No se pudo lanzar {}", temp_launcher.display()))?;
+
+    Ok(())
+}
+
+fn launch_local_wsdd(wsdd_path: &Path) -> Result<()> {
+    let install_dir = wsdd_path
+        .parent()
+        .ok_or_else(|| anyhow!("wsdd.exe no tiene directorio padre"))?;
+
+    Command::new(wsdd_path)
+        .current_dir(install_dir)
+        .spawn()
+        .with_context(|| format!("No se pudo lanzar {}", wsdd_path.display()))?;
+
+    Ok(())
+}
+
+fn install_dir() -> Result<PathBuf> {
+    let exe = env::current_exe().context("No se pudo resolver current_exe")?;
+    exe.parent()
+        .map(Path::to_path_buf)
+        .ok_or_else(|| anyhow!("El launcher no tiene directorio padre"))
+}
+
+fn wsdd_exe_path(install_dir: &Path) -> PathBuf {
+    install_dir.join("wsdd.exe")
+}
+
+fn normalize_tag(tag: &str) -> &str {
+    tag.trim_start_matches('v')
+}
+
+fn update_prompt_text(update: &ReleaseInfo) -> String {
+    let mut text = format!(
+        "Hay una actualizacion disponible para WSDD.\n\nVersion remota: {}\nVersion local: {}\n\n",
+        update.version,
+        env!("CARGO_PKG_VERSION")
+    );
+
+    let changelog = update.changelog.trim();
+    if changelog.is_empty() {
+        text.push_str("No se recibio changelog para esta release.\n\n");
+    } else {
+        text.push_str("Changelog:\n");
+        text.push_str(&truncate_changelog(changelog, 900));
+        text.push_str("\n\n");
+    }
+
+    text.push_str("Deseas descargar el MSI e instalar la actualizacion ahora?");
+    text
+}
+
+fn truncate_changelog(input: &str, max_chars: usize) -> String {
+    if input.chars().count() <= max_chars {
+        return input.to_string();
+    }
+
+    let mut truncated = input.chars().take(max_chars).collect::<String>();
+    truncated.push_str("\n...");
+    truncated
+}
+
+fn show_error(title: &str, description: &str) {
+    let _ = MessageDialog::new()
+        .set_level(MessageLevel::Error)
+        .set_title(title)
+        .set_description(description)
+        .set_buttons(MessageButtons::Ok)
+        .show();
+}
+
+#[derive(Debug, Clone)]
+struct ReleaseInfo {
+    version: String,
+    changelog: String,
+    msi_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubRelease {
+    tag_name: String,
+    body: String,
+    assets: Vec<GitHubAsset>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubAsset {
+    name: String,
+    browser_download_url: String,
+}

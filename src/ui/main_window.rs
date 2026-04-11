@@ -28,7 +28,7 @@ use std::time::Duration;
 use crate::app::WsddApp;
 use crate::handlers::docker::{list_containers_sync, ContainerInfo};
 use crate::handlers::external_app;
-use crate::handlers::log_types::LogLevel;
+use crate::handlers::log_types::{LogLevel, LogLine};
 use crate::handlers::ps_script::{launch, ScriptRunner};
 use crate::handlers::setting::AppTheme;
 use crate::i18n::{tr, trf};
@@ -65,6 +65,9 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
     let refresh_containers = tr("menu_refresh_containers");
     let reload_docker = tr("menu_reload_docker");
     let clear_logs = tr("menu_clear_logs");
+    let backup_environment = tr("menu_backup_environment");
+    let restore_environment = tr("menu_restore_environment");
+    let restore_project_backup = tr("menu_restore_project_backup");
     let wsl_settings = tr("menu_wsl_settings");
     let settings = tr("menu_settings");
     let help = tr("menu_help");
@@ -123,6 +126,19 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
             });
 
             ui.menu_button(menu_tools, |ui| {
+                if ui.button(&backup_environment).clicked() {
+                    start_environment_backup(app);
+                    ui.close_menu();
+                }
+                if ui.button(&restore_environment).clicked() {
+                    start_environment_restore(app);
+                    ui.close_menu();
+                }
+                if ui.button(&restore_project_backup).clicked() {
+                    start_project_restore(app);
+                    ui.close_menu();
+                }
+                ui.separator();
                 if ui.button(&wsl_settings).clicked() {
                     app.ui.active = ActiveView::WslSettings;
                     ui.close_menu();
@@ -490,4 +506,59 @@ fn reload_projects(app: &mut WsddApp) {
                 )));
         }
     }
+}
+
+fn start_environment_backup(app: &mut WsddApp) {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title(tr("backup_dialog_save_title"))
+        .add_filter("WSDD Backup", &["zip"])
+        .set_file_name(crate::handlers::backup::default_full_backup_name())
+        .save_file()
+    else {
+        return;
+    };
+
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = crate::handlers::backup::backup_environment(&path, &runner, &tx) {
+            let _ = tx.send(LogLine::error(format!("[Backup] Error: {e}")));
+        }
+    });
+}
+
+fn start_environment_restore(app: &mut WsddApp) {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title(tr("backup_dialog_restore_title"))
+        .add_filter("WSDD Backup", &["zip"])
+        .pick_file()
+    else {
+        return;
+    };
+
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = crate::handlers::backup::restore_environment(&path, &runner, &tx) {
+            let _ = tx.send(LogLine::error(format!("[Restore] Error: {e}")));
+        }
+    });
+}
+
+fn start_project_restore(app: &mut WsddApp) {
+    let Some(path) = rfd::FileDialog::new()
+        .set_title(tr("project_restore_dialog_title"))
+        .add_filter("WSDD Backup", &["zip"])
+        .pick_file()
+    else {
+        return;
+    };
+
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    std::thread::spawn(move || {
+        if let Err(e) = crate::handlers::backup::restore_project(&path, &runner, &tx) {
+            let _ = tx.send(LogLine::error(format!("[Restore] Error: {e}")));
+        }
+    });
 }

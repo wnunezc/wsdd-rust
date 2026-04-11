@@ -1,6 +1,6 @@
 [package]
 name = "wsdd"
-version = "1.0.0-rc.3"
+version = "1.0.0-rc.4"
 edition = "2021"
 description = "WebStack Deployer for Docker - Rust edition"
 authors = ["Walter Nunez / Icaros Net S.A"]
@@ -53,6 +53,7 @@ windows = { version = "0.58", features = [
     "Win32_Foundation",
     "Win32_Security",
     "Win32_System_Registry",
+    "Win32_System_SystemInformation",
     "Win32_System_Threading",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
@@ -69,3 +70,7 @@ lto = true
 [profile.dev]
 opt-level = 0
 debug = true
+
+[workspace]
+members = ["wsdd-launcher"]
+default-members = [".", "wsdd-launcher"]

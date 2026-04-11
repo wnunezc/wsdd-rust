@@ -27,6 +27,9 @@
   "menu_reload_docker": "Reload Docker Desktop",
   "menu_clear_logs": "Clear logs",
   "menu_wsl_settings": "WSL Settings",
+  "menu_backup_environment": "Backup Environment...",
+  "menu_restore_environment": "Restore Environment...",
+  "menu_restore_project_backup": "Restore Project Backup...",
 
   "welcome_title": "Welcome to WSDD",
   "welcome_subtitle": "WebStack Deployer for Docker will configure your local development environment automatically.",
@@ -182,10 +185,16 @@
   "toolbox_tty": "TTY",
   "toolbox_tty_hint": "Open an interactive shell inside the container",
   "toolbox_logs_hint": "Follow container logs in real time",
+  "toolbox_backup_project": "Backup Project",
 
   "info_work_path": "Working directory",
   "info_entry_point": "Entry point",
   "info_root": "Root",
+
+  "backup_dialog_save_title": "Save environment backup",
+  "backup_dialog_restore_title": "Select environment backup",
+  "project_backup_dialog_title": "Save project backup",
+  "project_restore_dialog_title": "Select project backup",
 
   "display_selector_title": "Select monitor"
 }

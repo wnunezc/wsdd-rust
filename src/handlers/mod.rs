@@ -14,6 +14,7 @@
 // Contact: wnunez@lh-2.net
 // Handlers — logica de negocio. Equivalente a Handlers/ en C#.
 
+pub mod backup;
 pub mod chocolatey;
 pub mod deploy;
 pub mod docker;

@@ -1,5 +1,5 @@
 [alias]
-wix-msi = "wix --target x86_64-pc-windows-msvc"
+wix-msi = "wix -p wsdd --target x86_64-pc-windows-msvc"
 
 [build]
 # Target principal: Windows x64

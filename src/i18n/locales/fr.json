@@ -27,6 +27,9 @@
   "menu_reload_docker": "Recharger Docker Desktop",
   "menu_clear_logs": "Effacer les journaux",
   "menu_wsl_settings": "Parametres WSL",
+  "menu_backup_environment": "Sauvegarder l'environnement...",
+  "menu_restore_environment": "Restaurer l'environnement...",
+  "menu_restore_project_backup": "Restaurer un backup de projet...",
 
   "welcome_title": "Bienvenue dans WSDD",
   "welcome_subtitle": "WebStack Deployer for Docker configurera automatiquement votre environnement de developpement local.",
@@ -182,10 +185,16 @@
   "toolbox_tty": "TTY",
   "toolbox_tty_hint": "Ouvrir un shell interactif dans le conteneur",
   "toolbox_logs_hint": "Suivre les journaux du conteneur en temps reel",
+  "toolbox_backup_project": "Sauvegarder le projet",
 
   "info_work_path": "Repertoire de travail",
   "info_entry_point": "Point d'entree",
   "info_root": "Racine",
+
+  "backup_dialog_save_title": "Enregistrer la sauvegarde de l'environnement",
+  "backup_dialog_restore_title": "Selectionner une sauvegarde d'environnement",
+  "project_backup_dialog_title": "Enregistrer la sauvegarde du projet",
+  "project_restore_dialog_title": "Selectionner une sauvegarde de projet",
 
   "display_selector_title": "Selectionner le moniteur"
 }

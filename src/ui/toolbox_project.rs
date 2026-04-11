@@ -19,6 +19,7 @@
 //! info del proyecto.
 
 use crate::app::WsddApp;
+use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::launch;
 use crate::i18n::tr;
 use crate::ui::ActiveView;
@@ -65,6 +66,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let project_info = tr("toolbox_project_info");
             let open_folder = tr("main_open_folder");
             let open_browser = tr("main_open_browser");
+            let backup_project = tr("toolbox_backup_project");
             let close_label = tr("btn_close");
             let info_name = format!("{}:", tr("col_name"));
             let info_domain = format!("{}:", tr("col_domain"));
@@ -96,6 +98,29 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     launch("cmd", &["/c", "start", &url], None);
                 }
             });
+
+            ui.add_space(6.0);
+
+            if ui.button(format!("💾 {backup_project}")).clicked() {
+                if let Some(path) = rfd::FileDialog::new()
+                    .set_title(tr("project_backup_dialog_title"))
+                    .add_filter("WSDD Backup", &["zip"])
+                    .set_file_name(crate::handlers::backup::default_project_backup_name(
+                        &project.name,
+                    ))
+                    .save_file()
+                {
+                    let tx = app.main_log_tx.clone();
+                    let project_clone = project.clone();
+                    std::thread::spawn(move || {
+                        if let Err(e) =
+                            crate::handlers::backup::backup_project(&project_clone, &path, &tx)
+                        {
+                            let _ = tx.send(LogLine::error(format!("[Backup] Error: {e}")));
+                        }
+                    });
+                }
+            }
 
             ui.add_space(12.0);
             ui.separator();

@@ -27,6 +27,9 @@
   "menu_reload_docker": "重载 Docker Desktop",
   "menu_clear_logs": "清空日志",
   "menu_wsl_settings": "WSL 设置",
+  "menu_backup_environment": "备份环境...",
+  "menu_restore_environment": "恢复环境...",
+  "menu_restore_project_backup": "恢复项目备份...",
 
   "welcome_title": "欢迎使用 WSDD",
   "welcome_subtitle": "WebStack Deployer for Docker 将自动配置您的本地开发环境。",
@@ -182,10 +185,16 @@
   "toolbox_tty": "TTY",
   "toolbox_tty_hint": "在容器内打开交互式 shell",
   "toolbox_logs_hint": "实时跟踪容器日志",
+  "toolbox_backup_project": "备份项目",
 
   "info_work_path": "工作目录",
   "info_entry_point": "入口点",
   "info_root": "根目录",
+
+  "backup_dialog_save_title": "保存环境备份",
+  "backup_dialog_restore_title": "选择环境备份",
+  "project_backup_dialog_title": "保存项目备份",
+  "project_restore_dialog_title": "选择项目备份",
 
   "display_selector_title": "选择显示器"
 }

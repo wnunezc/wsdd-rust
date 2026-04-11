@@ -87,6 +87,14 @@
                                 Source='$(var.CargoTargetBinDir)\wsdd.exe'
                                 KeyPath='yes'/>
                         </Component>
+                        <Component Id='binaryLauncher' Guid='*'>
+                            <File
+                                Id='exeLauncher'
+                                Name='wsdd-launcher.exe'
+                                DiskId='1'
+                                Source='$(var.CargoTargetBinDir)\wsdd-launcher.exe'
+                                KeyPath='yes'/>
+                        </Component>
                     </Directory>
                 </Directory>
             </Directory>
@@ -98,7 +106,7 @@
                         <Shortcut Id='ApplicationStartMenuShortcut'
                             Name='WSDD - WebStack Deployer for Docker'
                             Description='Local Docker stack manager for PHP development'
-                            Target='[Bin]wsdd.exe'
+                            Target='[Bin]wsdd-launcher.exe'
                             WorkingDirectory='Bin'/>
                         <RemoveFolder Id='CleanUpShortCut' Directory='ApplicationProgramsFolder' On='uninstall'/>
                         <RegistryValue Root='HKCU' Key='Software\OpsZone\WSDD' Name='installed' Type='integer' Value='1' KeyPath='yes'/>
@@ -123,6 +131,7 @@
             <ComponentRef Id='LicenseTxtHi'/>
             <ComponentRef Id='LicenseTxtZh'/>
             <ComponentRef Id='binary0'/>
+            <ComponentRef Id='binaryLauncher'/>
             <ComponentRef Id='ApplicationShortcut'/>
         </Feature>
 

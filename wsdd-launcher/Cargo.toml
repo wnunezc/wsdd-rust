@@ -1,0 +1,22 @@
+[package]
+name = "wsdd-launcher"
+version = "1.0.0-rc.4"
+edition = "2021"
+description = "Launcher and updater for WebStack Deployer for Docker"
+authors = ["Walter Nunez / Icaros Net S.A"]
+license = "Proprietary"
+
+[[bin]]
+name = "wsdd-launcher"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
+rfd = "0.15"
+semver = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[build-dependencies]
+winres = "0.1"

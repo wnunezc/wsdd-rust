@@ -5,7 +5,7 @@
 | Version | Path | Status |
 |---|---|---|
 | C# reference | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | Archived reference implementation |
-| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.3`) |
+| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.4`) |
 
 The Rust codebase is now the active implementation of WSDD. The original C# WinForms project
 remains as a reference for historical behavior and edge cases.
@@ -64,12 +64,13 @@ src/
 └── ui/
 ```
 
-## What remains outside the original migration
+## Post-migration roadmap status
 
-The current pending work is no longer “core migration” work. It is follow-up product roadmap:
+The current work is no longer “core migration” work. The first follow-up product roadmap is now
+implemented in the active Rust line:
 
-- **Block F**: launcher and updater flow
-- **Block G**: backup and restore for Docker environments and individual projects
+- **Block F**: launcher and updater flow — implemented in `1.0.0-rc.4`
+- **Block G**: backup and restore for Docker environments and individual projects — implemented in `1.0.0-rc.4`
 
 ## Notes
 
