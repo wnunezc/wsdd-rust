@@ -1,0 +1,57 @@
+name: Release MSI
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows-msi:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install WiX Toolset
+        shell: powershell
+        run: choco install wixtoolset --version=3.14.1 -y --no-progress
+
+      - name: Install cargo-wix
+        shell: powershell
+        run: cargo install cargo-wix --version 0.3.9 --locked
+
+      - name: Build MSI
+        shell: powershell
+        run: cargo wix-msi
+
+      - name: Generate checksums
+        shell: powershell
+        run: |
+          $msiFiles = Get-ChildItem -LiteralPath 'target/wix' -Filter *.msi
+          if ($msiFiles.Count -eq 0) {
+            throw 'No MSI files found in target/wix'
+          }
+
+          foreach ($file in $msiFiles) {
+            $hash = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+            Set-Content -LiteralPath ($file.FullName + '.sha256.txt') -Value ($hash + ' *' + $file.Name)
+          }
+
+      - name: Upload MSI artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wsdd-msi
+          path: |
+            target/wix/*.msi
+            target/wix/*.sha256.txt

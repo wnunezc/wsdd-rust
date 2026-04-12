@@ -5,7 +5,7 @@
 - Estado del plan: ACTIVO Y OBLIGATORIO
 - Fecha de activacion: 2026-04-11
 - Vigencia: hasta cerrar todos los paquetes abiertos de este documento
-- Baseline publicado de referencia: `HEAD 262292b` / `v1.0.0-rc.7`
+- Baseline publicado de referencia: `HEAD a83ba2c` / `main publicado (1.0.0-rc.11)`
 - Validacion updater RC6 -> RC7: OK, cerrada por el usuario
 - Decision global del usuario: NO publicar `1.0.0` estable hasta cerrar todos los problemas del plan
 - Estrategia de releases actual: continuar con versiones RC mientras el plan siga abierto
@@ -50,8 +50,8 @@ salvo nueva instruccion explicita del usuario.
 
 | ID | Prioridad | Estado actual | Decision del usuario |
 |---|---|---|---|
-| `WP-01` | Alto | Implementado localmente - pendiente validacion manual en `rc.11` | Opcion `B` aprobada |
-| `WP-02` | Alto | Pendiente de decision | Pendiente |
+| `WP-01` | Alto | Cerrado por confirmacion explicita del usuario en `rc.11` | Opcion `B` aprobada |
+| `WP-02` | Alto | Aprobado para implementacion en `rc.12` | Opcion `B` aprobada |
 | `WP-03` | Alto | Pendiente de decision | Pendiente |
 | `WP-04` | Alto | Pendiente de decision | Pendiente |
 | `WP-05` | Alto | Pendiente de decision | Pendiente |
@@ -75,7 +75,7 @@ salvo nueva instruccion explicita del usuario.
 - `1.0.0-rc.10` corrigio la estructura de `Docker-Structure`, pero quedo invalidado por `sha256` desactualizado del `.deb` de Webmin
 - `1.0.0-rc.11` preparado con `sha256` actualizado de Webmin, deduplicacion de log Docker en deploy de proyectos y reparacion/autocuracion de `Docker-Structure`
 - `1.0.0-rc.11` fue recompilado localmente sin cambiar version para corregir el bootstrap del usuario Webmin en `PHP 8.1/8.2/8.3/8.4` y restaurar las URLs base `php/cron/wmXX.wsdd.dock` en `hosts` y toolbox de contenedor
-  - pendiente confirmacion explicita del usuario para cerrar el paquete
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - `recursos/recursos/Docker-Structure/init.yml`
   - Dockerfiles PHP/Webmin con credenciales por defecto
@@ -109,7 +109,7 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `B` para este paquete
 - Criterio de cierre:
   - existe gate reproducible para PR y release
   - el proceso de release deja evidencia verificable

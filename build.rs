@@ -19,6 +19,7 @@
 fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
     println!("cargo:rerun-if-env-changed=CARGO_PKG_VERSION");
+    println!("cargo:rerun-if-env-changed=WSDD_SKIP_WINDOWS_MANIFEST");
     // Recompilar si cambian recursos
     println!("cargo:rerun-if-changed=recursos/recursos.zip");
     println!("cargo:rerun-if-changed=recursos/recursos/PS-Script/");
@@ -29,9 +30,12 @@ fn main() {
     // Embeber icono + manifest requireAdministrador en el exe (solo Windows, linker MSVC)
     #[cfg(target_os = "windows")]
     {
+        let skip_manifest = std::env::var_os("WSDD_SKIP_WINDOWS_MANIFEST").is_some();
         let mut res = winres::WindowsResource::new();
         res.set_icon("assets/WSDD-64.ico");
-        res.set_manifest_file("wsdd.manifest");
+        if !skip_manifest {
+            res.set_manifest_file("wsdd.manifest");
+        }
         if let Ok(version) = std::env::var("CARGO_PKG_VERSION") {
             res.set("FileVersion", &version);
             res.set("ProductVersion", &version);
