@@ -137,9 +137,21 @@
         </Feature>
 
         <SetProperty Id='ARPINSTALLLOCATION' Value='[APPLICATIONFOLDER]' After='CostFinalize'/>
+        <Property Id='WIXUI_EXITDIALOGOPTIONALCHECKBOXTEXT' Value='Launch WSDD after setup'/>
+        <Property Id='WixShellExecTarget' Value='[Bin]wsdd-launcher.exe'/>
+        <CustomAction
+            Id='LaunchApplication'
+            BinaryKey='WixCA'
+            DllEntry='WixShellExec'
+            Impersonate='yes'/>
 
         <UI>
             <UIRef Id='WixUI_FeatureTree'/>
+            <Publish
+                Dialog='ExitDialog'
+                Control='Finish'
+                Event='DoAction'
+                Value='LaunchApplication'>WIXUI_EXITDIALOGOPTIONALCHECKBOX = 1 and NOT Installed</Publish>
         </UI>
 
         <WixVariable Id='WixUILicenseRtf' Value='wix\License.rtf'/>
