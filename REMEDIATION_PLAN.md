@@ -51,7 +51,7 @@ salvo nueva instruccion explicita del usuario.
 | ID | Prioridad | Estado actual | Decision del usuario |
 |---|---|---|---|
 | `WP-01` | Alto | Cerrado por confirmacion explicita del usuario en `rc.11` | Opcion `B` aprobada |
-| `WP-02` | Alto | Aprobado para implementacion en `rc.12` | Opcion `B` aprobada |
+| `WP-02` | Alto | Cerrado por confirmacion explicita del usuario en `rc.12` | Opcion `B` aprobada |
 | `WP-03` | Alto | Pendiente de decision | Pendiente |
 | `WP-04` | Alto | Pendiente de decision | Pendiente |
 | `WP-05` | Alto | Pendiente de decision | Pendiente |
@@ -98,6 +98,12 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-02` CI/CD y gate de release
 
 - Prioridad: Alto
+- Estado actual:
+  - opcion `B` aprobada por el usuario
+  - workflows `CI` y `Release MSI` implementados en `.github/workflows/`
+  - gate remoto validado en GitHub Actions
+  - build MSI y artefacto `rc.12` validados dentro del cierre de fase
+  - cerrado por confirmacion explicita del usuario
 - Hallazgo base:
   - no existe `.github/workflows/`
 - Objetivo:
