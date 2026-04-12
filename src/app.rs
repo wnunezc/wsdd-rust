@@ -18,7 +18,7 @@
 use std::sync::mpsc;
 use std::time::Instant;
 
-use crate::handlers::docker::ContainerInfo;
+use crate::handlers::docker::{ContainerInfo, ContainerPollSnapshot, DockerDesktopStatus};
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::PsRunner;
 use crate::handlers::requirements::LoaderOutcome;
@@ -61,11 +61,13 @@ pub struct WsddApp {
     /// Receiver del canal de log principal (privado — solo drenado en drain_channels).
     main_log_rx: mpsc::Receiver<LogLine>,
     /// Receiver del polling de contenedores (presente mientras hay un poll activo).
-    pub container_poll_rx: Option<mpsc::Receiver<Vec<ContainerInfo>>>,
+    pub container_poll_rx: Option<mpsc::Receiver<ContainerPollSnapshot>>,
     /// `true` mientras un thread de polling está corriendo.
     pub container_poll_active: bool,
     /// Momento del último poll completado (usado para el intervalo de 3s).
     pub last_container_poll: Instant,
+    /// Estado resumido de Docker Desktop usado por la barra inferior.
+    pub docker_status: DockerDesktopStatus,
 }
 
 impl WsddApp {
@@ -107,6 +109,7 @@ impl WsddApp {
             last_container_poll: Instant::now()
                 .checked_sub(std::time::Duration::from_secs(10))
                 .unwrap_or_else(Instant::now),
+            docker_status: DockerDesktopStatus::default(),
         }
     }
 
@@ -139,6 +142,7 @@ impl WsddApp {
             r"C:\Windows\Fonts\Nirmala.ttc",
             0,
         );
+        add_windows_font_if_exists(&mut fonts, "windows_ui", r"C:\Windows\Fonts\segoeui.ttf", 0);
 
         // Monospace: JetBrains Mono primero, Noto Symbols como fallback
         fonts
@@ -154,7 +158,15 @@ impl WsddApp {
         push_if_present(&mut fonts, egui::FontFamily::Monospace, "windows_cjk");
         push_if_present(&mut fonts, egui::FontFamily::Monospace, "windows_indic");
 
-        // Proportional: Inter sigue primero (default egui), Noto Symbols cubre huecos
+        // Proportional: preferir Segoe UI en Windows para una lectura mas limpia,
+        // manteniendo fallbacks para simbolos y alfabetos adicionales.
+        if fonts.font_data.contains_key("windows_ui") {
+            fonts
+                .families
+                .entry(egui::FontFamily::Proportional)
+                .or_default()
+                .insert(0, "windows_ui".to_owned());
+        }
         fonts
             .families
             .entry(egui::FontFamily::Proportional)
@@ -194,8 +206,9 @@ impl WsddApp {
         // Resultado del polling de contenedores
         let mut poll_done = false;
         if let Some(rx) = &self.container_poll_rx {
-            if let Ok(containers) = rx.try_recv() {
-                self.containers = containers;
+            if let Ok(snapshot) = rx.try_recv() {
+                self.containers = snapshot.containers;
+                self.docker_status = snapshot.docker_status;
                 poll_done = true;
             }
         }

@@ -395,11 +395,7 @@ async fn parse_container_list(output: &str, runner: PsRunner) -> Vec<ContainerIn
             .map(|o| o.text)
             .unwrap_or_default();
 
-        let urls: Vec<String> = urls_raw
-            .split(',')
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
+        let urls = parse_virtual_hosts(&urls_raw);
 
         containers.push(ContainerInfo {
             id: parts[0].to_string(),
@@ -438,6 +434,23 @@ impl ContainerInfo {
             || status_lower.contains("running")
             || status_lower.contains("started")
     }
+}
+
+/// Estado resumido de Docker Desktop para la barra inferior de la UI.
+#[derive(Debug, Clone, Default)]
+pub struct DockerDesktopStatus {
+    pub daemon_ready: bool,
+    pub cpu_percent: Option<f32>,
+    pub memory_mb: Option<u64>,
+    pub process_count: usize,
+    pub process_name: Option<String>,
+}
+
+/// Snapshot combinado del polling principal del panel.
+#[derive(Debug, Clone, Default)]
+pub struct ContainerPollSnapshot {
+    pub containers: Vec<ContainerInfo>,
+    pub docker_status: DockerDesktopStatus,
 }
 
 /// Resultado de la verificación de requisitos de Docker.
@@ -511,10 +524,18 @@ pub fn list_containers_sync(runner: &PsRunner) -> Result<Vec<ContainerInfo>, Inf
         "name=WSDD-",
     ];
     let result = runner.run_direct_sync("docker", &args, None, None)?;
-    Ok(parse_container_list_sync(&result.text))
+    Ok(parse_container_list_sync(&result.text, runner))
 }
 
-fn parse_container_list_sync(output: &str) -> Vec<ContainerInfo> {
+/// Obtiene en una sola llamada el listado de contenedores y el estado de Docker Desktop.
+pub fn gather_poll_snapshot_sync(runner: &PsRunner) -> ContainerPollSnapshot {
+    ContainerPollSnapshot {
+        containers: list_containers_sync(runner).unwrap_or_default(),
+        docker_status: docker_desktop_status_sync(runner),
+    }
+}
+
+fn parse_container_list_sync(output: &str, runner: &PsRunner) -> Vec<ContainerInfo> {
     output
         .lines()
         .filter(|l| !l.trim().is_empty() && !l.to_lowercase().contains("error"))
@@ -523,16 +544,140 @@ fn parse_container_list_sync(output: &str) -> Vec<ContainerInfo> {
             if parts.len() < 5 {
                 return None;
             }
+            let name = parts[1].to_string();
             Some(ContainerInfo {
                 id: parts[0].to_string(),
-                name: parts[1].to_string(),
+                name: name.clone(),
                 image: parts[2].to_string(),
                 ports: parts[3].to_string(),
                 status: parts[4].to_string(),
-                urls: vec![],
+                urls: fetch_container_urls_sync(runner, &name),
             })
         })
         .collect()
+}
+
+fn fetch_container_urls_sync(runner: &PsRunner, name: &str) -> Vec<String> {
+    let cmd = format!("docker exec {name} printenv VIRTUAL_HOST");
+    runner
+        .run_ps_sync(&cmd, None, None)
+        .map(|out| parse_virtual_hosts(&out.text))
+        .unwrap_or_default()
+}
+
+fn parse_virtual_hosts(output: &str) -> Vec<String> {
+    output
+        .split(',')
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+        .collect()
+}
+
+/// Obtiene el estado del daemon Docker y una muestra ligera de CPU del backend.
+pub fn docker_desktop_status_sync(runner: &PsRunner) -> DockerDesktopStatus {
+    let daemon_ready = runner
+        .run_direct_sync(
+            "docker",
+            &["info", "--format", "{{.ServerVersion}}"],
+            None,
+            None,
+        )
+        .map(|out| out.success && !out.text.trim().is_empty())
+        .unwrap_or(false);
+
+    let script = r#"
+$procs = @(
+    Get-Process -ErrorAction SilentlyContinue |
+    Where-Object {
+        $_.ProcessName -eq 'com.docker.backend' -or
+        $_.ProcessName -eq 'Docker Desktop' -or
+        $_.ProcessName -eq 'vmmemWSL' -or
+        $_.ProcessName -eq 'dockerd' -or
+        $_.ProcessName -eq 'docker' -or
+        $_.ProcessName -like '*docker*'
+    }
+)
+if (-not $procs) {
+    Write-Output 'backend_running=false'
+    Write-Output 'cpu_percent='
+    Write-Output 'memory_mb='
+    Write-Output 'process_count=0'
+    Write-Output 'process_name='
+    exit 0
+}
+$sampleMs = 350
+$ids = @($procs | Select-Object -ExpandProperty Id)
+$cpu1 = [double](($procs | Measure-Object -Property CPU -Sum).Sum)
+Start-Sleep -Milliseconds $sampleMs
+$procs2 = @(
+    $ids |
+    ForEach-Object { Get-Process -Id $_ -ErrorAction SilentlyContinue } |
+    Where-Object { $_ -ne $null }
+)
+if (-not $procs2) {
+    Write-Output 'backend_running=false'
+    Write-Output 'cpu_percent='
+    Write-Output 'memory_mb='
+    Write-Output 'process_count=0'
+    Write-Output ('process_name=' + (($procs | Select-Object -ExpandProperty ProcessName -Unique) -join ', '))
+    exit 0
+}
+$delta = [double](($procs2 | Measure-Object -Property CPU -Sum).Sum) - $cpu1
+$memoryMb = [Math]::Round((($procs2 | Measure-Object -Property WorkingSet64 -Sum).Sum) / 1MB, 0)
+$cores = [double][Environment]::ProcessorCount
+$percent = [Math]::Round((($delta / ($sampleMs / 1000.0)) / $cores) * 100.0, 1)
+if ($percent -lt 0) { $percent = 0 }
+Write-Output 'backend_running=true'
+Write-Output ('cpu_percent=' + $percent.ToString([System.Globalization.CultureInfo]::InvariantCulture))
+Write-Output ('memory_mb=' + $memoryMb)
+Write-Output ('process_count=' + $procs2.Count)
+Write-Output ('process_name=' + (($procs2 | Select-Object -ExpandProperty ProcessName -Unique) -join ', '))
+"#;
+
+    let output = runner
+        .run_ps_sync(script, None, None)
+        .map(|out| out.text)
+        .unwrap_or_default();
+
+    parse_docker_desktop_status(&output, daemon_ready)
+}
+
+fn parse_docker_desktop_status(output: &str, daemon_ready: bool) -> DockerDesktopStatus {
+    let mut status = DockerDesktopStatus {
+        daemon_ready,
+        ..DockerDesktopStatus::default()
+    };
+
+    for line in output.lines() {
+        let mut parts = line.splitn(2, '=');
+        let key = parts.next().unwrap_or_default().trim();
+        let value = parts.next().unwrap_or_default().trim();
+
+        match key {
+            "backend_running" => {
+                if value.eq_ignore_ascii_case("false") {
+                    status.cpu_percent = None;
+                }
+            }
+            "cpu_percent" => {
+                status.cpu_percent = value.parse::<f32>().ok();
+            }
+            "memory_mb" => {
+                status.memory_mb = value.parse::<u64>().ok();
+            }
+            "process_count" => {
+                status.process_count = value.parse::<usize>().unwrap_or(0);
+            }
+            "process_name" => {
+                if !value.is_empty() {
+                    status.process_name = Some(value.to_string());
+                }
+            }
+            _ => {}
+        }
+    }
+
+    status
 }
 
 /// Inicia un contenedor por nombre de forma síncrona.
@@ -572,6 +717,18 @@ pub fn restart_container_sync(runner: &PsRunner, name: &str) -> Result<(), Infra
             out.text
         )))
     }
+}
+
+/// Verifica de forma síncrona si existe un contenedor PHP de una versión específica.
+pub fn php_container_exists_sync(
+    runner: &PsRunner,
+    php_container_tag: &str,
+) -> Result<bool, InfraError> {
+    let out = runner.run_direct_sync("docker", &["ps", "-a"], None, None)?;
+    if out.text.contains("Error") {
+        return Err(InfraError::DockerUnreachable(out.text));
+    }
+    Ok(out.contains(php_container_tag))
 }
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
@@ -624,5 +781,34 @@ mod tests {
             running: false,
         };
         assert!(!s.is_ready());
+    }
+
+    #[test]
+    fn parse_virtual_hosts_splits_and_trims_urls() {
+        let urls = parse_virtual_hosts("php84.wsdd.dock, cron84.wsdd.dock, wm84.wsdd.dock");
+        assert_eq!(
+            urls,
+            vec![
+                "php84.wsdd.dock".to_string(),
+                "cron84.wsdd.dock".to_string(),
+                "wm84.wsdd.dock".to_string()
+            ]
+        );
+    }
+
+    #[test]
+    fn parse_docker_desktop_status_reads_cpu_and_process() {
+        let status = parse_docker_desktop_status(
+            "backend_running=true\ncpu_percent=7.4\nmemory_mb=1536\nprocess_count=3\nprocess_name=com.docker.backend, vmmemWSL",
+            true,
+        );
+        assert!(status.daemon_ready);
+        assert_eq!(status.cpu_percent, Some(7.4));
+        assert_eq!(status.memory_mb, Some(1536));
+        assert_eq!(status.process_count, 3);
+        assert_eq!(
+            status.process_name.as_deref(),
+            Some("com.docker.backend, vmmemWSL")
+        );
     }
 }

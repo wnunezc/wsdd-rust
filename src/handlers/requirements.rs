@@ -105,6 +105,25 @@ pub fn run_requirements(
 
     // ── 4. Deploy Environment ─────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
+    if let Err(e) = settings.validate_prerequisite_credentials() {
+        let _ = log_tx.send(LogLine::error(format!(
+            "✗ Credenciales incompletas para MySQL/phpMyAdmin: {e}"
+        )));
+        let _ = log_tx.send(LogLine::error(
+            "  Completa la configuracion inicial antes de desplegar los prerequisitos.",
+        ));
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
+    if let Err(e) = docker_deploy::sync_prerequisite_compose_sync(&settings) {
+        let _ = log_tx.send(LogLine::error(format!(
+            "✗ Error al preparar init.yml con credenciales: {e}"
+        )));
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
     let _ = log_tx.send(LogLine::info("Inicializando entorno Docker..."));
     if let Err(e) = docker_deploy::deploy_environment_sync(&runner, &log_tx) {
         let _ = log_tx.send(LogLine::error(format!(

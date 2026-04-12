@@ -42,8 +42,12 @@ use crate::ui::ActiveView;
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     // Iniciar el proceso de requirements en el primer frame del Loader
     if !app.requirements_started {
-        start_requirements(ctx, app);
-        app.requirements_started = true;
+        if app.settings.prereq_credentials.is_complete() {
+            start_requirements(ctx, app);
+            app.requirements_started = true;
+        } else if app.ui.prereq_prompt.is_none() {
+            app.ui.open_prereq_prompt(&app.settings.prereq_credentials);
+        }
     }
 
     // Drenar canales

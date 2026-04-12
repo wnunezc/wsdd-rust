@@ -535,8 +535,11 @@ fn rehydrate_project_runtime(
         restart_proxy(runner, tx)?;
     }
 
-    let domain_ref: &str = &project.domain;
-    hosts::update_host(Some(&[domain_ref]), tx)
+    let base_domains = project.php_version.base_container_domains();
+    let mut domains: Vec<&str> = base_domains.iter().map(String::as_str).collect();
+    domains.push(project.domain.as_str());
+
+    hosts::update_host(Some(&domains), tx)
         .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
 
     let _ = tx.send(LogLine::success(format!(

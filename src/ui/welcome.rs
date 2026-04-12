@@ -79,9 +79,9 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(6.0);
 
             // ── README scrollable ─────────────────────────────────────────────
-            // Reservamos espacio para el separador inferior + checkbox + botones
-            let bottom_bar_height = 72.0;
-            let scroll_height = ui.available_height() - bottom_bar_height;
+            // Reservamos espacio para el formulario inicial + separador + botones
+            let bottom_bar_height = 240.0;
+            let scroll_height = (ui.available_height() - bottom_bar_height).max(120.0);
 
             egui::ScrollArea::vertical()
                 .max_height(scroll_height)
@@ -113,12 +113,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.add_space(8.0);
 
                     // Botón Comenzar — solo si checkbox marcado
-                    let comenzar =
-                        ui.add_enabled(app.ui.readme_checked, egui::Button::new(&continue_label));
+                    let can_continue = app.ui.readme_checked;
+                    let comenzar = ui.add_enabled(can_continue, egui::Button::new(&continue_label));
                     if comenzar.clicked() {
-                        app.settings.setup_completed = true;
                         app.ui.active = ActiveView::Loader;
-                        // El proceso de requirements arranca en loader::render() en el primer frame
+                        // Si faltan credenciales base, Loader abrirá el diálogo justo antes de instalar.
                     }
                 });
             });

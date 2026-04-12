@@ -34,9 +34,10 @@ use std::sync::mpsc;
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::LogLine;
-use crate::handlers::setting::AppSettings;
+use crate::handlers::setting::{AppSettings, PrereqCredentials, WebminCredentials};
 use crate::handlers::wsl::WslConfig;
-use crate::models::project::{EntryPoint, PhpVersion};
+use crate::i18n::{tr, trf};
+use crate::models::project::{EntryPoint, PhpVersion, Project};
 
 /// Vista activa de la aplicación.
 ///
@@ -63,6 +64,19 @@ pub enum MainTab {
     Projects,
 }
 
+pub struct PrereqCredentialsPromptState {
+    pub draft: PrereqCredentials,
+    pub error: Option<String>,
+}
+
+pub struct WebminCredentialsPromptState {
+    pub project: Project,
+    pub add_project_to_list: bool,
+    pub username: String,
+    pub password: String,
+    pub error: Option<String>,
+}
+
 /// Estado de la capa de UI compartido entre vistas.
 ///
 /// Vive en `WsddApp` para que todas las vistas puedan leerlo y modificarlo.
@@ -71,6 +85,9 @@ pub struct UiState {
     /// Log acumulado del proceso de requirements (mostrado en el terminal del Loader).
     pub requirement_log: Vec<LogLine>,
     pub readme_checked: bool,
+    pub welcome_error: Option<String>,
+    pub prereq_prompt: Option<PrereqCredentialsPromptState>,
+    pub webmin_prompt: Option<WebminCredentialsPromptState>,
     pub md_cache: egui_commonmark::CommonMarkCache,
     /// Tab activa en el panel principal.
     pub active_main_tab: MainTab,
@@ -97,6 +114,8 @@ pub struct UiState {
     /// Copia de trabajo de AppSettings mientras el usuario edita en la pantalla Settings.
     /// None cuando no se está en la pantalla Settings.
     pub settings_draft: Option<AppSettings>,
+    /// Error visible de validación/guardado en Settings.
+    pub settings_error: Option<String>,
 
     // ── WSL Settings ──────────────────────────────────────────────────────
     /// Copia de trabajo de WslConfig mientras el usuario edita en la pantalla WslSettings.
@@ -114,6 +133,9 @@ impl UiState {
             active: initial,
             requirement_log: Vec::new(),
             readme_checked: false,
+            welcome_error: None,
+            prereq_prompt: None,
+            webmin_prompt: None,
             md_cache: egui_commonmark::CommonMarkCache::default(),
             active_main_tab: MainTab::default(),
             confirm_remove_project: None,
@@ -129,6 +151,7 @@ impl UiState {
             form_error: None,
             folder_pick_rx: None,
             settings_draft: None,
+            settings_error: None,
             wsl_draft: None,
             helps_search: String::new(),
         }
@@ -145,6 +168,23 @@ impl UiState {
         self.form_ssl = true;
         self.form_error = None;
         self.folder_pick_rx = None;
+    }
+
+    pub fn open_prereq_prompt(&mut self, current: &PrereqCredentials) {
+        self.prereq_prompt = Some(PrereqCredentialsPromptState {
+            draft: current.clone(),
+            error: None,
+        });
+    }
+
+    pub fn open_webmin_prompt(&mut self, project: Project, add_project_to_list: bool) {
+        self.webmin_prompt = Some(WebminCredentialsPromptState {
+            project,
+            add_project_to_list,
+            username: "admin".to_string(),
+            password: String::new(),
+            error: None,
+        });
     }
 }
 
@@ -171,5 +211,250 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             main_window::render(ctx, app);
             toolbox_container::render(ctx, app);
         }
+    }
+
+    render_prereq_credentials_dialog(ctx, app);
+    render_webmin_credentials_dialog(ctx, app);
+}
+
+fn render_prereq_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
+    if app.ui.prereq_prompt.is_none() {
+        return;
+    }
+
+    let title = tr("dialog_prereq_title");
+    let note = tr("dialog_prereq_note");
+    let mysql_database_label = format!("{}:", tr("settings_mysql_database"));
+    let mysql_user_label = format!("{}:", tr("settings_mysql_user"));
+    let mysql_password_label = format!("{}:", tr("settings_mysql_password"));
+    let mysql_root_password_label = format!("{}:", tr("settings_mysql_root_password"));
+    let cancel_label = tr("btn_cancel");
+    let save_label = tr("btn_save");
+
+    let mut save = false;
+    let mut cancel = false;
+
+    egui::Window::new(title)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            let prompt = app
+                .ui
+                .prereq_prompt
+                .as_mut()
+                .expect("missing prereq prompt");
+
+            ui.label(
+                egui::RichText::new(&note)
+                    .size(11.0)
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.add_space(8.0);
+
+            egui::Grid::new("prereq_credentials_dialog")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .min_col_width(190.0)
+                .show(ui, |ui| {
+                    ui.label(&mysql_database_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.draft.mysql_database)
+                            .desired_width(220.0)
+                            .hint_text("wsdd-database"),
+                    );
+                    ui.end_row();
+
+                    ui.label(&mysql_user_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.draft.mysql_user)
+                            .desired_width(220.0)
+                            .hint_text("tester"),
+                    );
+                    ui.end_row();
+
+                    ui.label(&mysql_password_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.draft.mysql_password)
+                            .desired_width(220.0)
+                            .password(true)
+                            .hint_text("required"),
+                    );
+                    ui.end_row();
+
+                    ui.label(&mysql_root_password_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.draft.mysql_root_password)
+                            .desired_width(220.0)
+                            .password(true)
+                            .hint_text("required"),
+                    );
+                    ui.end_row();
+                });
+
+            if let Some(error) = &prompt.error {
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new(error).color(egui::Color32::from_rgb(220, 80, 80)));
+            }
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui.button(&save_label).clicked() {
+                    save = true;
+                }
+                if ui.button(&cancel_label).clicked() {
+                    cancel = true;
+                }
+            });
+        });
+
+    if save {
+        if let Some(mut prompt) = app.ui.prereq_prompt.take() {
+            if let Err(e) = prompt.draft.validate_for_save() {
+                prompt.error = Some(e.to_string());
+                app.ui.prereq_prompt = Some(prompt);
+                return;
+            }
+
+            let draft = prompt.draft.clone();
+            app.settings.prereq_credentials = draft;
+            if let Err(e) = app.settings.save() {
+                prompt.error = Some(format!("Error guardando configuracion: {e}"));
+                app.ui.prereq_prompt = Some(prompt);
+                return;
+            }
+
+            if let Err(e) =
+                crate::handlers::docker_deploy::sync_prerequisite_compose_sync(&app.settings)
+            {
+                prompt.error = Some(format!("Error preparando init.yml: {e}"));
+                app.ui.prereq_prompt = Some(prompt);
+            }
+        }
+    } else if cancel {
+        app.ui.prereq_prompt = None;
+        if app.ui.active == ActiveView::Loader && !app.settings.setup_completed {
+            app.ui.active = ActiveView::Welcome;
+        }
+    }
+}
+
+fn render_webmin_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
+    if app.ui.webmin_prompt.is_none() {
+        return;
+    }
+
+    let title = {
+        let prompt = app
+            .ui
+            .webmin_prompt
+            .as_ref()
+            .expect("missing webmin prompt");
+        trf(
+            "dialog_webmin_title",
+            &[("php", prompt.project.php_version.display_name())],
+        )
+    };
+    let note = tr("dialog_webmin_note");
+    let user_label = format!("{}:", tr("settings_webmin_user"));
+    let password_label = format!("{}:", tr("settings_webmin_password"));
+    let cancel_label = tr("btn_cancel");
+    let save_label = tr("btn_save");
+
+    let mut save = false;
+    let mut cancel = false;
+
+    egui::Window::new(title)
+        .collapsible(false)
+        .resizable(false)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .show(ctx, |ui| {
+            let prompt = app
+                .ui
+                .webmin_prompt
+                .as_mut()
+                .expect("missing webmin prompt");
+
+            ui.label(
+                egui::RichText::new(&note)
+                    .size(11.0)
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.add_space(8.0);
+
+            egui::Grid::new("webmin_credentials_dialog")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .min_col_width(190.0)
+                .show(ui, |ui| {
+                    ui.label(&user_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.username)
+                            .desired_width(220.0)
+                            .hint_text("admin"),
+                    );
+                    ui.end_row();
+
+                    ui.label(&password_label);
+                    ui.add(
+                        egui::TextEdit::singleline(&mut prompt.password)
+                            .desired_width(220.0)
+                            .password(true)
+                            .hint_text("required"),
+                    );
+                    ui.end_row();
+                });
+
+            if let Some(error) = &prompt.error {
+                ui.add_space(6.0);
+                ui.label(egui::RichText::new(error).color(egui::Color32::from_rgb(220, 80, 80)));
+            }
+
+            ui.add_space(10.0);
+            ui.horizontal(|ui| {
+                if ui.button(&save_label).clicked() {
+                    save = true;
+                }
+                if ui.button(&cancel_label).clicked() {
+                    cancel = true;
+                }
+            });
+        });
+
+    if save {
+        if let Some(mut prompt) = app.ui.webmin_prompt.take() {
+            let credentials = WebminCredentials {
+                php_version: prompt.project.php_version.clone(),
+                username: prompt.username.clone(),
+                password: prompt.password.clone(),
+            };
+
+            if let Err(e) = app.settings.store_webmin_credentials(credentials) {
+                prompt.error = Some(e.to_string());
+                app.ui.webmin_prompt = Some(prompt);
+                return;
+            }
+
+            if let Err(e) = app.settings.save() {
+                prompt.error = Some(format!("Error guardando configuracion: {e}"));
+                app.ui.webmin_prompt = Some(prompt);
+                return;
+            }
+
+            if prompt.add_project_to_list
+                && !app
+                    .projects
+                    .iter()
+                    .any(|project| project.name == prompt.project.name)
+            {
+                app.projects.push(prompt.project.clone());
+            }
+
+            crate::ui::projects_panel::spawn_deploy(app, prompt.project);
+            app.ui.form_error = None;
+            app.ui.active = ActiveView::Main;
+        }
+    } else if cancel {
+        app.ui.webmin_prompt = None;
     }
 }

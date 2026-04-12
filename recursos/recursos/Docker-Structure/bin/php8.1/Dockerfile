@@ -2,6 +2,10 @@ FROM php:8.1-apache
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
+ARG WEBMIN_VERSION="2.630"
+ARG WEBMIN_USER
+ARG WEBMIN_PASS
+ARG WEBMIN_SHA256="0e119b65093442f4ae59a479bf8099fae053000658efea95169710343b4c85c9"
 
 RUN apt-get update &&  \
     apt-get upgrade -y --no-install-recommends --fix-missing
@@ -45,19 +49,29 @@ RUN mkdir -p /var/www/html/log && \
 
 EXPOSE 10000
 
-RUN wget --no-check-certificate -qO - http://www.webmin.com/jcameron-key.asc | apt-key add - && \
-    sh -c 'echo "deb http://download.webmin.com/download/repository sarge contrib" > /etc/apt/sources.list.d/webmin.list' && \
-    apt-get update && \
-    apt-get install -y webmin --no-install-recommends --fix-missing
+RUN rm -f /etc/apt/sources.list.d/webmin.list
+RUN rm -f /usr/share/keyrings/webmin.gpg
+RUN apt-get update
+RUN curl -fsSL -o /tmp/webmin_${WEBMIN_VERSION}_all.deb \
+    https://www.webmin.com/download/deb/webmin_${WEBMIN_VERSION}_all.deb
+RUN echo "${WEBMIN_SHA256}  /tmp/webmin_${WEBMIN_VERSION}_all.deb" > /tmp/webmin.sha256
+RUN sha256sum -c /tmp/webmin.sha256
+RUN apt-get update
+RUN apt-get install -y --no-install-recommends /tmp/webmin_${WEBMIN_VERSION}_all.deb
+RUN rm -f /tmp/webmin_${WEBMIN_VERSION}_all.deb /tmp/webmin.sha256
 
 RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
-    echo "redirect_port=80" >> /etc/webmin/miniserv.conf && \
-    USERNAME="admin" && PASSWORD="admin" && \
-    HASHED_PASSWORD=$(perl -e 'print crypt($ARGV[0], "password")' $PASSWORD) && \
-    echo "$USERNAME:$HASHED_PASSWORD:0" >> /etc/webmin/miniserv.users && \
-    echo "$USERNAME: *" >> /etc/webmin/webmin.acl && \
+    if ! grep -q '^redirect_port=' /etc/webmin/miniserv.conf; then echo "redirect_port=80" >> /etc/webmin/miniserv.conf; fi && \
+    USERNAME="$WEBMIN_USER" && PASSWORD="$WEBMIN_PASS" && \
+    if grep -q "^${USERNAME}:" /etc/webmin/miniserv.users; then \
+        /usr/share/webmin/changepass.pl /etc/webmin "$USERNAME" "$PASSWORD"; \
+    else \
+        HASHED_PASSWORD=$(perl -e 'print crypt($ARGV[0], "password")' "$PASSWORD") && \
+        echo "$USERNAME:$HASHED_PASSWORD:0" >> /etc/webmin/miniserv.users && \
+        echo "$USERNAME: *" >> /etc/webmin/webmin.acl; \
+    fi && \
     PHP_INI_DIR="/usr/local/etc/php" && \
-    echo "php_ini=$PHP_INI_DIR" >> /etc/webmin/phpini/config && \
+    echo "php_ini=$PHP_INI_DIR" > /etc/webmin/phpini/config && \
     echo "referers=wm81.wsdd.dock" >> /etc/webmin/config
 
 CMD cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && \

@@ -2,6 +2,8 @@ FROM php:7.4-apache-buster
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug-2.9.8"
+ARG WEBMIN_USER
+ARG WEBMIN_PASS
 
 RUN sed -i 's|http://deb.debian.org/debian|http://archive.debian.org/debian|g' /etc/apt/sources.list && \
     sed -i '/security.debian.org/d' /etc/apt/sources.list && \
@@ -59,7 +61,7 @@ RUN wget --no-check-certificate -qO - http://www.webmin.com/jcameron-key.asc | a
 
 RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
     echo "redirect_port=80" >> /etc/webmin/miniserv.conf && \
-    USERNAME="admin" && PASSWORD="admin" && \
+    USERNAME="$WEBMIN_USER" && PASSWORD="$WEBMIN_PASS" && \
     HASHED_PASSWORD=$(perl -e 'print crypt($ARGV[0], "password")' $PASSWORD) && \
     echo "$USERNAME:$HASHED_PASSWORD:0" >> /etc/webmin/miniserv.users && \
     echo "$USERNAME: *" >> /etc/webmin/webmin.acl && \

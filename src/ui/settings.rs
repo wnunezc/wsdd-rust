@@ -19,13 +19,16 @@
 //! Los cambios se descartan si el usuario cancela.
 
 use crate::app::WsddApp;
+use crate::handlers::docker_deploy;
 use crate::i18n::{self, tr, Language};
+use crate::models::project::PhpVersion;
 use crate::ui::ActiveView;
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     // Inicializar draft al entrar por primera vez en esta visita
     if app.ui.settings_draft.is_none() {
         app.ui.settings_draft = Some(app.settings.clone());
+        app.ui.settings_error = None;
     }
 
     let mut save = false;
@@ -46,6 +49,18 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let php_memory_label = format!("{}:", tr("settings_php_memory"));
     let php_upload_label = format!("{}:", tr("settings_php_upload"));
     let php_timezone_label = format!("{}:", tr("settings_php_timezone"));
+    let prereq_title = tr("settings_prereq_section");
+    let prereq_note = tr("settings_prereq_note");
+    let prereq_runtime_note = tr("settings_prereq_runtime_note");
+    let mysql_database_label = format!("{}:", tr("settings_mysql_database"));
+    let mysql_user_label = format!("{}:", tr("settings_mysql_user"));
+    let mysql_password_label = format!("{}:", tr("settings_mysql_password"));
+    let mysql_root_password_label = format!("{}:", tr("settings_mysql_root_password"));
+    let webmin_credentials_title = tr("settings_webmin_credentials_section");
+    let webmin_credentials_note = tr("settings_webmin_credentials_note");
+    let webmin_runtime_note = tr("settings_webmin_credentials_runtime_note");
+    let webmin_user_label = tr("settings_webmin_user");
+    let webmin_password_label = tr("settings_webmin_password");
     let webmin_version_label = format!("{}:", tr("settings_webmin_version"));
 
     egui::CentralPanel::default().show(ctx, |ui| {
@@ -69,6 +84,13 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         });
         ui.separator();
         ui.add_space(6.0);
+
+        if let Some(error) = &app.ui.settings_error {
+            ui.label(
+                egui::RichText::new(error).color(egui::Color32::from_rgb(220, 80, 80)),
+            );
+            ui.add_space(6.0);
+        }
 
         egui::ScrollArea::vertical().show(ui, |ui| {
             // ── General ───────────────────────────────────────────────────
@@ -185,6 +207,145 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
             ui.add_space(8.0);
 
+            // ── Prerequisitos ─────────────────────────────────────────────
+            egui::CollapsingHeader::new(egui::RichText::new(&prereq_title).strong())
+                .default_open(true)
+                .show(ui, |ui| {
+                    ui.label(
+                        egui::RichText::new(&prereq_note)
+                            .size(11.0)
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                    ui.label(
+                        egui::RichText::new(&prereq_runtime_note)
+                            .size(11.0)
+                            .color(ui.visuals().weak_text_color()),
+                    );
+                    ui.add_space(6.0);
+
+                    egui::Grid::new("settings_prereq")
+                        .num_columns(2)
+                        .spacing([12.0, 8.0])
+                        .min_col_width(180.0)
+                        .show(ui, |ui| {
+                            ui.label(&mysql_database_label);
+                            ui.add(
+                                egui::TextEdit::singleline(
+                                    &mut draft.prereq_credentials.mysql_database,
+                                )
+                                .desired_width(180.0)
+                                .hint_text("wsdd-database"),
+                            );
+                            ui.end_row();
+
+                            ui.label(&mysql_user_label);
+                            ui.add(
+                                egui::TextEdit::singleline(
+                                    &mut draft.prereq_credentials.mysql_user,
+                                )
+                                .desired_width(180.0)
+                                .hint_text("tester"),
+                            );
+                            ui.end_row();
+
+                            ui.label(&mysql_password_label);
+                            ui.add(
+                                egui::TextEdit::singleline(
+                                    &mut draft.prereq_credentials.mysql_password,
+                                )
+                                .desired_width(180.0)
+                                .password(true)
+                                .hint_text("required"),
+                            );
+                            ui.end_row();
+
+                            ui.label(&mysql_root_password_label);
+                            ui.add(
+                                egui::TextEdit::singleline(
+                                    &mut draft.prereq_credentials.mysql_root_password,
+                                )
+                                .desired_width(180.0)
+                                .password(true)
+                                .hint_text("required"),
+                            );
+                            ui.end_row();
+                        });
+                });
+
+            ui.add_space(8.0);
+
+            // ── Webmin por versión PHP ───────────────────────────────────
+            egui::CollapsingHeader::new(
+                egui::RichText::new(&webmin_credentials_title).strong(),
+            )
+            .default_open(true)
+            .show(ui, |ui| {
+                ui.label(
+                    egui::RichText::new(&webmin_credentials_note)
+                        .size(11.0)
+                        .color(ui.visuals().weak_text_color()),
+                );
+                ui.label(
+                    egui::RichText::new(&webmin_runtime_note)
+                        .size(11.0)
+                        .color(ui.visuals().weak_text_color()),
+                );
+                ui.add_space(6.0);
+
+                egui::Grid::new("settings_webmin_credentials")
+                    .num_columns(3)
+                    .spacing([12.0, 8.0])
+                    .min_col_width(150.0)
+                    .show(ui, |ui| {
+                        ui.strong(tr("col_php"));
+                        ui.strong(&webmin_user_label);
+                        ui.strong(&webmin_password_label);
+                        ui.end_row();
+
+                        for php_version in PhpVersion::all() {
+                            let current = draft
+                                .webmin_credentials_entry(&php_version)
+                                .cloned()
+                                .unwrap_or_else(|| crate::handlers::setting::WebminCredentials {
+                                    php_version: php_version.clone(),
+                                    username: String::new(),
+                                    password: String::new(),
+                                });
+
+                            let mut username = current.username;
+                            let mut password = current.password;
+
+                            ui.label(php_version.display_name());
+                            let user_changed = ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut username)
+                                        .desired_width(150.0)
+                                        .hint_text("admin"),
+                                )
+                                .changed();
+                            let password_changed = ui
+                                .add(
+                                    egui::TextEdit::singleline(&mut password)
+                                        .desired_width(150.0)
+                                        .password(true)
+                                        .hint_text("required"),
+                                )
+                                .changed();
+                            ui.end_row();
+
+                            if user_changed || password_changed {
+                                draft.set_webmin_credentials_draft(
+                                    php_version,
+                                    username,
+                                    password,
+                                );
+                            }
+                        }
+                    });
+            });
+
+            ui.add_space(8.0);
+
             // ── Herramientas ──────────────────────────────────────────────
             egui::CollapsingHeader::new(
                 egui::RichText::new(&tools_title).strong(),
@@ -201,7 +362,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             ui.add(
                                 egui::TextEdit::singleline(&mut draft.webmin_version)
                                     .desired_width(100.0)
-                                    .hint_text("2.021"),
+                                    .hint_text("2.630"),
                             );
                             ui.label(
                                 egui::RichText::new("(PHP Dockerfiles)")
@@ -228,15 +389,44 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             if draft.wsl_distro.as_deref() == Some("") {
                 draft.wsl_distro = None;
             }
+            if let Err(e) = draft.validate_prerequisite_credentials() {
+                app.ui.settings_error = Some(e.to_string());
+                app.ui.settings_draft = Some(draft);
+                return;
+            }
+            if let Err(e) = draft.validate_webmin_credentials() {
+                app.ui.settings_error = Some(e.to_string());
+                app.ui.settings_draft = Some(draft);
+                return;
+            }
+
             app.settings = draft;
             i18n::set_language(selected_language);
             if let Err(e) = app.settings.save() {
-                tracing::error!("Error guardando configuracion: {e}");
+                app.ui.settings_error = Some(format!("Error guardando configuracion: {e}"));
+                app.ui.settings_draft = Some(app.settings.clone());
+                return;
+            }
+
+            if let Err(e) = docker_deploy::sync_prerequisite_compose_sync(&app.settings) {
+                app.ui.settings_error =
+                    Some(format!("Error actualizando init.yml administrado: {e}"));
+                app.ui.settings_draft = Some(app.settings.clone());
+                return;
+            }
+
+            if let Err(e) = docker_deploy::sync_saved_php_version_resources_sync(&app.settings) {
+                app.ui.settings_error =
+                    Some(format!("Error actualizando recursos PHP/Webmin: {e}"));
+                app.ui.settings_draft = Some(app.settings.clone());
+                return;
             }
         }
+        app.ui.settings_error = None;
         app.ui.active = ActiveView::Main;
     } else if cancel {
         app.ui.settings_draft = None;
+        app.ui.settings_error = None;
         app.ui.active = ActiveView::Main;
     }
 }

@@ -33,6 +33,8 @@ use crate::errors::InfraError;
 use crate::handlers::docker::{WSDD_NETWORK, WSDD_PROJECT};
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{OutputSender, PsRunner, ScriptRunner};
+use crate::handlers::setting::{AppSettings, PrereqCredentials, WebminCredentials};
+use crate::models::project::PhpVersion;
 
 // ─── Resultado del check de requisitos de Docker ──────────────────────────────
 
@@ -46,6 +48,67 @@ pub enum DockerRequirementOutcome {
     /// Docker está instalado pero no pudo arrancar en el tiempo esperado.
     StartupFailed,
 }
+
+const INIT_YML_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/init.yml"
+));
+const PHP56_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php5.6/Dockerfile"
+));
+const PHP72_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php7.2/Dockerfile"
+));
+const PHP74_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php7.4/Dockerfile"
+));
+const PHP81_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.1/Dockerfile"
+));
+const PHP82_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.2/Dockerfile"
+));
+const PHP83_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.3/Dockerfile"
+));
+const PHP84_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.4/Dockerfile"
+));
+const PHP56_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php5.6/webserver.php56.yml"
+));
+const PHP72_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php7.2/webserver.php72.yml"
+));
+const PHP74_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php7.4/webserver.php74.yml"
+));
+const PHP81_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.1/webserver.php81.yml"
+));
+const PHP82_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.2/webserver.php82.yml"
+));
+const PHP83_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.3/webserver.php83.yml"
+));
+const PHP84_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/bin/php8.4/webserver.php84.yml"
+));
 
 // ─── Requirements (llamado desde Loader) ─────────────────────────────────────
 
@@ -170,6 +233,69 @@ pub fn deploy_environment_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
     create_pma_volume_sync(runner, tx)?;
     deploy_base_containers_sync(runner, tx)?;
     show_running_containers_sync(runner, tx);
+    Ok(())
+}
+
+/// Regenera el `init.yml` administrado por WSDD con las credenciales actuales.
+///
+/// El archivo publicado en recursos ya no debe contener secretos literales.
+/// Antes de desplegar el entorno base, WSDD renderiza este archivo con los
+/// valores persistidos en `wsdd-config.json`.
+pub fn sync_prerequisite_compose_sync(settings: &AppSettings) -> Result<(), InfraError> {
+    settings.validate_prerequisite_credentials()?;
+
+    let docker_dir = crate::handlers::ps_script::docker_structure_dir();
+    std::fs::create_dir_all(&docker_dir)?;
+
+    let rendered = render_init_yml(&settings.prereq_credentials);
+    std::fs::write(docker_dir.join("init.yml"), rendered)?;
+    Ok(())
+}
+
+/// Sincroniza los recursos administrados de una versión PHP antes del rebuild.
+///
+/// Como `Docker-Structure` solo se extrae en el primer arranque, esta función
+/// reescribe el `Dockerfile` y el `webserver.phpXY.yml` reales de la versión
+/// con la plantilla embebida actual y las credenciales guardadas en config.
+pub fn sync_php_version_resources_sync(
+    settings: &AppSettings,
+    php_version: &PhpVersion,
+) -> Result<(), InfraError> {
+    let credentials = settings
+        .webmin_credentials_for(php_version)
+        .ok_or_else(|| {
+            InfraError::PrerequisiteNotMet(format!(
+                "Webmin credentials are required for {}",
+                php_version.display_name()
+            ))
+        })?;
+
+    credentials.validate_for_save()?;
+
+    let php_dir = crate::handlers::ps_script::docker_structure_dir()
+        .join("bin")
+        .join(php_version.dir_name());
+    std::fs::create_dir_all(&php_dir)?;
+
+    std::fs::write(php_dir.join("Dockerfile"), dockerfile_template(php_version))?;
+    std::fs::write(
+        php_dir.join(webserver_file_name(php_version)),
+        render_webserver_yml(settings, php_version, credentials),
+    )?;
+    Ok(())
+}
+
+/// Sincroniza todos los recursos PHP que ya tengan credenciales registradas.
+pub fn sync_saved_php_version_resources_sync(settings: &AppSettings) -> Result<(), InfraError> {
+    settings.validate_webmin_credentials()?;
+
+    for credentials in &settings.webmin_credentials {
+        if credentials.is_blank() {
+            continue;
+        }
+        sync_php_version_resources_sync(settings, &credentials.php_version)?;
+    }
+
     Ok(())
 }
 
@@ -324,8 +450,8 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
         return Ok(());
     }
 
-    let init_yml = r"C:\WSDD-Environment\Docker-Structure\init.yml";
-    let docker_dir = std::path::Path::new(r"C:\WSDD-Environment\Docker-Structure");
+    let init_yml = crate::handlers::ps_script::docker_structure_dir().join("init.yml");
+    let docker_dir = crate::handlers::ps_script::docker_structure_dir();
     let log_path = deploy_log_path();
 
     // Paso 1: create --build
@@ -339,8 +465,11 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
     write_deploy_log_header("docker-compose create --build");
     let bridge = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
-        &format!("docker-compose -p {WSDD_PROJECT} -f \"{init_yml}\" create --build"),
-        Some(docker_dir),
+        &format!(
+            "docker-compose -p {WSDD_PROJECT} -f \"{}\" create --build",
+            init_yml.display()
+        ),
+        Some(&docker_dir),
         Some(&bridge),
     )?;
     let _ = tx.send(LogLine::success(
@@ -369,8 +498,11 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
     write_deploy_log_header("docker-compose up -d");
     let bridge2 = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
-        &format!("docker-compose -p {WSDD_PROJECT} -f \"{init_yml}\" up -d"),
-        Some(docker_dir),
+        &format!(
+            "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d",
+            init_yml.display()
+        ),
+        Some(&docker_dir),
         Some(&bridge2),
     )?;
 
@@ -450,7 +582,7 @@ fn deploy_log_path() -> std::path::PathBuf {
 /// - Líneas de capa (`<12-hex> <status>`): actualización in-place por hash.
 /// - Líneas normales: append normal y escritura en log.
 /// - Log en disco: solo escribe cuando cambia la categoría de estado de la capa.
-fn make_docker_progress_bridge(tx: &LogSender) -> OutputSender {
+pub fn make_docker_progress_bridge(tx: &LogSender) -> OutputSender {
     let (out_tx, out_rx) = std::sync::mpsc::channel::<String>();
     let log_tx = tx.clone();
     let log_path = deploy_log_path();
@@ -537,5 +669,132 @@ fn write_deploy_log_header(label: &str) {
             .map(|d| d.as_secs())
             .unwrap_or(0);
         let _ = writeln!(f, "\n=== {label} [t={secs}] ===");
+    }
+}
+
+fn render_init_yml(credentials: &PrereqCredentials) -> String {
+    INIT_YML_TEMPLATE
+        .replace(
+            "__WSDD_MYSQL_ROOT_PASSWORD__",
+            &yaml_single_quoted(&credentials.mysql_root_password),
+        )
+        .replace(
+            "__WSDD_MYSQL_DATABASE__",
+            &yaml_single_quoted(&credentials.mysql_database),
+        )
+        .replace(
+            "__WSDD_MYSQL_USER__",
+            &yaml_single_quoted(&credentials.mysql_user),
+        )
+        .replace(
+            "__WSDD_MYSQL_PASSWORD__",
+            &yaml_single_quoted(&credentials.mysql_password),
+        )
+}
+
+fn render_webserver_yml(
+    settings: &AppSettings,
+    php_version: &PhpVersion,
+    credentials: &WebminCredentials,
+) -> String {
+    webserver_template(php_version)
+        .replace(
+            "__WSDD_WEBMIN_VERSION__",
+            &yaml_single_quoted(&settings.webmin_version),
+        )
+        .replace(
+            "__WSDD_WEBMIN_USER__",
+            &yaml_single_quoted(&credentials.username),
+        )
+        .replace(
+            "__WSDD_WEBMIN_PASS__",
+            &yaml_single_quoted(&credentials.password),
+        )
+}
+
+fn dockerfile_template(php_version: &PhpVersion) -> &'static str {
+    match php_version {
+        PhpVersion::Php56 => PHP56_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php72 => PHP72_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php74 => PHP74_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php81 => PHP81_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php82 => PHP82_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php83 => PHP83_DOCKERFILE_TEMPLATE,
+        PhpVersion::Php84 => PHP84_DOCKERFILE_TEMPLATE,
+    }
+}
+
+fn webserver_template(php_version: &PhpVersion) -> &'static str {
+    match php_version {
+        PhpVersion::Php56 => PHP56_WEBSERVER_TEMPLATE,
+        PhpVersion::Php72 => PHP72_WEBSERVER_TEMPLATE,
+        PhpVersion::Php74 => PHP74_WEBSERVER_TEMPLATE,
+        PhpVersion::Php81 => PHP81_WEBSERVER_TEMPLATE,
+        PhpVersion::Php82 => PHP82_WEBSERVER_TEMPLATE,
+        PhpVersion::Php83 => PHP83_WEBSERVER_TEMPLATE,
+        PhpVersion::Php84 => PHP84_WEBSERVER_TEMPLATE,
+    }
+}
+
+fn webserver_file_name(php_version: &PhpVersion) -> String {
+    format!("webserver.{}.yml", php_version.compose_tag())
+}
+
+fn yaml_single_quoted(value: &str) -> String {
+    let sanitized = value.replace(['\r', '\n'], "");
+    format!("'{}'", sanitized.replace('\'', "''"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn rendered_init_yml_replaces_all_placeholders() {
+        let credentials = PrereqCredentials {
+            mysql_database: "custom-db".to_string(),
+            mysql_user: "custom-user".to_string(),
+            mysql_password: "custom-pass".to_string(),
+            mysql_root_password: "root-pass".to_string(),
+        };
+
+        let rendered = render_init_yml(&credentials);
+
+        assert!(rendered.contains("MYSQL_DATABASE: 'custom-db'"));
+        assert!(rendered.contains("MYSQL_USER: 'custom-user'"));
+        assert!(rendered.contains("MYSQL_PASSWORD: 'custom-pass'"));
+        assert!(rendered.contains("MYSQL_ROOT_PASSWORD: 'root-pass'"));
+        assert!(!rendered.contains("__WSDD_"));
+    }
+
+    #[test]
+    fn yaml_single_quoted_escapes_single_quotes() {
+        assert_eq!(yaml_single_quoted("o'hara"), "'o''hara'");
+    }
+
+    #[test]
+    fn rendered_webserver_yml_replaces_all_placeholders() {
+        let settings = AppSettings {
+            webmin_version: "2.630".to_string(),
+            webmin_credentials: vec![WebminCredentials {
+                php_version: PhpVersion::Php83,
+                username: "walter".to_string(),
+                password: "secret".to_string(),
+            }],
+            ..AppSettings::default()
+        };
+
+        let rendered = render_webserver_yml(
+            &settings,
+            &PhpVersion::Php83,
+            settings
+                .webmin_credentials_for(&PhpVersion::Php83)
+                .expect("missing credentials"),
+        );
+
+        assert!(rendered.contains("WEBMIN_VERSION: '2.630'"));
+        assert!(rendered.contains("WEBMIN_USER: 'walter'"));
+        assert!(rendered.contains("WEBMIN_PASS: 'secret'"));
+        assert!(!rendered.contains("__WSDD_"));
     }
 }

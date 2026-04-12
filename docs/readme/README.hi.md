@@ -78,7 +78,7 @@ C:\WSDD-Environment\
 
 ## तकनीकी जानकारी
 
-- **Version**: 1.0.0-rc.7 (Rust edition)
+- **Version**: 1.0.0-rc.11 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` में JSON

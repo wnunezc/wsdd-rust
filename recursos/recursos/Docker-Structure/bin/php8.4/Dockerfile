@@ -8,10 +8,10 @@ ENV CFLAGS="$CFLAGS -DLDAP_DEPRECATED=1"
 # ====== ARG ======
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
-ARG WEBMIN_VERSION="2.510"
-ARG WEBMIN_USER=admin
-ARG WEBMIN_PASS=admin
-ARG WEBMIN_SHA256="cbb93421df1ebdb590528872d10b8de65e67e5af694b4b057770d9b17de5a278"
+ARG WEBMIN_VERSION="2.630"
+ARG WEBMIN_USER
+ARG WEBMIN_PASS
+ARG WEBMIN_SHA256="0e119b65093442f4ae59a479bf8099fae053000658efea95169710343b4c85c9"
 
 # ====== APT: update/upgrade ======
 RUN apt-get update
@@ -68,7 +68,7 @@ RUN printf "%s\n" \
 
 RUN echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf && a2enconf servername
 
-# ====== WEBMIN (2.510): repo seguro + instalación ======
+# ====== WEBMIN (2.630): repo seguro + instalación ======
 # ====== Webmin por .deb verificado (sin repo inseguro) ======
 RUN rm -f /etc/apt/sources.list.d/webmin.list
 RUN rm -f /usr/share/keyrings/webmin.gpg
@@ -81,8 +81,20 @@ RUN apt-get update
 RUN apt-get install -y --no-install-recommends /tmp/webmin_${WEBMIN_VERSION}_all.deb
 RUN rm -f /tmp/webmin_${WEBMIN_VERSION}_all.deb /tmp/webmin.sha256
 
-# Crear usuario/clave Webmin
-RUN /usr/share/webmin/changepass.pl /etc/webmin ${WEBMIN_USER} ${WEBMIN_PASS}
+# Crear o actualizar usuario/clave Webmin
+RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
+    if ! grep -q '^redirect_port=' /etc/webmin/miniserv.conf; then echo "redirect_port=80" >> /etc/webmin/miniserv.conf; fi && \
+    USERNAME="$WEBMIN_USER" && PASSWORD="$WEBMIN_PASS" && \
+    if grep -q "^${USERNAME}:" /etc/webmin/miniserv.users; then \
+        /usr/share/webmin/changepass.pl /etc/webmin "$USERNAME" "$PASSWORD"; \
+    else \
+        HASHED_PASSWORD=$(perl -e 'print crypt($ARGV[0], "password")' "$PASSWORD") && \
+        echo "$USERNAME:$HASHED_PASSWORD:0" >> /etc/webmin/miniserv.users && \
+        echo "$USERNAME: *" >> /etc/webmin/webmin.acl; \
+    fi && \
+    PHP_INI_DIR="/usr/local/etc/php" && \
+    echo "php_ini=$PHP_INI_DIR" > /etc/webmin/phpini/config && \
+    echo "referers=wm84.wsdd.dock" >> /etc/webmin/config
 
 # ====== Cron: estructura de tareas como en tu original ======
 RUN mkdir -p /etc/cron-task

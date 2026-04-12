@@ -27,7 +27,10 @@ use crate::ui::ActiveView;
 
 /// Renderiza la tabla de contenedores.
 pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
+    ui.spacing_mut().item_spacing = egui::vec2(14.0, 9.0);
+
     if app.containers.is_empty() {
+        ui.add_space(4.0);
         ui.label(tr("containers_empty"));
         return;
     }
@@ -53,6 +56,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         .num_columns(6)
         .striped(true)
         .min_col_width(110.0)
+        .spacing([18.0, 10.0])
         .show(ui, |ui| {
             ui.strong(col_name);
             ui.strong(col_status);
@@ -65,7 +69,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
             for c in &containers {
                 let running = c.is_running();
 
-                ui.label(&c.name);
+                ui.label(egui::RichText::new(&c.name).strong());
 
                 if running {
                     ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &c.status);

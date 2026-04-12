@@ -121,6 +121,36 @@ impl PhpVersion {
             Self::Php84 => "PHP 8.4",
         }
     }
+
+    /// Sufijo numérico usado en dominios base del contenedor.
+    pub fn host_suffix(&self) -> &'static str {
+        match self {
+            Self::Php56 => "56",
+            Self::Php72 => "72",
+            Self::Php74 => "74",
+            Self::Php81 => "81",
+            Self::Php82 => "82",
+            Self::Php83 => "83",
+            Self::Php84 => "84",
+        }
+    }
+
+    /// Dominios base del contenedor PHP asociados a esta versión.
+    pub fn base_container_domains(&self) -> [String; 3] {
+        let suffix = self.host_suffix();
+        [
+            format!("php{suffix}.wsdd.dock"),
+            format!("cron{suffix}.wsdd.dock"),
+            format!("wm{suffix}.wsdd.dock"),
+        ]
+    }
+
+    /// Intenta inferir la versión PHP a partir del nombre del contenedor WSDD.
+    pub fn from_container_name(name: &str) -> Option<Self> {
+        Self::all()
+            .into_iter()
+            .find(|version| name.contains(version.container_tag()))
+    }
 }
 
 /// Permite parsear desde strings en múltiples formatos.
@@ -329,6 +359,20 @@ mod tests {
         assert_eq!(v.dir_name(), "php8.3");
         assert_eq!(v.container_tag(), "PHP83");
         assert_eq!(v.compose_tag(), "php83");
+    }
+
+    #[test]
+    fn base_container_domains_match_expected_wsdd_urls() {
+        let urls = PhpVersion::Php83.base_container_domains();
+        assert_eq!(urls[0], "php83.wsdd.dock");
+        assert_eq!(urls[1], "cron83.wsdd.dock");
+        assert_eq!(urls[2], "wm83.wsdd.dock");
+    }
+
+    #[test]
+    fn from_container_name_detects_php_version() {
+        let version = PhpVersion::from_container_name("WSDD-Web-Server-PHP84");
+        assert_eq!(version, Some(PhpVersion::Php84));
     }
 
     #[test]

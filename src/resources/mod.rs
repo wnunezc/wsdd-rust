@@ -47,9 +47,9 @@ pub fn init() -> Result<()> {
         extract_zip(PS_SCRIPT_ZIP, env_path).context("Error extrayendo ps-script.zip")?;
     }
 
-    // Docker-Structure: extraer solo en primer arranque para no sobreescribir config del usuario
+    // Docker-Structure: extraer en primer arranque y autocorregir layouts dañados.
     let docker_dir = env_path.join("Docker-Structure");
-    if !docker_dir.exists() {
+    if docker_structure_needs_repair(&docker_dir)? {
         extract_zip(DOCKER_STRUCTURE_ZIP, env_path)
             .context("Error extrayendo docker-structure.zip")?;
     }
@@ -59,6 +59,24 @@ pub fn init() -> Result<()> {
 
 fn is_dir_empty(dir: &Path) -> Result<bool> {
     Ok(std::fs::read_dir(dir)?.next().is_none())
+}
+
+fn docker_structure_needs_repair(docker_dir: &Path) -> Result<bool> {
+    if !docker_dir.exists() {
+        return Ok(true);
+    }
+
+    if is_dir_empty(docker_dir)? {
+        return Ok(true);
+    }
+
+    let required_paths = [
+        docker_dir.join("init.yml"),
+        docker_dir.join("bin").join("mysql").join("Dockerfile"),
+        docker_dir.join("bin").join("pma").join("php.ini"),
+    ];
+
+    Ok(required_paths.iter().any(|path| !path.exists()))
 }
 
 fn extract_zip(data: &[u8], dest: &Path) -> Result<()> {

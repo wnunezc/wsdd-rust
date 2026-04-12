@@ -4,6 +4,10 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        WEBMIN_VERSION: __WSDD_WEBMIN_VERSION__
+        WEBMIN_USER: __WSDD_WEBMIN_USER__
+        WEBMIN_PASS: __WSDD_WEBMIN_PASS__
     restart: always
     expose:
       - "80"   # Exposes Web Server (Apache)

@@ -29,11 +29,13 @@ use std::path::Path;
 
 use crate::errors::InfraError;
 use crate::handlers::docker::WSDD_PROJECT;
-use crate::handlers::docker_deploy::make_log_bridge;
+use crate::handlers::docker_deploy;
+use crate::handlers::docker_deploy::{make_docker_progress_bridge, make_log_bridge};
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::project as project_handler;
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
+use crate::handlers::setting::AppSettings;
 use crate::handlers::yml;
 use crate::models::project::Project;
 
@@ -83,6 +85,7 @@ fn webserver_yml_path(php_dir_name: &str, compose_tag: &str) -> String {
 /// Si falla un paso, los anteriores ya están aplicados — se puede reintentar.
 pub fn deploy_project(
     project: &Project,
+    settings: &AppSettings,
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
@@ -101,18 +104,24 @@ pub fn deploy_project(
     // 3. options.yml
     step_update_options_yml(project, tx)?;
 
-    // 4. Reconstruir contenedor PHP
+    // 4. Sincronizar recursos administrados de la versión PHP
+    docker_deploy::sync_php_version_resources_sync(settings, &project.php_version)?;
+    let _ = tx.send(LogLine::success(
+        "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
+    ));
+
+    // 5. Reconstruir contenedor PHP
     step_rebuild_php_container(project, runner, tx)?;
 
-    // 5. vhost.conf
+    // 6. vhost.conf
     step_update_vhost(project, tx)?;
 
-    // 6. SSL (opcional)
+    // 7. SSL (opcional)
     if project.ssl {
         step_setup_ssl(project, runner, tx)?;
     }
 
-    // 7. Hosts
+    // 8. Hosts
     step_update_hosts(project, tx)?;
 
     let _ = tx.send(LogLine::success(format!(
@@ -250,7 +259,7 @@ fn step_rebuild_php_container(
     let _ = tx.send(LogLine::info(
         "[Deploy] Construyendo contenedor PHP (puede tardar)...",
     ));
-    let bridge = make_log_bridge(tx);
+    let bridge = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
         &format!(
             "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" create --build"
@@ -261,7 +270,7 @@ fn step_rebuild_php_container(
 
     // docker-compose up -d
     let _ = tx.send(LogLine::info("[Deploy] Iniciando contenedor PHP..."));
-    let bridge2 = make_log_bridge(tx);
+    let bridge2 = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
         &format!(
             "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d"
@@ -364,8 +373,11 @@ fn step_setup_ssl(project: &Project, runner: &PsRunner, tx: &LogSender) -> Resul
 }
 
 fn step_update_hosts(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
-    let domain_ref: &str = &project.domain;
-    hosts::update_host(Some(&[domain_ref]), tx)
+    let base_domains = project.php_version.base_container_domains();
+    let mut domains: Vec<&str> = base_domains.iter().map(String::as_str).collect();
+    domains.push(project.domain.as_str());
+
+    hosts::update_host(Some(&domains), tx)
         .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
 }
 

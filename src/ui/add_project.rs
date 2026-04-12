@@ -21,10 +21,9 @@
 use std::sync::mpsc;
 
 use crate::app::WsddApp;
-use crate::handlers::log_types::LogLine;
 use crate::i18n::{tr, trf};
 use crate::models::project::{normalize_domain, EntryPoint, PhpVersion, Project, ProjectStatus};
-use crate::ui::ActiveView;
+use crate::ui::{projects_panel, ActiveView};
 
 /// Renderiza el formulario de nuevo proyecto.
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
@@ -247,15 +246,11 @@ fn try_submit(app: &mut WsddApp) {
 
     app.ui.form_error = None;
 
-    let tx = app.main_log_tx.clone();
-    let runner = app.runner.clone();
-    let proj_clone = project.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::deploy::deploy_project(&proj_clone, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Deploy] Error: {e}")));
+    match projects_panel::prepare_deploy(app, project, true) {
+        projects_panel::DeployFlowOutcome::Started => {
+            app.ui.active = ActiveView::Main;
         }
-    });
-
-    app.projects.push(project);
-    app.ui.active = ActiveView::Main;
+        projects_panel::DeployFlowOutcome::WaitingForCredentials => {}
+        projects_panel::DeployFlowOutcome::Failed => {}
+    }
 }

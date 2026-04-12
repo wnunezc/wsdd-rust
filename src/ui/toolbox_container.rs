@@ -22,6 +22,7 @@ use crate::handlers::docker::restart_container_sync;
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::{launch, launch_shell_window};
 use crate::i18n::tr;
+use crate::models::project::PhpVersion;
 use crate::ui::ActiveView;
 
 /// Renderiza el panel de herramientas del contenedor.
@@ -57,6 +58,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let image_label = format!("{}:", tr("col_image"));
             let status_label = format!("{}:", tr("col_status"));
             let ports_label = format!("{}:", tr("col_ports"));
+            let webmin_user_label = format!("{}:", tr("settings_webmin_user"));
 
             ui.add_space(4.0);
 
@@ -139,6 +141,16 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             ui.label(&ports_label);
                             ui.label(&c.ports);
                             ui.end_row();
+                        }
+
+                        if let Some(php_version) = PhpVersion::from_container_name(&c.name) {
+                            if let Some(credentials) =
+                                app.settings.webmin_credentials_for(&php_version)
+                            {
+                                ui.label(&webmin_user_label);
+                                ui.label(&credentials.username);
+                                ui.end_row();
+                            }
                         }
                     });
             }
