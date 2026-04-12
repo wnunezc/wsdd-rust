@@ -14,7 +14,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Release Candidate `1.0.0-rc.12`
+- **Current stage**: Release Candidate `1.0.0-rc.13`
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
@@ -23,13 +23,14 @@ single desktop app.
 
 - **Operating System**: Windows 10 / Windows 11
 - **Privileges**: Administrator (required)
-- **Docker Desktop**: Automatically installed if not present
-- **WSL 2**: Automatically configured
+- **Docker Desktop**: Must be installed by the user before first run
+- **WSL 2**: Required by Docker Desktop
 - **Chocolatey**: Automatically installed if not present
+- **PowerShell**: 7.5+ (automatically installed/upgraded if missing)
 
 ## What This Application Does
 
-1. **Verifies and installs dependencies**: Docker Desktop, WSL 2, Chocolatey, MKCert
+1. **Verifies and prepares dependencies**: Chocolatey, PowerShell 7.5+, Docker Desktop, MKCert
 2. **Configures the Docker stack**: Nginx reverse proxy, MySQL, phpMyAdmin
 3. **Manages web projects**: Creates PHP containers per version with Apache + Xdebug
 4. **Automatic local SSL**: MKCert certificates per domain, no browser warnings
@@ -59,7 +60,8 @@ C:\WSDD-Environment\
 ├── PS-Script\          — PowerShell automation scripts
 ├── Docker-Structure\   — docker-compose and PHP images
 ├── certs\              — SSL certificates per domain
-└── wsdd-config.json    — Application configuration
+├── wsdd-config.json    — Application settings
+└── wsdd-secrets.json   — Managed secrets for containers
 ```
 
 ## First Launch — Automatic Process
@@ -67,13 +69,11 @@ C:\WSDD-Environment\
 1. The application verifies it has administrator privileges
 2. Extracts embedded resources to `C:\WSDD-Environment\`
 3. Checks Chocolatey → installs if missing
-4. Checks Docker Desktop → installs if missing (requires restart)
-5. Checks MKCert → installs and configures local CA
-6. Starts the base Docker stack
-7. Shows the main panel
-
-> **Note**: Docker Desktop installation may require a system restart.
-> The application will automatically resume after restart.
+4. Checks PowerShell 7.5+ → installs/upgrades if missing
+5. Checks Docker Desktop → blocks if not installed/configured
+6. Checks MKCert → installs and configures local CA
+7. Starts the base Docker stack
+8. Shows the main panel
 
 ## Usage After First Launch
 
@@ -90,10 +90,11 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 1.0.0-rc.12 (Rust edition)
+- **Version**: 1.0.0-rc.13 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
-- **Configuration**: JSON at `C:\WSDD-Environment\wsdd-config.json`
+- **Configuration**: `C:\WSDD-Environment\wsdd-config.json`
+- **Secrets**: `C:\WSDD-Environment\wsdd-secrets.json`
 - **Logs**: Environment variable `RUST_LOG=wsdd=debug` for detailed logs
 
 ## License

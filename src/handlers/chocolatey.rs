@@ -26,8 +26,6 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use crate::handlers::log_types::{LogLine, LogSender};
-use crate::handlers::ps_script::PsRunner;
-use crate::handlers::ps_script::ScriptRunner;
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
@@ -45,7 +43,7 @@ pub fn is_installed() -> bool {
 /// Instala un paquete via Chocolatey.
 pub fn install(package: &str) -> Result<()> {
     let mut cmd = Command::new("choco");
-    cmd.args(["install", package, "-y"]);
+    cmd.args(["install", package, "-y", "--no-progress"]);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.status()
@@ -81,20 +79,16 @@ pub fn process_requirements(tx: &LogSender) -> bool {
         ".DownloadString('https://community.chocolatey.org/install.ps1'))"
     );
 
-    let runner = PsRunner::new();
-
-    // Ejecutar en batch: el script puede tardar varios segundos
-    match runner.run_ps_sync(ps_cmd, None, None) {
+    match install_chocolatey(ps_cmd) {
+        Ok(_) if is_installed() => {
+            let _ = tx.send(LogLine::success("✓ Chocolatey instalado correctamente"));
+            true
+        }
         Ok(_) => {
-            if is_installed() {
-                let _ = tx.send(LogLine::success("✓ Chocolatey instalado correctamente"));
-                true
-            } else {
-                let _ = tx.send(LogLine::error(
-                    "✗ Chocolatey no responde tras la instalación",
-                ));
-                false
-            }
+            let _ = tx.send(LogLine::error(
+                "✗ Chocolatey no responde tras la instalación",
+            ));
+            false
         }
         Err(e) => {
             let _ = tx.send(LogLine::error(format!(
@@ -102,5 +96,32 @@ pub fn process_requirements(tx: &LogSender) -> bool {
             )));
             false
         }
+    }
+}
+
+fn install_chocolatey(command: &str) -> Result<()> {
+    let mut cmd = Command::new("powershell.exe");
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-Command",
+        command,
+    ]);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let status = cmd
+        .status()
+        .context("Error ejecutando instalador oficial de Chocolatey")?;
+
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(
+            "Chocolatey devolvio exit code {}",
+            status.code().unwrap_or(-1)
+        ))
     }
 }

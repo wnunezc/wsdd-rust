@@ -1,63 +1,72 @@
-function Start-Docker {
-    param()
-    $ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 
-    Start-Service -Name "com.docker.service" -ErrorAction SilentlyContinue
+function Get-DockerDesktopPath {
+    $candidates = @(
+        "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+        "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+    )
 
-    $serviceTimeout = [datetime]::Now.AddSeconds(120)
-    while ((Get-Service -Name "com.docker.service").Status -ne "Running") {
-        if ([datetime]::Now -ge $serviceTimeout) {
-            Write-Warning "Error: service-timeout — com.docker.service no alcanzó estado Running en 120s"
-            return
+    foreach ($candidate in $candidates) {
+        if (Test-Path $candidate) {
+            return $candidate
         }
-        Start-Sleep -Seconds 1
     }
 
-    if((Get-Service -Name "com.docker.service").Status -eq "Running"){
-        $status = (Get-Service -Name "com.docker.service").Status
-        Write-Output "Service: $status"
-    }
-
-    $dockerDesktopFilePath = $env:ProgramFiles | Join-Path -ChildPath 'Docker\Docker\Docker Desktop.exe'; Start-Process -FilePath $dockerDesktopFilePath
-
-    $ipcTimeout = New-TimeSpan -Seconds 120
-    $waitUntil = [datetime]::Now.Add($ipcTimeout)
-    $pipeOpen = $false
-
-    Write-Output 'Validando pipe line'
-
-    do {
-        Start-Sleep -Milliseconds 500
-        $pipeOpen = Test-Path -LiteralPath \\.\pipe\docker_engine
-    } until ($pipeOpen -or ($waitUntil -le [datetime]::Now))
-
-    if (-not $pipeOpen) {
-        Write-Warning "Error: pipe-line"
-        return
-    } else {
-        Write-Output "Working: pipe-line"
-    }
-
-    $responseTimeout = New-TimeSpan -Seconds 120
-    $waitUntil = [datetime]::Now.Add($responseTimeout)
-    $dockerInfoSuccess = $false
-
-    Write-Output 'Validando docker access'
-
-    do {
-        Start-Sleep -Milliseconds 500
-        docker info 2>&1 | Out-Null
-        $dockerInfoSuccess = ($LASTEXITCODE -eq 0)
-    } until ($dockerInfoSuccess -or ($waitUntil -le [datetime]::Now))
-
-    if (-not $dockerInfoSuccess) {
-        Write-Warning "Error: docker access"
-        return
-    } else {
-        Write-Output "Working: docker access"
-    }
-
-    Write-Output 'Continue'
+    return $null
 }
 
-Start-Docker
+function Wait-ServiceRunning {
+    param([string] $Name, [int] $TimeoutSeconds = 120)
+
+    $waitUntil = [datetime]::Now.AddSeconds($TimeoutSeconds)
+    do {
+        $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+        if ($null -ne $service -and $service.Status -eq 'Running') {
+            return $true
+        }
+        Start-Sleep -Seconds 1
+    } until ([datetime]::Now -ge $waitUntil)
+
+    return $false
+}
+
+function Wait-DockerReady {
+    param([int] $TimeoutSeconds = 120)
+
+    $waitUntil = [datetime]::Now.AddSeconds($TimeoutSeconds)
+    do {
+        $pipeOpen = Test-Path -LiteralPath \\.\pipe\docker_engine
+        docker info 2>&1 | Out-Null
+        if ($pipeOpen -and $LASTEXITCODE -eq 0) {
+            return $true
+        }
+        Start-Sleep -Milliseconds 500
+    } until ([datetime]::Now -ge $waitUntil)
+
+    return $false
+}
+
+$dockerDesktopPath = Get-DockerDesktopPath
+if ([string]::IsNullOrWhiteSpace($dockerDesktopPath)) {
+    Write-Warning 'Error: docker-desktop-not-found'
+    exit 1
+}
+
+Write-Output 'STEP 1: Starting com.docker.service'
+Start-Service -Name 'com.docker.service' -ErrorAction SilentlyContinue
+
+if (-not (Wait-ServiceRunning -Name 'com.docker.service')) {
+    Write-Warning 'Error: service-timeout'
+    exit 1
+}
+
+Write-Output 'STEP 2: Launching Docker Desktop'
+Start-Process -FilePath $dockerDesktopPath -ErrorAction Stop
+
+Write-Output 'STEP 3: Waiting for Docker daemon'
+if (-not (Wait-DockerReady)) {
+    Write-Warning 'Error: docker-timeout'
+    exit 1
+}
+
+Write-Output 'Continue'

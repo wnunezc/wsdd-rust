@@ -161,6 +161,12 @@ pub async fn stop(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), Inf
         .map(|_| ())
 }
 
+/// Reinicia Docker Desktop usando la misma ruta oficial del lifecycle.
+pub async fn restart(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
+    stop(runner, tx.clone()).await?;
+    start(runner, tx).await
+}
+
 /// Apaga WSL completamente (`wsl --shutdown`).
 ///
 /// Al reabrir Docker Desktop, WSL se reiniciará automáticamente.
@@ -171,6 +177,26 @@ pub async fn stop_wsl(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(),
     let runner = runner.clone();
     tokio::task::spawn_blocking(move || {
         runner.run_script_sync("wsl-shutdown.ps1", None, tx.as_ref())
+    })
+    .await
+    .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
+    .map(|_| ())
+}
+
+/// Inicia WSL usando la distro default activa del sistema.
+pub async fn start_wsl(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
+    let runner = runner.clone();
+    tokio::task::spawn_blocking(move || runner.run_script_sync("wsl-start.ps1", None, tx.as_ref()))
+        .await
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
+        .map(|_| ())
+}
+
+/// Reinicia WSL por completo (shutdown + start).
+pub async fn restart_wsl(runner: &PsRunner, tx: Option<OutputSender>) -> Result<(), InfraError> {
+    let runner = runner.clone();
+    tokio::task::spawn_blocking(move || {
+        runner.run_script_sync("wsl-restart.ps1", None, tx.as_ref())
     })
     .await
     .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?

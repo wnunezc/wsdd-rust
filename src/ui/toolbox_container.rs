@@ -41,9 +41,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let mut spawn_restart = false;
     let mut open = true;
 
+    crate::ui::render_modal_backdrop(ctx, "toolbox_container_backdrop");
     egui::Window::new(format!("{} — {}", tr("col_toolbox"), name))
         .collapsible(false)
         .resizable(false)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .min_width(360.0)
         .open(&mut open)

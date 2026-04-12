@@ -78,7 +78,7 @@ C:\WSDD-Environment\
 
 ## 技术信息
 
-- **Version**: 1.0.0-rc.12 (Rust edition)
+- **Version**: 1.0.0-rc.13 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` 中的 JSON

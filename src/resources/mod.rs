@@ -23,6 +23,7 @@
 // la estructura Docker configurada por el usuario.
 
 use anyhow::{Context, Result};
+use std::io::Read;
 use std::path::Path;
 
 use crate::handlers::ps_script::WSDD_ENV;
@@ -41,9 +42,8 @@ pub fn init() -> Result<()> {
     let env_path = Path::new(WSDD_ENV);
     std::fs::create_dir_all(env_path)?;
 
-    // PS-Script: extraer si no existe o esta vacio (scripts pueden actualizarse con la app)
-    let scripts_dir = env_path.join("PS-Script");
-    if !scripts_dir.exists() || is_dir_empty(&scripts_dir)? {
+    // PS-Script: reparar si falta, esta vacio o fue modificado localmente.
+    if ps_scripts_need_repair(PS_SCRIPT_ZIP, env_path)? {
         extract_zip(PS_SCRIPT_ZIP, env_path).context("Error extrayendo ps-script.zip")?;
     }
 
@@ -77,6 +77,37 @@ fn docker_structure_needs_repair(docker_dir: &Path) -> Result<bool> {
     ];
 
     Ok(required_paths.iter().any(|path| !path.exists()))
+}
+
+fn ps_scripts_need_repair(data: &[u8], env_path: &Path) -> Result<bool> {
+    let scripts_dir = env_path.join("PS-Script");
+    if !scripts_dir.exists() || is_dir_empty(&scripts_dir)? {
+        return Ok(true);
+    }
+
+    let cursor = std::io::Cursor::new(data);
+    let mut archive = zip::ZipArchive::new(cursor).context("Error abriendo ps-script.zip")?;
+
+    for i in 0..archive.len() {
+        let mut file = archive.by_index(i)?;
+        if file.name().ends_with('/') {
+            continue;
+        }
+
+        let outpath = env_path.join(file.name());
+        if !outpath.exists() {
+            return Ok(true);
+        }
+
+        let mut expected = Vec::new();
+        file.read_to_end(&mut expected)?;
+        let current = std::fs::read(&outpath)?;
+        if current != expected {
+            return Ok(true);
+        }
+    }
+
+    Ok(false)
 }
 
 fn extract_zip(data: &[u8], dest: &Path) -> Result<()> {

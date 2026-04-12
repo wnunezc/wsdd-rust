@@ -52,12 +52,12 @@ Privilegios:
 
 Software instalado automaticamente por WSDD:
   • Chocolatey — gestor de paquetes Windows
-  • Docker Desktop — motor de contenedores
+  • PowerShell 7.5+ (pwsh.exe) — automatizacion compatible
   • mkcert — generacion de certificados SSL locales
-  • WSL 2 — subsistema Linux (requerido por Docker Desktop)
 
 Software que debe estar instalado previamente:
-  • PowerShell 7 (pwsh.exe) — obligatorio para la automatizacion
+  • Docker Desktop — motor de contenedores principal
+  • WSL 2 — subsistema Linux requerido por Docker Desktop
 ",
     },
     Section {
@@ -71,19 +71,18 @@ Software que debe estar instalado previamente:
 
 3. Antes del primer despliegue del entorno base, WSDD abre un dialogo para
    capturar las credenciales de MySQL y phpMyAdmin.
-   • Estas credenciales se guardan en wsdd-config.json.
+   • Estas credenciales se guardan en wsdd-secrets.json.
    • Solo se solicitan cuando todavia no existen en la configuracion.
 
 4. El Loader verifica e instala automaticamente:
    • Chocolatey (gestor de paquetes)
-   • Docker Desktop
+   • PowerShell 7.5+
    • mkcert (SSL local)
    • Configuracion de red y certificado raiz
 
 5. Si Docker Desktop no estaba instalado:
-   • WSDD lo instala via Chocolatey.
-   • Es posible que se requiera reiniciar el sistema.
-   • Tras reiniciar, ejecutar WSDD nuevamente.
+   • El Loader se detiene y pide instalarlo manualmente.
+   • Tras instalar Docker Desktop, volver a abrir WSDD.
 
 6. Al completar el Loader, aparece el Panel Principal.
 
@@ -126,7 +125,7 @@ El panel principal tiene tres areas:
 
 5. BARRA DE ESTADO (inferior):
    • Muestra contenedores detectados, contenedores activos, proyectos y logs.
-   • Muestra estado de Docker, ultimo poll y consumo visible de CPU/RAM.
+   • Muestra estado de Docker y consumo visible de CPU/RAM.
 ",
     },
     Section {
@@ -294,7 +293,7 @@ PHP (contenedores Docker):
 PREREQUISITOS:
   • Credenciales de MySQL/phpMyAdmin — se solicitan antes del primer deploy
     del entorno base si todavia no existen en la configuracion.
-  • Se guardan en wsdd-config.json y se reutilizan en siguientes arranques.
+  • Se guardan en wsdd-secrets.json y se reutilizan en siguientes arranques.
 
 HERRAMIENTAS:
   • Version de Webmin — Version instalada en los contenedores PHP (ej: 2.630)
@@ -303,7 +302,8 @@ HERRAMIENTAS:
   • Cambiarlas despues no rota automaticamente el usuario ya existente dentro
     del contenedor; aplican al siguiente rebuild administrado por WSDD.
 
-Los cambios se guardan en: C:\\WSDD-Environment\\wsdd-config.json
+Los ajustes se guardan en: C:\\WSDD-Environment\\wsdd-config.json
+Los secretos se guardan en: C:\\WSDD-Environment\\wsdd-secrets.json
 ",
     },
     Section {
@@ -528,12 +528,12 @@ Privileges:
 
 Software installed automatically by WSDD:
   • Chocolatey — Windows package manager
-  • Docker Desktop — container engine
+  • PowerShell 7.5+ (pwsh.exe) — compatible automation runtime
   • mkcert — local SSL certificate generation
-  • WSL 2 — Linux subsystem (required by Docker Desktop)
 
 Software that must be pre-installed:
-  • PowerShell 7 (pwsh.exe) — required for automation
+  • Docker Desktop — main container engine
+  • WSL 2 — Linux subsystem required by Docker Desktop
 ",
     },
     Section {
@@ -547,19 +547,18 @@ Software that must be pre-installed:
 
 3. Before the base environment is deployed for the first time, WSDD opens a
    dialog to capture MySQL and phpMyAdmin credentials.
-   • These credentials are stored in wsdd-config.json.
+   • These credentials are stored in wsdd-secrets.json.
    • They are requested only when missing from configuration.
 
 4. The Loader verifies and automatically installs:
    • Chocolatey (package manager)
-   • Docker Desktop
+   • PowerShell 7.5+
    • mkcert (local SSL)
    • Network configuration and root certificate
 
 5. If Docker Desktop was not installed:
-   • WSDD installs it via Chocolatey.
-   • A system restart may be required.
-   • After restarting, run WSDD again.
+   • The Loader stops and asks you to install it manually.
+   • After installing Docker Desktop, open WSDD again.
 
 6. When the Loader completes, the Main Panel appears.
 
@@ -602,7 +601,7 @@ The main panel has three areas:
 
 5. STATUS BAR (bottom):
    • Shows detected containers, running containers, projects and logs.
-   • Shows Docker state, last poll and visible CPU/RAM usage.
+   • Shows Docker state and visible CPU/RAM usage.
 ",
     },
     Section {
@@ -770,7 +769,7 @@ PHP (Docker containers):
 PREREQUISITES:
   • MySQL/phpMyAdmin credentials — requested before the first base-environment
     deploy when they are still missing from configuration.
-  • They are stored in wsdd-config.json and reused on later launches.
+  • They are stored in wsdd-secrets.json and reused on later launches.
 
 TOOLS:
   • Webmin version — Version installed in PHP containers (e.g., 2.630)
@@ -779,7 +778,8 @@ TOOLS:
   • Changing them later does not automatically rotate the existing user inside
     the container; they apply on the next WSDD-managed rebuild.
 
-Changes are saved to: C:\\WSDD-Environment\\wsdd-config.json
+Settings are saved to: C:\\WSDD-Environment\\wsdd-config.json
+Secrets are saved to: C:\\WSDD-Environment\\wsdd-secrets.json
 ",
     },
     Section {

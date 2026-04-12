@@ -53,6 +53,7 @@ pub use crate::handlers::log_types::{LogLevel, LogLine, LogSender, OutputSender}
 
 /// Directorio raíz del entorno WSDD extraído en el sistema.
 pub const WSDD_ENV: &str = r"C:\WSDD-Environment";
+pub const MIN_SUPPORTED_PWSH_VERSION: &str = "7.5.0";
 
 /// Flag Win32 para crear proceso sin ventana visible.
 #[cfg(windows)]
@@ -67,6 +68,13 @@ pub struct ProcOutput {
     pub text: String,
     /// `true` si el proceso terminó con exit code 0.
     pub success: bool,
+}
+
+#[derive(Clone, Debug)]
+struct PwshProbe {
+    program: String,
+    version: String,
+    supported: bool,
 }
 
 impl ProcOutput {
@@ -175,15 +183,35 @@ impl ScriptRunner for PsRunner {
     ) -> Result<ProcOutput, InfraError> {
         let dir = work_dir.unwrap_or(&self.scripts_dir);
         let path = dir.join(script_name);
+        let ps_exe = supported_pwsh_executable().ok_or_else(|| {
+            let current = current_pwsh_version().unwrap_or_else(|| "not found".to_string());
+            InfraError::PrerequisiteNotMet(format!(
+                "PowerShell {MIN_SUPPORTED_PWSH_VERSION}+ is required to run PS1 scripts (found: {current})"
+            ))
+        })?;
 
         tracing::debug!(script = script_name, dir = %dir.display(), "Ejecutando script PS1");
 
         let policy = "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Unrestricted -Force";
         let invoke = format!("& '{}'", path.display());
-        let ps_arg = format!("{policy} ; {invoke}");
+        let ps_arg = format!(
+            "$OutputEncoding = [System.Text.Encoding]::UTF8 ; \
+             [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 ; \
+             {policy} ; {invoke}"
+        );
 
-        exec_powershell(&ps_arg, Some(dir), tx)
-            .map_err(|e| InfraError::ScriptFailed(script_name.to_string(), e.to_string()))
+        exec_direct(
+            &ps_exe,
+            &[
+                "-NoProfile".to_string(),
+                "-NonInteractive".to_string(),
+                "-Command".to_string(),
+                ps_arg,
+            ],
+            Some(dir),
+            tx,
+        )
+        .map_err(|e| InfraError::ScriptFailed(script_name.to_string(), e.to_string()))
     }
 
     fn run_ps_sync(
@@ -312,7 +340,15 @@ pub fn launch(program: &str, args: &[&str], work_dir: Option<&str>) {
 /// Equivalente a `PSScript.InvokeShellProgram()` en C#.
 /// Usado para abrir sesiones TTY a contenedores Docker.
 pub fn launch_shell_window(command: &str) {
-    if let Err(e) = Command::new("powershell")
+    let program = supported_pwsh_executable().unwrap_or_else(|| {
+        if which_pwsh() {
+            "pwsh.exe".to_string()
+        } else {
+            "powershell.exe".to_string()
+        }
+    });
+
+    if let Err(e) = Command::new(program)
         .args(["-NoExit", "-Command", command])
         .spawn()
     {
@@ -359,10 +395,12 @@ fn exec_powershell(
     // Preferir pwsh (PS 7) sobre powershell.exe (PS 5.1).
     // PS 7 tiene manejo de errores consistente y no tiene los bugs de PS 5.1
     // (ConvertFrom-Json con null, Start-Transcript sin consola, etc.)
-    let ps_exe = if which_pwsh() {
-        "pwsh.exe"
+    let ps_exe = if let Some(ps_exe) = supported_pwsh_executable() {
+        ps_exe
+    } else if which_pwsh() {
+        "pwsh.exe".to_string()
     } else {
-        "powershell.exe"
+        "powershell.exe".to_string()
     };
 
     // -NoProfile: evita que el perfil del usuario ejecute código ni escriba a stdout.
@@ -379,7 +417,7 @@ fn exec_powershell(
     );
 
     exec_direct(
-        ps_exe,
+        &ps_exe,
         &[
             "-NoProfile".to_string(),
             "-NonInteractive".to_string(),
@@ -388,6 +426,91 @@ fn exec_powershell(
         ],
         work_dir,
         tx,
+    )
+}
+
+pub fn has_supported_pwsh() -> bool {
+    supported_pwsh_executable().is_some()
+}
+
+pub fn current_pwsh_version() -> Option<String> {
+    detect_pwsh_candidates()
+        .into_iter()
+        .next()
+        .map(|probe| probe.version)
+}
+
+pub fn supported_pwsh_executable() -> Option<String> {
+    detect_pwsh_candidates()
+        .into_iter()
+        .find(|probe| probe.supported)
+        .map(|probe| probe.program)
+}
+
+fn detect_pwsh_candidates() -> Vec<PwshProbe> {
+    let mut probes = Vec::new();
+
+    for candidate in [r"C:\Program Files\PowerShell\7\pwsh.exe", "pwsh.exe"] {
+        if let Some(probe) = probe_pwsh(candidate) {
+            if probes
+                .iter()
+                .any(|existing: &PwshProbe| existing.program == probe.program)
+            {
+                continue;
+            }
+            probes.push(probe);
+        }
+    }
+
+    probes.sort_by(|a, b| version_key(&b.version).cmp(&version_key(&a.version)));
+    probes
+}
+
+fn probe_pwsh(program: &str) -> Option<PwshProbe> {
+    let mut cmd = Command::new(program);
+    cmd.args([
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$PSVersionTable.PSVersion.ToString()",
+    ])
+    .stdout(Stdio::piped())
+    .stderr(Stdio::null());
+
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    let version = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if version.is_empty() {
+        return None;
+    }
+
+    Some(PwshProbe {
+        program: program.to_string(),
+        version: version.clone(),
+        supported: is_supported_pwsh_version(&version),
+    })
+}
+
+fn is_supported_pwsh_version(version: &str) -> bool {
+    let (major, minor, _) = version_key(version);
+    major > 7 || (major == 7 && minor >= 5)
+}
+
+fn version_key(version: &str) -> (u32, u32, u32) {
+    let mut parts = version
+        .split('.')
+        .map(|part| part.trim().parse::<u32>().unwrap_or(0));
+
+    (
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
     )
 }
 

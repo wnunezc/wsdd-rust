@@ -25,6 +25,7 @@ pub mod log_types;
 pub mod log_viewer;
 pub mod mkcert;
 pub mod output;
+pub mod powershell;
 pub mod project;
 pub mod ps_script;
 pub mod requirements;

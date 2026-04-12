@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+$ErrorActionPreference = 'Stop'
 
 $logDir  = "C:\WSDD-Environment\logs"
 $logFile = "$logDir\dd-setting.log"
@@ -12,8 +12,6 @@ Log "STEP 1: Iniciado"
 $settingsToUpdate = @{
   exposeDockerAPIOnTCP2375 = $true
   updateHostsFile          = $true
-  licenseTermsVersion      = 2
-  noWindowsContainers      = $false
   runWinServiceInWslMode   = $true
   useResourceSaver         = $false
   openUIOnStartupDisabled  = $true
@@ -35,16 +33,15 @@ if (Test-Path $settingsPath) {
     $settingsObject  = $settingsContent | ConvertFrom-Json
 
     foreach ($update in $settingsToUpdate.GetEnumerator()) {
-      if ($target = $settingsObject.psobject.Properties.Match($update.Key)) {
-        if ($target.Value -ne $update.Value) {
-          Add-Member -InputObject $settingsObject -MemberType NoteProperty -Name $update.Key -Value $update.Value -Force
-          $trackUpdates++
-        }
+      $target = $settingsObject.PSObject.Properties[$update.Key]
+      if ($null -eq $target -or $target.Value -ne $update.Value) {
+        Add-Member -InputObject $settingsObject -MemberType NoteProperty -Name $update.Key -Value $update.Value -Force
+        $trackUpdates++
       }
     }
 
     if ($trackUpdates -gt 0) {
-      $settingsObject | ConvertTo-Json | Set-Content $settingsPath
+      $settingsObject | ConvertTo-Json -Depth 10 | Set-Content $settingsPath
       Log "STEP 4: Settings actualizados ($trackUpdates cambios) — se requiere reinicio"
     } else {
       Log "STEP 4: Settings ya correctos — no se requiere reinicio de Docker"
@@ -69,7 +66,6 @@ if ($trackUpdates -gt 0) {
   Get-Process *docker* -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
   Log "STEP 5c: Deteniendo servicios"
-  Stop-Service com.docker.backend -Force -ErrorAction SilentlyContinue
   Stop-Service com.docker.service -Force -ErrorAction SilentlyContinue
 
   Log "STEP 5d: Apagando WSL"
@@ -81,59 +77,79 @@ if ($trackUpdates -gt 0) {
   Log "STEP 5: Sin cambios en settings — omitiendo reinicio"
 }
 
+function Get-DockerDesktopPath {
+  $candidates = @(
+    "$env:ProgramFiles\Docker\Docker\Docker Desktop.exe",
+    "${env:ProgramFiles(x86)}\Docker\Docker\Docker Desktop.exe"
+  )
+
+  foreach ($candidate in $candidates) {
+    if (Test-Path $candidate) {
+      return $candidate
+    }
+  }
+
+  return $null
+}
+
+function Wait-ServiceRunning {
+  param([string] $Name, [int] $TimeoutSeconds = 120)
+
+  $waitUntil = [datetime]::Now.AddSeconds($TimeoutSeconds)
+  do {
+    $service = Get-Service -Name $Name -ErrorAction SilentlyContinue
+    if ($null -ne $service -and $service.Status -eq 'Running') {
+      return $true
+    }
+    Start-Sleep -Seconds 1
+  } until ([datetime]::Now -ge $waitUntil)
+
+  return $false
+}
+
+function Wait-DockerReady {
+  param([int] $TimeoutSeconds = 120)
+
+  $waitUntil = [datetime]::Now.AddSeconds($TimeoutSeconds)
+  do {
+    $pipeOpen = Test-Path -LiteralPath \\.\pipe\docker_engine
+    docker info 2>&1 | Out-Null
+    if ($pipeOpen -and $LASTEXITCODE -eq 0) {
+      return $true
+    }
+    Start-Sleep -Milliseconds 500
+  } until ([datetime]::Now -ge $waitUntil)
+
+  return $false
+}
+
+$dockerDesktopFilePath = Get-DockerDesktopPath
+if ([string]::IsNullOrWhiteSpace($dockerDesktopFilePath)) {
+  Log "ERROR: docker-desktop-not-found"
+  Write-Warning "Error: docker-desktop-not-found"
+  exit 1
+}
+
 Log "STEP 6: Iniciando servicio com.docker.service"
 Start-Service -Name "com.docker.service" -ErrorAction SilentlyContinue
 
-$serviceTimeout = [datetime]::Now.AddSeconds(120)
-while ((Get-Service -Name "com.docker.service").Status -ne "Running") {
-  if ([datetime]::Now -ge $serviceTimeout) {
-    Log "ERROR: service-timeout — com.docker.service no alcanzo Running en 120s"
-    Write-Warning "Error: service-timeout"
-    return
-  }
-  Start-Sleep -Seconds 1
+if (-not (Wait-ServiceRunning -Name 'com.docker.service')) {
+  Log "ERROR: service-timeout"
+  Write-Warning "Error: service-timeout"
+  exit 1
 }
 
-$status = (Get-Service -Name "com.docker.service").Status
-Log "STEP 7: Service $status — lanzando Docker Desktop"
-
-$dockerDesktopFilePath = Join-Path $env:ProgramFiles 'Docker\Docker\Docker Desktop.exe'
+Log "STEP 7: Lanzando Docker Desktop"
 Start-Process -FilePath $dockerDesktopFilePath
 
-$ipcTimeout = New-TimeSpan -Seconds 120
-$waitUntil  = [datetime]::Now.Add($ipcTimeout)
-$pipeOpen   = $false
-
-Log "STEP 8: Validando pipe"
-do {
-  Start-Sleep -Milliseconds 500
-  $pipeOpen = Test-Path -LiteralPath \\.\pipe\docker_engine
-} until ($pipeOpen -or ($waitUntil -le [datetime]::Now))
-
-if (-not $pipeOpen) {
-  Log "ERROR: pipe no disponible tras 120s"
-  Write-Warning "Error: pipe-timeout"
-  return
+Log "STEP 8: Validando Docker daemon"
+if (-not (Wait-DockerReady)) {
+  Log "ERROR: docker-timeout"
+  Write-Warning "Error: docker-timeout"
+  exit 1
 }
-Log "STEP 9: pipe OK"
 
-$responseTimeout = New-TimeSpan -Seconds 120
-$waitUntil       = [datetime]::Now.Add($responseTimeout)
-$dockerInfoOK    = $false
-
-Log "STEP 10: Validando docker access"
-do {
-  Start-Sleep -Milliseconds 500
-  docker info 2>&1 | Out-Null
-  $dockerInfoOK = ($LASTEXITCODE -eq 0)
-} until ($dockerInfoOK -or ($waitUntil -le [datetime]::Now))
-
-if (-not $dockerInfoOK) {
-  Log "ERROR: docker access no disponible tras 120s"
-  Write-Warning "Error: docker-access-timeout"
-  return
-}
-Log "STEP 11: docker access OK"
+Log "STEP 9: Docker daemon OK"
 
 Log "DONE: Continue"
 Write-Output 'Continue'

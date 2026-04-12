@@ -70,6 +70,9 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
     let restore_environment = tr("menu_restore_environment");
     let restore_project_backup = tr("menu_restore_project_backup");
     let wsl_settings = tr("menu_wsl_settings");
+    let wsl_restart = tr("menu_restart_wsl");
+    let wsl_shutdown = tr("menu_shutdown_wsl");
+    let wsl_start = tr("menu_start_wsl");
     let settings = tr("menu_settings");
     let help = tr("menu_help");
     let about = tr("menu_about");
@@ -101,27 +104,13 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                             }
                             ui.separator();
                             if ui.button(&reload_docker).clicked() {
-                                let tx = app.main_log_tx.clone();
-                                let runner = app.runner.clone();
-                                std::thread::spawn(move || {
-                                    let _ = tx.send(crate::handlers::log_types::LogLine::info(
-                                        "[Docker] Reiniciando Docker Desktop...",
-                                    ));
-                                    let _ = runner.run_direct_sync(
-                                        "powershell",
-                                        &[
-                                            "-NoProfile",
-                                            "-NonInteractive",
-                                            "-Command",
-                                            "Stop-Process -Name 'Docker Desktop' -Force -ErrorAction SilentlyContinue; Start-Sleep 3; Start-Process 'Docker Desktop'",
-                                        ],
-                                        None,
-                                        None,
-                                    );
-                                    let _ = tx.send(crate::handlers::log_types::LogLine::success(
-                                        "[Docker] Docker Desktop reiniciado.",
-                                    ));
-                                });
+                                start_script_sequence_action(
+                                    ctx,
+                                    app,
+                                    "[Docker] Reiniciando Docker Desktop...",
+                                    "[Docker] Docker Desktop reiniciado.",
+                                    &["dd-stop.ps1", "dd-start.ps1"],
+                                );
                                 ui.close_menu();
                             }
                             if ui.button(&clear_logs).clicked() {
@@ -148,6 +137,37 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                                 app.ui.active = ActiveView::WslSettings;
                                 ui.close_menu();
                             }
+                            if ui.button(&wsl_restart).clicked() {
+                                start_script_sequence_action(
+                                    ctx,
+                                    app,
+                                    "[WSL] Reiniciando servicios WSL...",
+                                    "[WSL] Servicios WSL reiniciados.",
+                                    &["wsl-restart.ps1"],
+                                );
+                                ui.close_menu();
+                            }
+                            if ui.button(&wsl_shutdown).clicked() {
+                                start_script_sequence_action(
+                                    ctx,
+                                    app,
+                                    "[WSL] Apagando WSL por completo...",
+                                    "[WSL] WSL apagado.",
+                                    &["wsl-shutdown.ps1"],
+                                );
+                                ui.close_menu();
+                            }
+                            if ui.button(&wsl_start).clicked() {
+                                start_script_sequence_action(
+                                    ctx,
+                                    app,
+                                    "[WSL] Iniciando servicios WSL...",
+                                    "[WSL] Servicios WSL iniciados.",
+                                    &["wsl-start.ps1"],
+                                );
+                                ui.close_menu();
+                            }
+                            ui.separator();
                             if ui.button(&settings).clicked() {
                                 app.ui.active = ActiveView::Settings;
                                 ui.close_menu();
@@ -166,17 +186,18 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                             ui.separator();
                             if ui.button(&support).clicked() {
                                 if let Err(e) = external_app::open_url(SUPPORT_ISSUES_URL) {
-                                    let _ =
-                                        app.main_log_tx.send(crate::handlers::log_types::LogLine::error(
-                                            format!("[Support] Could not open GitHub Issues: {e}"),
-                                        ));
+                                    let _ = app.main_log_tx.send(
+                                        crate::handlers::log_types::LogLine::error(format!(
+                                            "[Support] Could not open GitHub Issues: {e}"
+                                        )),
+                                    );
                                 }
                                 ui.close_menu();
                             }
                         });
                     });
                 });
-    });
+        });
 }
 
 // ─── Toolbar ─────────────────────────────────────────────────────────────────
@@ -433,12 +454,6 @@ fn render_status_bar(ctx: &egui::Context, app: &mut WsddApp) {
         None => ui_text_color(ctx),
     };
 
-    let poll_value = if app.container_poll_active {
-        tr("status_polling")
-    } else {
-        format_poll_age(app.last_container_poll.elapsed())
-    };
-
     egui::TopBottomPanel::bottom("status_bar")
         .exact_height(36.0)
         .show(ctx, |ui| {
@@ -487,8 +502,6 @@ fn render_status_bar(ctx: &egui::Context, app: &mut WsddApp) {
                     &format_memory_mb(app.docker_status.memory_mb),
                     None,
                 );
-                status_separator(ui);
-                status_item(ui, &tr("status_bar_last_poll"), &poll_value, None);
             });
         });
 }
@@ -507,9 +520,11 @@ fn render_confirm_dialog(ctx: &egui::Context, app: &mut WsddApp) {
     let cancel_label = tr("btn_cancel");
 
     let mut open = true;
+    crate::ui::render_modal_backdrop(ctx, "confirm_remove_project_backdrop");
     egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .open(&mut open)
         .show(ctx, |ui| {
@@ -593,6 +608,35 @@ fn start_poll(ctx: &egui::Context, app: &mut WsddApp) {
     std::thread::spawn(move || {
         let snapshot = gather_poll_snapshot_sync(&runner);
         let _ = tx.send(snapshot);
+        ctx.request_repaint();
+    });
+}
+
+fn start_script_sequence_action(
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    started: &'static str,
+    success: &'static str,
+    scripts: &'static [&'static str],
+) {
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    let ctx = ctx.clone();
+
+    std::thread::spawn(move || {
+        let _ = tx.send(LogLine::info(started));
+
+        for script in scripts {
+            if let Err(e) = runner.run_script_sync(script, None, None) {
+                let _ = tx.send(LogLine::error(format!(
+                    "[Lifecycle] Error ejecutando {script}: {e}"
+                )));
+                ctx.request_repaint();
+                return;
+            }
+        }
+
+        let _ = tx.send(LogLine::success(success));
         ctx.request_repaint();
     });
 }

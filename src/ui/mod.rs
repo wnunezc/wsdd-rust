@@ -194,10 +194,19 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         ActiveView::Welcome => welcome::render(ctx, app),
         ActiveView::Loader => loader::render(ctx, app),
         ActiveView::Main => main_window::render(ctx, app),
-        ActiveView::Settings => settings::render(ctx, app),
-        ActiveView::About => about::render(ctx, app),
+        ActiveView::Settings => {
+            main_window::render(ctx, app);
+            settings::render(ctx, app);
+        }
+        ActiveView::About => {
+            main_window::render(ctx, app);
+            about::render(ctx, app);
+        }
         ActiveView::Helps => helps::render(ctx, app),
-        ActiveView::WslSettings => wsl_settings::render(ctx, app),
+        ActiveView::WslSettings => {
+            main_window::render(ctx, app);
+            wsl_settings::render(ctx, app);
+        }
         // Overlays modales — renderiza main_window como fondo y muestra el modal encima
         ActiveView::AddProject => {
             main_window::render(ctx, app);
@@ -217,6 +226,26 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     render_webmin_credentials_dialog(ctx, app);
 }
 
+pub(crate) fn render_modal_backdrop(ctx: &egui::Context, id: &'static str) {
+    let screen_rect = ctx.screen_rect();
+
+    egui::Area::new(egui::Id::new(id))
+        .order(egui::Order::Middle)
+        .fixed_pos(screen_rect.min)
+        .interactable(true)
+        .show(ctx, |ui| {
+            ui.set_min_size(screen_rect.size());
+            let rect = ui.max_rect();
+            let response = ui.allocate_rect(rect, egui::Sense::click());
+            ui.painter()
+                .rect_filled(rect, 0.0, egui::Color32::from_black_alpha(160));
+
+            if response.clicked() {
+                ui.ctx().request_repaint();
+            }
+        });
+}
+
 fn render_prereq_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
     if app.ui.prereq_prompt.is_none() {
         return;
@@ -234,9 +263,12 @@ fn render_prereq_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
     let mut save = false;
     let mut cancel = false;
 
+    render_modal_backdrop(ctx, "prereq_credentials_backdrop");
+
     egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             let prompt = app
@@ -364,9 +396,12 @@ fn render_webmin_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
     let mut save = false;
     let mut cancel = false;
 
+    render_modal_backdrop(ctx, "webmin_credentials_backdrop");
+
     egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .show(ctx, |ui| {
             let prompt = app

@@ -11,13 +11,14 @@ local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y g
 
 - **Sistema operativo**: Windows 10 / Windows 11
 - **Privilegios**: Administrador (obligatorio)
-- **Docker Desktop**: Se instala automaticamente si no esta presente
-- **WSL 2**: Se configura automaticamente
+- **Docker Desktop**: Debe estar instalado por el usuario antes del primer arranque
+- **WSL 2**: Requerido por Docker Desktop
 - **Chocolatey**: Se instala automaticamente si no esta presente
+- **PowerShell**: 7.5+ (se instala/actualiza automaticamente si falta)
 
 ## Que hace esta aplicacion
 
-1. **Verifica e instala dependencias**: Docker Desktop, WSL 2, Chocolatey, MKCert
+1. **Verifica y prepara dependencias**: Chocolatey, PowerShell 7.5+, Docker Desktop, MKCert
 2. **Configura el stack Docker**: Nginx reverse proxy, MySQL, phpMyAdmin
 3. **Gestiona proyectos web**: Crea contenedores PHP por version con Apache + Xdebug
 4. **SSL local automatico**: Certificados MKCert por dominio, sin advertencias del navegador
@@ -47,7 +48,8 @@ C:\WSDD-Environment\
 ├── PS-Script\          — Scripts PowerShell de automatizacion
 ├── Docker-Structure\   — docker-compose e imagenes PHP
 ├── certs\              — Certificados SSL por dominio
-└── wsdd-config.json    — Configuracion de la aplicacion
+├── wsdd-config.json    — Configuracion de la aplicacion
+└── wsdd-secrets.json   — Secrets administrados para contenedores
 ```
 
 ## Primer arranque — proceso automatico
@@ -55,13 +57,11 @@ C:\WSDD-Environment\
 1. La aplicacion verifica que tiene privilegios de administrador
 2. Extrae los recursos embebidos a `C:\WSDD-Environment\`
 3. Comprueba Chocolatey → instala si falta
-4. Comprueba Docker Desktop → instala si falta (requiere reinicio)
-5. Comprueba MKCert → instala y configura CA local
-6. Levanta el stack Docker base
-7. Muestra el panel principal
-
-> **Nota**: La instalacion de Docker Desktop puede requerir reinicio del sistema.
-> La aplicacion retomara automaticamente tras el reinicio.
+4. Comprueba PowerShell 7.5+ → instala/actualiza si falta
+5. Comprueba Docker Desktop → bloquea si no esta instalado/configurado
+6. Comprueba MKCert → instala y configura CA local
+7. Levanta el stack Docker base
+8. Muestra el panel principal
 
 ## Uso despues del primer arranque
 
@@ -78,10 +78,11 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0-rc.12 (Rust edition)
+- **Version**: 1.0.0-rc.13 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`
+- **Secrets**: JSON en `C:\WSDD-Environment\wsdd-secrets.json`
 - **Logs**: Variable de entorno `RUST_LOG=wsdd=debug` para logs detallados
 
 ## Licencia

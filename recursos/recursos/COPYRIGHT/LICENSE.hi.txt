@@ -1,5 +1,5 @@
 WebStack Deployer for Docker
-संस्करण 1.0.0-rc.12
+संस्करण 1.0.0-rc.13
 कॉपीराइट © 2026 Walter Núñez / Icaros Net S.A.
 पनामा। सर्वाधिकार सुरक्षित।
 

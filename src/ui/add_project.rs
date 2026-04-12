@@ -58,9 +58,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let pick_folder_title = tr("add_select_dir");
 
     let mut open = true;
+    crate::ui::render_modal_backdrop(ctx, "add_project_backdrop");
     egui::Window::new(title)
         .collapsible(false)
         .resizable(false)
+        .order(egui::Order::Foreground)
         .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
         .min_width(440.0)
         .open(&mut open)

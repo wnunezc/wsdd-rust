@@ -52,8 +52,8 @@ salvo nueva instruccion explicita del usuario.
 |---|---|---|---|
 | `WP-01` | Alto | Cerrado por confirmacion explicita del usuario en `rc.11` | Opcion `B` aprobada |
 | `WP-02` | Alto | Cerrado por confirmacion explicita del usuario en `rc.12` | Opcion `B` aprobada |
-| `WP-03` | Alto | Pendiente de decision | Pendiente |
-| `WP-04` | Alto | Pendiente de decision | Pendiente |
+| `WP-03` | Alto | Cerrado por confirmacion explicita del usuario en `rc.13` | Opcion `A` endurecida aprobada |
+| `WP-04` | Alto | Siguiente paquete prioritario tras cierre de `WP-03` | Pendiente |
 | `WP-05` | Alto | Pendiente de decision | Pendiente |
 | `WP-06` | Medio | Pendiente de decision | Pendiente |
 | `WP-07` | Medio | Pendiente de decision | Pendiente |
@@ -123,6 +123,15 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-03` Lifecycle real de WSL/Docker/PowerShell
 
 - Prioridad: Alto
+- Estado actual:
+  - opcion `A` endurecida aprobada por el usuario
+  - `PowerShell 7.5+` convertido en prerequisito real antes de ejecutar scripts `PS1`
+  - `start/stop/configure` y `Reload Docker Desktop` alineados al lifecycle oficial por scripts
+  - acciones GUI para `Start/Restart/Shutdown WSL` implementadas y validadas manualmente
+  - secretos segregados a `wsdd-secrets.json`
+  - `Last poll` removido de la barra de estado
+  - dialogos criticos ajustados como modales bloqueantes durante el cierre de `rc.13`
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - `wsl-shutdown.ps1` vacio
   - scripts con polling y tokens magicos
@@ -133,9 +142,9 @@ salvo nueva instruccion explicita del usuario.
   - `B` Mover parte del control critico a Rust y dejar PS1 solo como wrapper minimo
   - `C` Reducir alcance funcional y eliminar acciones no confiables hasta rehacerlas
 - Sugerencia tecnica:
-  - `B`
+  - `A` endurecida
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `A` endurecida para este paquete
 - Criterio de cierre:
   - start/stop/configure tienen comportamiento real
   - existe validacion post-accion y logs claros
@@ -143,6 +152,8 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-04` Estrategia de jobs y no-bloqueo de UI
 
 - Prioridad: Alto
+- Estado actual:
+  - siguiente paquete prioritario tras el cierre de `WP-03` en `rc.13`
 - Hallazgos base:
   - `std::thread::spawn` disperso
   - sleeps fijos en `docker_deploy.rs`

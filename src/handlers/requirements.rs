@@ -26,7 +26,7 @@ use anyhow::Result;
 
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::setting::AppSettings;
-use crate::handlers::{chocolatey, docker_deploy, hosts, mkcert};
+use crate::handlers::{chocolatey, docker_deploy, hosts, mkcert, powershell};
 
 // ─── Resultado del proceso de requirements ────────────────────────────────────
 
@@ -54,9 +54,10 @@ pub enum LoaderOutcome {
 /// render loop de egui.
 ///
 /// # Flujo
-/// 1. Docker (bloqueante si no instalado)
-/// 2. Chocolatey (instala si falta)
-/// 3. MKCert (instala via choco si falta, genera CA)
+/// 1. Chocolatey (instala si falta)
+/// 2. PowerShell 7.5+ (instala/actualiza si falta)
+/// 3. Docker (bloqueante si no instalado)
+/// 4. MKCert (instala via choco si falta, genera CA)
 /// 4. Envía `LoaderOutcome` al canal `outcome_tx`
 ///
 /// # Parámetros
@@ -82,21 +83,28 @@ pub fn run_requirements(
         }
     };
 
-    // ── 1. Docker ──────────────────────────────────────────────────────────
+    // ── 1. Chocolatey ──────────────────────────────────────────────────────
+    if !chocolatey::process_requirements(&log_tx) {
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
+    // ── 2. PowerShell 7.5+ ────────────────────────────────────────────────
+    let _ = tx_log_separator(&log_tx);
+    if !powershell::process_requirements(&log_tx) {
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
+    // ── 3. Docker ──────────────────────────────────────────────────────────
+    let _ = tx_log_separator(&log_tx);
     let docker_outcome = docker_deploy::process_requirements_sync(&runner, &log_tx);
     if docker_outcome != docker_deploy::DockerRequirementOutcome::Ready {
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
 
-    // ── 2. Chocolatey ──────────────────────────────────────────────────────
-    let _ = tx_log_separator(&log_tx);
-    if !chocolatey::process_requirements(&log_tx) {
-        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
-        return;
-    }
-
-    // ── 3. MKCert ──────────────────────────────────────────────────────────
+    // ── 4. MKCert ──────────────────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
     if !mkcert::process_requirements(&log_tx) {
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);

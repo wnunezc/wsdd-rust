@@ -23,8 +23,9 @@ use crate::i18n::Language;
 use crate::models::project::PhpVersion;
 
 const CONFIG_FILE: &str = r"C:\WSDD-Environment\wsdd-config.json";
+const SECRETS_FILE: &str = r"C:\WSDD-Environment\wsdd-secrets.json";
 const LEGACY_INIT_YML: &str = r"C:\WSDD-Environment\Docker-Structure\init.yml";
-const CURRENT_CONFIG_VERSION: u32 = 3;
+const CURRENT_CONFIG_VERSION: u32 = 4;
 const LEGACY_WEBMIN_USER: &str = "admin";
 const LEGACY_WEBMIN_PASSWORD: &str = "admin";
 const CURRENT_WEBMIN_VERSION: &str = "2.630";
@@ -210,6 +211,14 @@ impl WebminCredentials {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct AppSecrets {
+    #[serde(default)]
+    prereq_credentials: PrereqCredentials,
+    #[serde(default)]
+    webmin_credentials: Vec<WebminCredentials>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
     /// Versión del esquema persistido de `wsdd-config.json`.
@@ -263,6 +272,24 @@ pub struct AppSettings {
     pub webmin_credentials: Vec<WebminCredentials>,
 }
 
+#[derive(Serialize)]
+struct AppSettingsDisk<'a> {
+    config_version: u32,
+    setup_completed: bool,
+    docker_path: &'a Option<String>,
+    projects_path: &'a String,
+    wsl_distro: &'a Option<String>,
+    selected_monitor: i32,
+    language: Language,
+    theme: AppTheme,
+    log_max_lines: usize,
+    php_memory_limit: &'a String,
+    php_upload_max_filesize: &'a String,
+    php_timezone: &'a String,
+    webmin_version: &'a String,
+    auto_start_containers: bool,
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -286,16 +313,46 @@ impl Default for AppSettings {
     }
 }
 
+impl<'a> From<&'a AppSettings> for AppSettingsDisk<'a> {
+    fn from(settings: &'a AppSettings) -> Self {
+        Self {
+            config_version: settings.config_version,
+            setup_completed: settings.setup_completed,
+            docker_path: &settings.docker_path,
+            projects_path: &settings.projects_path,
+            wsl_distro: &settings.wsl_distro,
+            selected_monitor: settings.selected_monitor,
+            language: settings.language,
+            theme: settings.theme,
+            log_max_lines: settings.log_max_lines,
+            php_memory_limit: &settings.php_memory_limit,
+            php_upload_max_filesize: &settings.php_upload_max_filesize,
+            php_timezone: &settings.php_timezone,
+            webmin_version: &settings.webmin_version,
+            auto_start_containers: settings.auto_start_containers,
+        }
+    }
+}
+
 impl AppSettings {
     /// Carga la configuracion desde disco. Si no existe, retorna Default.
     pub fn load() -> Result<Self, InfraError> {
         let path = PathBuf::from(CONFIG_FILE);
-        if !path.exists() {
-            return Ok(Self::default());
+        let mut settings = if !path.exists() {
+            Self::default()
+        } else {
+            let content = std::fs::read_to_string(&path)?;
+            let settings: Self = serde_json::from_str(&content)?;
+            settings.validate_loaded()?
+        };
+
+        if let Some(secrets) = load_secrets_file()? {
+            settings.prereq_credentials = secrets.prereq_credentials.normalize_loaded();
+            settings.webmin_credentials = secrets.webmin_credentials;
+            normalize_webmin_credentials(&mut settings.webmin_credentials);
         }
-        let content = std::fs::read_to_string(&path)?;
-        let settings: Self = serde_json::from_str(&content)?;
-        settings.validate_loaded()
+
+        Ok(settings)
     }
 
     /// Persiste la configuracion en disco.
@@ -304,8 +361,19 @@ impl AppSettings {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = serde_json::to_string_pretty(self)?;
+        let content = serde_json::to_string_pretty(&AppSettingsDisk::from(self))?;
         std::fs::write(&path, content)?;
+
+        let secrets_path = PathBuf::from(SECRETS_FILE);
+        if let Some(parent) = secrets_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        let secrets = AppSecrets {
+            prereq_credentials: self.prereq_credentials.clone(),
+            webmin_credentials: self.webmin_credentials.clone(),
+        };
+        let secrets_content = serde_json::to_string_pretty(&secrets)?;
+        std::fs::write(&secrets_path, secrets_content)?;
         Ok(())
     }
 
@@ -317,7 +385,7 @@ impl AppSettings {
             });
         }
 
-        if self.config_version == 0 {
+        if self.config_version == 0 || self.config_version < CURRENT_CONFIG_VERSION {
             self.config_version = default_config_version();
         }
 
@@ -515,6 +583,19 @@ fn normalize_webmin_credentials(list: &mut Vec<WebminCredentials>) {
     }
 
     *list = normalized;
+}
+
+fn load_secrets_file() -> Result<Option<AppSecrets>, InfraError> {
+    let path = PathBuf::from(SECRETS_FILE);
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let content = std::fs::read_to_string(path)?;
+    let mut secrets: AppSecrets = serde_json::from_str(&content)?;
+    secrets.prereq_credentials = secrets.prereq_credentials.normalize_loaded();
+    normalize_webmin_credentials(&mut secrets.webmin_credentials);
+    Ok(Some(secrets))
 }
 
 #[cfg(test)]

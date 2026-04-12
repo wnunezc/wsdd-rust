@@ -62,26 +62,41 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let webmin_user_label = tr("settings_webmin_user");
     let webmin_password_label = tr("settings_webmin_password");
     let webmin_version_label = format!("{}:", tr("settings_webmin_version"));
+    let mut open = true;
 
-    egui::CentralPanel::default().show(ctx, |ui| {
-        let draft = app.ui.settings_draft.as_mut().unwrap();
+    crate::ui::render_modal_backdrop(ctx, "settings_backdrop");
 
-        // ── Cabecera ──────────────────────────────────────────────────────
-        ui.horizontal(|ui| {
-            ui.heading(&title);
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button(&cancel_label).clicked() {
-                    cancel = true;
-                }
-                ui.add_space(4.0);
-                if ui
-                    .add(egui::Button::new(&save_label).fill(egui::Color32::from_rgb(34, 139, 34)))
-                    .clicked()
-                {
-                    save = true;
-                }
+    egui::Window::new(&title)
+        .collapsible(false)
+        .resizable(true)
+        .order(egui::Order::Foreground)
+        .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+        .default_width(860.0)
+        .default_height(680.0)
+        .min_width(760.0)
+        .min_height(540.0)
+        .open(&mut open)
+        .show(ctx, |ui| {
+            let draft = app.ui.settings_draft.as_mut().unwrap();
+
+            // ── Cabecera ──────────────────────────────────────────────────────
+            ui.horizontal(|ui| {
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                    if ui.button(&cancel_label).clicked() {
+                        cancel = true;
+                    }
+                    ui.add_space(4.0);
+                    if ui
+                        .add(
+                            egui::Button::new(&save_label)
+                                .fill(egui::Color32::from_rgb(34, 139, 34)),
+                        )
+                        .clicked()
+                    {
+                        save = true;
+                    }
+                });
             });
-        });
         ui.separator();
         ui.add_space(6.0);
 
@@ -377,6 +392,10 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(16.0);
         });
     });
+
+    if !open && !save {
+        cancel = true;
+    }
 
     // ── Aplicar accion fuera del closure ─────────────────────────────────────
     if save {

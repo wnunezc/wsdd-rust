@@ -1,6 +1,6 @@
 # WebStack Deployer for Docker
 
-**Version:** 1.0.0-rc.12
+**Version:** 1.0.0-rc.13
 **Copyright:** © 2026 Walter Núñez / Icaros Net S.A.
 **Jurisdiction:** Panama
 
