@@ -12,18 +12,13 @@
 // The author shall not be liable for any damages.
 //
 // Contact: wnunez@lh-2.net
-//! Despliegue y eliminación de proyectos WSDD.
+//! Despliegue y eliminacion de proyectos WSDD.
 //!
-//! Equivalente a `HandlerProject.DeployNewProjectAsync` y el flujo de remove en C#.
-//! Separado por SRP: este módulo orquesta las operaciones de infra (volumen, yml,
-//! docker-compose, vhost, SSL, hosts) y la persistencia del proyecto.
+//! Equivalente a `HandlerProject.DeployNewProjectAsync` y al flujo de remove en C#.
+//! Este modulo orquesta la persistencia del proyecto y los cambios de infra:
+//! volumen, options.yml, vhost activo, SSL y hosts.
 //!
-//! # Funciones públicas
-//!
-//! - [`deploy_project`]: despliega un proyecto completo (guarda en disco + infra).
-//! - [`remove_project`]: elimina un proyecto completo (infra + borra de disco).
-//!
-//! Todas las funciones son sincrónicas — llamar desde `std::thread::spawn`.
+//! Todas las funciones son sincronicas; llamar desde `std::thread::spawn`.
 
 use std::path::Path;
 
@@ -37,17 +32,23 @@ use crate::handlers::project as project_handler;
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use crate::handlers::setting::AppSettings;
 use crate::handlers::yml;
-use crate::models::project::Project;
-
-// ─── Rutas del entorno ────────────────────────────────────────────────────────
+use crate::models::project::{PhpVersion, Project};
 
 const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
+const PERSONAL_PROJECTS_MARKER: &str = "### PERSONAL PROJECTS ###";
 
 fn php_bin_dir(php_dir_name: &str) -> String {
     format!(r"C:\WSDD-Environment\Docker-Structure\bin\{}", php_dir_name)
 }
 
-fn vhost_conf_path(php_dir_name: &str) -> String {
+fn active_vhost_conf_path(php_dir_name: &str) -> String {
+    format!(
+        r"C:\WSDD-Environment\Docker-Structure\bin\{}\vhost\vhost.conf",
+        php_dir_name
+    )
+}
+
+fn legacy_vhost_conf_path(php_dir_name: &str) -> String {
     format!(
         r"C:\WSDD-Environment\Docker-Structure\bin\{}\vhost.conf",
         php_dir_name
@@ -68,21 +69,17 @@ fn webserver_yml_path(php_dir_name: &str, compose_tag: &str) -> String {
     )
 }
 
-// ─── API pública ──────────────────────────────────────────────────────────────
-
 /// Despliega un proyecto WSDD completo.
 ///
-/// # Flujo
-/// 1. Guarda el proyecto en disco (`project::save`).
-/// 2. Crea el volumen Docker para el `WorkPath`.
+/// Flujo:
+/// 1. Guarda el proyecto en disco.
+/// 2. Crea el volumen Docker del proyecto.
 /// 3. Agrega el dominio al `options.phpXX.yml`.
-/// 4. Reconstruye el contenedor PHP (stop → rm → create --build → up -d).
-/// 5. Inserta el bloque vhost en `vhost.conf`.
-/// 6. Si `ssl=true`: genera certificado con mkcert y reinicia el proxy.
-/// 7. Actualiza el archivo `hosts`.
-///
-/// Retorna `Ok(())` si todos los pasos completan sin error.
-/// Si falla un paso, los anteriores ya están aplicados — se puede reintentar.
+/// 4. Sincroniza los recursos base de PHP/Webmin.
+/// 5. Regenera el vhost activo desde `projects/*.json`.
+/// 6. Reconstruye el contenedor PHP para que Apache levante con el vhost actualizado.
+/// 7. Si `ssl=true`, genera certificado y reinicia el proxy.
+/// 8. Actualiza el archivo `hosts`.
 pub fn deploy_project(
     project: &Project,
     settings: &AppSettings,
@@ -94,34 +91,24 @@ pub fn deploy_project(
         project.name
     )));
 
-    // 1. Persistir proyecto
     project_handler::save(project)?;
     let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
 
-    // 2. Volumen Docker
     step_create_volume(project, runner, tx)?;
-
-    // 3. options.yml
     step_update_options_yml(project, tx)?;
 
-    // 4. Sincronizar recursos administrados de la versión PHP
     docker_deploy::sync_php_version_resources_sync(settings, &project.php_version)?;
     let _ = tx.send(LogLine::success(
         "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
     ));
 
-    // 5. Reconstruir contenedor PHP
+    step_update_vhost(project, tx)?;
     step_rebuild_php_container(project, runner, tx)?;
 
-    // 6. vhost.conf
-    step_update_vhost(project, tx)?;
-
-    // 7. SSL (opcional)
     if project.ssl {
         step_setup_ssl(project, runner, tx)?;
     }
 
-    // 8. Hosts
     step_update_hosts(project, tx)?;
 
     let _ = tx.send(LogLine::success(format!(
@@ -133,14 +120,14 @@ pub fn deploy_project(
 
 /// Elimina un proyecto WSDD completo.
 ///
-/// # Flujo
-/// 1. Elimina el dominio de `options.phpXX.yml` (antes de borrar el proyecto).
-/// 2. Reconstruye el contenedor PHP sin el proyecto.
-/// 3. Elimina el volumen Docker.
-/// 4. Elimina el bloque vhost de `vhost.conf`.
-/// 5. Borra el proyecto del disco (`project::delete`).
+/// Flujo:
+/// 1. Elimina el dominio de `options.phpXX.yml`.
+/// 2. Regenera el vhost activo excluyendo el proyecto objetivo.
+/// 3. Reconstruye el contenedor PHP.
+/// 4. Elimina el volumen Docker.
+/// 5. Borra el proyecto del disco.
 ///
-/// Los dominios NO se eliminan de `hosts` (limitación conocida).
+/// Los dominios no se eliminan de `hosts` (limitacion conocida).
 pub fn remove_project(
     project: &Project,
     runner: &PsRunner,
@@ -151,19 +138,10 @@ pub fn remove_project(
         project.name
     )));
 
-    // 1. Quitar de options.yml (antes de perder los datos del proyecto)
     step_remove_options_yml(project, tx);
-
-    // 2. Reconstruir contenedor PHP (aplica el yml actualizado)
-    step_rebuild_php_container(project, runner, tx)?;
-
-    // 3. Eliminar volumen
-    step_remove_volume(project, runner, tx);
-
-    // 4. Limpiar vhost.conf
     step_remove_vhost(project, tx);
-
-    // 5. Borrar de disco
+    step_rebuild_php_container(project, runner, tx)?;
+    step_remove_volume(project, runner, tx);
     project_handler::delete(&project.name)?;
 
     let _ = tx.send(LogLine::success(format!(
@@ -172,8 +150,6 @@ pub fn remove_project(
     )));
     Ok(())
 }
-
-// ─── Pasos de Deploy ──────────────────────────────────────────────────────────
 
 fn step_create_volume(
     project: &Project,
@@ -230,9 +206,9 @@ fn step_update_options_yml(project: &Project, tx: &LogSender) -> Result<(), Infr
     Ok(())
 }
 
-/// Stop → rm → create --build → up -d para el contenedor PHP del proyecto.
+/// Stop -> rm -> create --build -> up -d para el contenedor PHP del proyecto.
 ///
-/// El stop y rm son best-effort (ignorados si el contenedor no existe).
+/// El stop y rm son best-effort.
 fn step_rebuild_php_container(
     project: &Project,
     runner: &PsRunner,
@@ -247,7 +223,6 @@ fn step_rebuild_php_container(
     let webserver_yml = webserver_yml_path(php_dir_name, compose_tag);
     let options_yml = yml::options_path(php_dir_name, compose_tag);
 
-    // Stop (best-effort)
     let _ = tx.send(LogLine::info(format!(
         "[Deploy] Deteniendo {}...",
         container_name
@@ -255,7 +230,6 @@ fn step_rebuild_php_container(
     let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
     let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
 
-    // docker-compose create --build
     let _ = tx.send(LogLine::info(
         "[Deploy] Construyendo contenedor PHP (puede tardar)...",
     ));
@@ -268,7 +242,6 @@ fn step_rebuild_php_container(
         Some(&bridge),
     )?;
 
-    // docker-compose up -d
     let _ = tx.send(LogLine::info("[Deploy] Iniciando contenedor PHP..."));
     let bridge2 = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
@@ -286,58 +259,13 @@ fn step_rebuild_php_container(
     Ok(())
 }
 
-/// Inserta el bloque vhost del proyecto en `vhost.conf`.
+/// Regenera la seccion PERSONAL PROJECTS del vhost activo para la version PHP.
 ///
-/// Usa `tpl.vhost.conf` como plantilla. Idempotente: omite si el dominio ya existe.
+/// La fuente de verdad son los `projects/*.json` persistidos por WSDD.
 fn step_update_vhost(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
-    let php_dir_name = project.php_version.dir_name();
-    let template_path = vhost_template_path(php_dir_name);
-    let vhost_path = vhost_conf_path(php_dir_name);
-
-    let template = std::fs::read_to_string(&template_path).map_err(InfraError::Io)?;
-
-    // Reemplazar placeholders
-    let protocol = if project.ssl {
-        "Protocols h2 h2c http/1.1"
-    } else {
-        ""
-    };
-    let block = template
-        .replace("{CustomUrl}", &project.domain)
-        .replace("{EntryPoint}", project.entry_point.as_path())
-        .replace("{PROTOCOL}", protocol);
-
-    // Leer vhost.conf existente (o crear vacío si no existe)
-    let vhost_content = std::fs::read_to_string(&vhost_path).unwrap_or_default();
-
-    // Idempotencia: si el dominio ya tiene entrada, no duplicar
-    if vhost_content.contains(&format!("ServerName {}", project.domain)) {
-        let _ = tx.send(LogLine::info(
-            "[Deploy] vhost.conf: entrada ya existe (idempotente)",
-        ));
-        return Ok(());
-    }
-
-    // Insertar tras el marcador ### PERSONAL PROJECTS ###
-    const MARKER: &str = "### PERSONAL PROJECTS ###";
-    let new_content = if let Some(pos) = vhost_content.find(MARKER) {
-        let end_of_line = vhost_content[pos..]
-            .find('\n')
-            .map(|n| pos + n + 1)
-            .unwrap_or(pos + MARKER.len());
-        let mut result = String::from(&vhost_content[..end_of_line]);
-        result.push('\n');
-        result.push_str(&block);
-        result.push('\n');
-        result.push_str(&vhost_content[end_of_line..]);
-        result
-    } else {
-        // Sin marcador: agregar al final
-        format!("{}\n\n{}\n", vhost_content, block)
-    };
-
-    std::fs::write(&vhost_path, new_content).map_err(InfraError::Io)?;
-    let _ = tx.send(LogLine::success("[Deploy] vhost.conf actualizado ✓"));
+    let projects = php_projects(&project.php_version, None)?;
+    sync_active_vhost(project.php_version.dir_name(), &projects, tx)?;
+    let _ = tx.send(LogLine::success("[Deploy] vhost activo regenerado ✓"));
     Ok(())
 }
 
@@ -345,8 +273,8 @@ fn step_update_vhost(project: &Project, tx: &LogSender) -> Result<(), InfraError
 fn step_setup_ssl(project: &Project, runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
     std::fs::create_dir_all(SSL_DIR).map_err(InfraError::Io)?;
 
-    let cert_file = format!("{}\\{}.crt", SSL_DIR, project.domain);
-    let key_file = format!("{}\\{}.key", SSL_DIR, project.domain);
+    let cert_file = format!(r"{}\{}.crt", SSL_DIR, project.domain);
+    let key_file = format!(r"{}\{}.key", SSL_DIR, project.domain);
     let wildcard = format!("*.{}", project.domain);
 
     let _ = tx.send(LogLine::info(
@@ -380,8 +308,6 @@ fn step_update_hosts(project: &Project, tx: &LogSender) -> Result<(), InfraError
     hosts::update_host(Some(&domains), tx)
         .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
 }
-
-// ─── Pasos de Remove ──────────────────────────────────────────────────────────
 
 fn step_remove_options_yml(project: &Project, tx: &LogSender) {
     let options_file = yml::options_path(
@@ -424,15 +350,19 @@ fn step_remove_volume(project: &Project, runner: &PsRunner, tx: &LogSender) {
 }
 
 fn step_remove_vhost(project: &Project, tx: &LogSender) {
-    let vhost_path = vhost_conf_path(project.php_version.dir_name());
-    let content = match std::fs::read_to_string(&vhost_path) {
-        Ok(c) => c,
-        Err(_) => return, // Si no existe, no hay nada que limpiar
+    let projects = match php_projects(&project.php_version, Some(&project.name)) {
+        Ok(projects) => projects,
+        Err(e) => {
+            let _ = tx.send(LogLine::warn(format!(
+                "[Remove] Advertencia vhost.conf: {e}"
+            )));
+            return;
+        }
     };
-    let cleaned = strip_vhost_block(&content, &project.domain);
-    match std::fs::write(&vhost_path, cleaned) {
+
+    match sync_active_vhost(project.php_version.dir_name(), &projects, tx) {
         Ok(()) => {
-            let _ = tx.send(LogLine::success("[Remove] vhost.conf limpiado ✓"));
+            let _ = tx.send(LogLine::success("[Remove] vhost activo regenerado ✓"));
         }
         Err(e) => {
             let _ = tx.send(LogLine::warn(format!(
@@ -442,50 +372,186 @@ fn step_remove_vhost(project: &Project, tx: &LogSender) {
     }
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+fn php_projects(
+    php_version: &PhpVersion,
+    exclude_project_name: Option<&str>,
+) -> Result<Vec<Project>, InfraError> {
+    let mut projects: Vec<Project> = project_handler::list_all()?
+        .into_iter()
+        .filter(|project| project.php_version == *php_version)
+        .collect();
 
-/// Elimina el bloque `<VirtualHost>` correspondiente al dominio de `content`.
-///
-/// Parser manual línea a línea — no requiere crate regex.
-/// Idempotente: si el bloque no existe, retorna el contenido sin modificar.
-fn strip_vhost_block(content: &str, domain: &str) -> String {
-    let server_name_marker = format!("ServerName {}", domain);
-    let mut result: Vec<&str> = Vec::new();
-    let lines: Vec<&str> = content.lines().collect();
-    let mut i = 0;
-
-    while i < lines.len() {
-        let trimmed = lines[i].trim();
-
-        if trimmed.eq_ignore_ascii_case("<VirtualHost *:80>") {
-            // Buscar si este bloque contiene nuestro ServerName
-            let mut block_end = i;
-            let mut is_target = false;
-
-            for (j, line_j) in lines.iter().enumerate().skip(i + 1) {
-                if line_j.trim().eq_ignore_ascii_case("</VirtualHost>") {
-                    block_end = j;
-                    break;
-                }
-                if line_j.contains(&server_name_marker) {
-                    is_target = true;
-                }
-            }
-
-            if is_target && block_end > i {
-                // Saltar el bloque completo (incluyendo posible línea vacía posterior)
-                i = block_end + 1;
-                // Saltar línea vacía de separación si la hay
-                if i < lines.len() && lines[i].trim().is_empty() {
-                    i += 1;
-                }
-                continue;
-            }
-        }
-
-        result.push(lines[i]);
-        i += 1;
+    if let Some(name) = exclude_project_name {
+        projects.retain(|project| project.name != name);
     }
 
-    result.join("\n")
+    Ok(projects)
+}
+
+fn sync_active_vhost(
+    php_dir_name: &str,
+    projects: &[Project],
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let template_path = vhost_template_path(php_dir_name);
+    let active_path = active_vhost_conf_path(php_dir_name);
+
+    let template = std::fs::read_to_string(&template_path).map_err(InfraError::Io)?;
+    let active_content = std::fs::read_to_string(&active_path).map_err(InfraError::Io)?;
+
+    let blocks: Vec<String> = projects
+        .iter()
+        .map(|project| render_project_vhost_block(&template, project))
+        .collect();
+
+    let rewritten = rewrite_personal_projects_section(&active_content, &blocks);
+    std::fs::write(&active_path, rewritten).map_err(InfraError::Io)?;
+    cleanup_legacy_vhost_file(php_dir_name, tx);
+    Ok(())
+}
+
+fn render_project_vhost_block(template: &str, project: &Project) -> String {
+    let protocol = if project.ssl {
+        "Protocols h2 h2c http/1.1"
+    } else {
+        ""
+    };
+
+    template
+        .replace("{CustomUrl}", &project.domain)
+        .replace("{EntryPoint}", project.entry_point.as_path())
+        .replace("{PROTOCOL}", protocol)
+}
+
+fn rewrite_personal_projects_section(content: &str, blocks: &[String]) -> String {
+    let marker_positions: Vec<usize> = content
+        .match_indices(PERSONAL_PROJECTS_MARKER)
+        .map(|(idx, _)| idx)
+        .collect();
+
+    let rendered_blocks = if blocks.is_empty() {
+        String::new()
+    } else {
+        format!("\n\n{}\n", blocks.join("\n\n"))
+    };
+
+    if marker_positions.len() >= 2 {
+        let first_marker_end = marker_positions[0] + PERSONAL_PROJECTS_MARKER.len();
+        let second_marker_start = marker_positions[1];
+        format!(
+            "{}{}{}",
+            &content[..first_marker_end],
+            rendered_blocks,
+            &content[second_marker_start..]
+        )
+    } else if let Some(first_marker_start) = marker_positions.first().copied() {
+        let first_marker_end = first_marker_start + PERSONAL_PROJECTS_MARKER.len();
+        format!(
+            "{}{}{}",
+            &content[..first_marker_end],
+            rendered_blocks,
+            &content[first_marker_end..]
+        )
+    } else if blocks.is_empty() {
+        content.to_string()
+    } else {
+        format!("{content}\n\n{}\n", blocks.join("\n\n"))
+    }
+}
+
+fn cleanup_legacy_vhost_file(php_dir_name: &str, tx: &LogSender) {
+    let legacy_path = legacy_vhost_conf_path(php_dir_name);
+    let legacy_file = Path::new(&legacy_path);
+    if !legacy_file.exists() {
+        return;
+    }
+
+    match std::fs::remove_file(legacy_file) {
+        Ok(()) => {
+            let _ = tx.send(LogLine::info(
+                "[VHost] Archivo legacy vhost.conf removido del flujo activo",
+            ));
+        }
+        Err(e) => {
+            let _ = tx.send(LogLine::warn(format!(
+                "[VHost] Advertencia al remover vhost.conf legacy: {e}"
+            )));
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::models::project::{EntryPoint, ProjectStatus};
+
+    fn test_project(name: &str, php_version: PhpVersion, entry_point: EntryPoint) -> Project {
+        Project {
+            name: name.to_string(),
+            domain: format!("{name}.dock"),
+            php_version,
+            work_path: format!(r"D:\Projects\{name}"),
+            entry_point,
+            ssl: true,
+            status: ProjectStatus::Unknown,
+        }
+    }
+
+    #[test]
+    fn rewrite_personal_projects_section_replaces_existing_blocks() {
+        let base = "\
+### DO NOT TOUCH ###
+### PERSONAL PROJECTS ###
+
+<VirtualHost *:80>
+    ServerName old-app.dock
+</VirtualHost>
+### PERSONAL PROJECTS ###
+";
+        let rewritten = rewrite_personal_projects_section(
+            base,
+            &[String::from(
+                "<VirtualHost *:80>\n    ServerName new-app.dock\n</VirtualHost>",
+            )],
+        );
+
+        assert!(rewritten.contains("ServerName new-app.dock"));
+        assert!(!rewritten.contains("ServerName old-app.dock"));
+    }
+
+    #[test]
+    fn render_project_vhost_block_uses_entry_point_and_ssl_protocol() {
+        let template = "\
+<VirtualHost *:80>
+    ServerName {CustomUrl}
+    DocumentRoot /var/www/html/{CustomUrl}{EntryPoint}
+    {PROTOCOL}
+</VirtualHost>";
+        let block = render_project_vhost_block(
+            template,
+            &test_project("evangeline-shop", PhpVersion::Php84, EntryPoint::Public),
+        );
+
+        assert!(block.contains("ServerName evangeline-shop.dock"));
+        assert!(block.contains("DocumentRoot /var/www/html/evangeline-shop.dock/public"));
+        assert!(block.contains("Protocols h2 h2c http/1.1"));
+    }
+
+    #[test]
+    fn php_projects_can_be_filtered_by_name() {
+        let projects = vec![
+            test_project("alpha", PhpVersion::Php84, EntryPoint::Root),
+            test_project("beta", PhpVersion::Php84, EntryPoint::Root),
+            test_project("gamma", PhpVersion::Php83, EntryPoint::Root),
+        ];
+
+        let filtered: Vec<Project> = projects
+            .into_iter()
+            .filter(|project| project.php_version == PhpVersion::Php84)
+            .filter(|project| project.name != "beta")
+            .collect();
+
+        assert_eq!(filtered.len(), 1);
+        assert_eq!(filtered[0].name, "alpha");
+    }
 }
