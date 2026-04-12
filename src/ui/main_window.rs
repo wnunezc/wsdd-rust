@@ -17,7 +17,7 @@
 //! Equivalente a `Forms/Main.cs`. Contiene:
 //! - Barra de menú (Archivo, Herramientas, Ayuda, Docker).
 //! - Toolbar: phpMyAdmin, terminal PowerShell, CMD, agregar proyecto, refrescar.
-//! - Tabs: Contenedores / Proyectos.
+//! - Layout dual: Contenedores / Proyectos visibles al mismo tiempo.
 //! - Panel de log en la parte inferior.
 //! - Polling automático de contenedores cada 3 segundos.
 //! - Diálogo de confirmación para eliminación de proyectos.
@@ -32,8 +32,8 @@ use crate::handlers::log_types::{LogLevel, LogLine};
 use crate::handlers::ps_script::{launch, ScriptRunner};
 use crate::handlers::setting::AppTheme;
 use crate::i18n::{tr, trf};
+use crate::ui::ActiveView;
 use crate::ui::{containers_panel, projects_panel};
-use crate::ui::{ActiveView, MainTab};
 
 const POLL_INTERVAL: Duration = Duration::from_secs(3);
 const SUPPORT_ISSUES_URL: &str = "https://github.com/wnunezc/wsdd-rust/issues/new";
@@ -310,11 +310,12 @@ fn render_log_panel(ctx: &egui::Context, app: &mut WsddApp) {
     let log_title = tr("log_title");
     let clear_label = tr("btn_clear");
     let copy_label = tr("btn_copy");
+    let desired_height = (ctx.available_rect().height() * 0.5).max(240.0);
 
     egui::TopBottomPanel::bottom("log_panel")
-        .default_height(235.0)
-        .min_height(180.0)
-        .max_height(440.0)
+        .default_height(desired_height)
+        .min_height(220.0)
+        .max_height(desired_height.max(520.0))
         .resizable(true)
         .show(ctx, |ui| {
             show_surface_panel(ui, |ui| {
@@ -538,38 +539,25 @@ fn render_center(ctx: &egui::Context, app: &mut WsddApp) {
     let projects = tr("main_projects");
 
     egui::CentralPanel::default().show(ctx, |ui| {
-        show_surface_panel(ui, |ui| {
-            ui.horizontal(|ui| {
-                if tab_button(
-                    ui,
-                    &containers,
-                    app.ui.active_main_tab == MainTab::Containers,
-                ) {
-                    app.ui.active_main_tab = MainTab::Containers;
-                }
-                if tab_button(ui, &projects, app.ui.active_main_tab == MainTab::Projects) {
-                    app.ui.active_main_tab = MainTab::Projects;
-                    reload_projects(app);
-                }
-            });
-            ui.add_space(6.0);
-            ui.separator();
-            ui.add_space(6.0);
+        ui.spacing_mut().item_spacing = egui::vec2(10.0, 10.0);
 
-            egui::Frame::none()
-                .fill(ui.visuals().extreme_bg_color)
-                .inner_margin(egui::Margin::symmetric(10.0, 8.0))
-                .show(ui, |ui| {
-                    let available = ui.available_size();
-                    ui.set_min_size(available);
-                    egui::ScrollArea::both()
-                        .auto_shrink([false; 2])
-                        .show(ui, |ui| match app.ui.active_main_tab {
-                            MainTab::Containers => containers_panel::render(ui, app),
-                            MainTab::Projects => projects_panel::render(ui, app),
-                        });
+        if ui.available_width() < 900.0 {
+            render_main_section(ui, &containers, |ui| {
+                containers_panel::render(ui, app);
+            });
+            render_main_section(ui, &projects, |ui| {
+                projects_panel::render(ui, app);
+            });
+        } else {
+            ui.columns(2, |columns| {
+                render_main_section(&mut columns[0], &containers, |ui| {
+                    containers_panel::render(ui, app);
                 });
-        });
+                render_main_section(&mut columns[1], &projects, |ui| {
+                    projects_panel::render(ui, app);
+                });
+            });
+        }
     });
 }
 
@@ -615,23 +603,27 @@ fn start_poll(ctx: &egui::Context, app: &mut WsddApp) {
 ///
 /// En temas oscuros evita el celeste de `selection.bg_fill` y usa el highlight
 /// neutro del widget activo. En tema claro mantiene el color de selección nativo.
-fn tab_button(ui: &mut egui::Ui, label: &str, selected: bool) -> bool {
-    let (fill, text) = if selected {
-        let fill = if ui.visuals().dark_mode {
-            ui.visuals().widgets.active.weak_bg_fill
-        } else {
-            ui.visuals().selection.bg_fill
-        };
-        (fill, egui::RichText::new(label).strong())
-    } else {
-        (egui::Color32::TRANSPARENT, egui::RichText::new(label))
-    };
-    ui.add(
-        egui::Button::new(text)
-            .fill(fill)
-            .stroke(egui::Stroke::NONE),
-    )
-    .clicked()
+fn render_main_section<Contents>(ui: &mut egui::Ui, title: &str, add_contents: Contents)
+where
+    Contents: FnOnce(&mut egui::Ui),
+{
+    show_surface_panel(ui, |ui| {
+        ui.label(egui::RichText::new(title).size(14.0).strong());
+        ui.add_space(6.0);
+        ui.separator();
+        ui.add_space(6.0);
+
+        egui::Frame::none()
+            .fill(ui.visuals().extreme_bg_color)
+            .inner_margin(egui::Margin::symmetric(10.0, 8.0))
+            .show(ui, |ui| {
+                let available = ui.available_size();
+                ui.set_min_size(available);
+                egui::ScrollArea::both()
+                    .auto_shrink([false; 2])
+                    .show(ui, add_contents);
+            });
+    });
 }
 
 fn show_surface_panel<Contents>(ui: &mut egui::Ui, add_contents: Contents)
