@@ -59,6 +59,7 @@ const PROJECT_VHOST_FILE: &str = "project/vhost.conf";
 const PROJECT_OPTIONS_FILE: &str = "project/options-snapshot.txt";
 const PROJECT_CERTS_DIR: &str = "project/certs";
 const MANIFEST_FILE: &str = "manifest.json";
+const PERSONAL_PROJECTS_MARKER: &str = "### PERSONAL PROJECTS ###";
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
@@ -334,10 +335,9 @@ pub fn restore_project(
 
     let vhost_stage = extracted.path().join(PROJECT_VHOST_FILE);
     if vhost_stage.exists() {
-        let block = fs::read_to_string(&vhost_stage).map_err(InfraError::Io)?;
-        restore_vhost_block(&project, &block)?;
-    } else {
-        restore_vhost_block(&project, &render_vhost_block(&project)?)?;
+        let _ = tx.send(LogLine::info(
+            "[Restore] Snapshot de vhost encontrado; se regenerara desde metadata del proyecto",
+        ));
     }
 
     restore_project_certs(extracted.path(), &project)?;
@@ -529,6 +529,7 @@ fn rehydrate_project_runtime(
         &project.domain,
         project.php_version.compose_tag(),
     )?;
+    sync_active_vhost_for_php(&project.php_version, tx)?;
     rebuild_php_container(project, runner, tx)?;
 
     if project.ssl {
@@ -663,21 +664,6 @@ fn capture_options_snapshot(project: &Project) -> Result<Option<String>, InfraEr
     }
 }
 
-fn restore_vhost_block(project: &Project, block: &str) -> Result<(), InfraError> {
-    let path = vhost_conf_path(project);
-    let existing = fs::read_to_string(&path).unwrap_or_default();
-    let marker = format!("ServerName {}", project.domain);
-    if existing.contains(&marker) {
-        return Ok(());
-    }
-
-    let new_content = insert_vhost_block(&existing, block);
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(InfraError::Io)?;
-    }
-    fs::write(path, new_content).map_err(InfraError::Io)
-}
-
 fn render_vhost_block(project: &Project) -> Result<String, InfraError> {
     let template = fs::read_to_string(vhost_template_path(project)).map_err(InfraError::Io)?;
     let protocol = if project.ssl {
@@ -714,26 +700,85 @@ fn extract_vhost_block(content: &str, domain: &str) -> Option<String> {
     None
 }
 
-fn insert_vhost_block(content: &str, block: &str) -> String {
-    const MARKER: &str = "### PERSONAL PROJECTS ###";
+fn sync_active_vhost_for_php(
+    php_version: &crate::models::project::PhpVersion,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let mut projects: Vec<Project> = project_handler::list_all()?
+        .into_iter()
+        .filter(|project| project.php_version == *php_version)
+        .collect();
+    projects.sort_by(|a, b| a.name.cmp(&b.name));
 
-    if let Some(pos) = content.find(MARKER) {
-        let end_of_line = content[pos..]
-            .find('\n')
-            .map(|offset| pos + offset + 1)
-            .unwrap_or(content.len());
-        let mut result = String::from(&content[..end_of_line]);
-        if !result.ends_with("\n\n") {
-            result.push('\n');
-        }
-        result.push_str(block.trim());
-        result.push_str("\n\n");
-        result.push_str(&content[end_of_line..]);
-        result
-    } else if content.trim().is_empty() {
-        format!("{}\n", block.trim())
+    let path = vhost_conf_path_for_php(php_version);
+    let existing = fs::read_to_string(&path).map_err(InfraError::Io)?;
+    let blocks = projects
+        .iter()
+        .map(render_vhost_block)
+        .collect::<Result<Vec<_>, _>>()?;
+    let rewritten = rewrite_personal_projects_section(&existing, &blocks);
+
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent).map_err(InfraError::Io)?;
+    }
+    fs::write(&path, rewritten).map_err(InfraError::Io)?;
+    cleanup_legacy_vhost_file(php_version, tx);
+    Ok(())
+}
+
+fn rewrite_personal_projects_section(content: &str, blocks: &[String]) -> String {
+    let marker_positions: Vec<usize> = content
+        .match_indices(PERSONAL_PROJECTS_MARKER)
+        .map(|(idx, _)| idx)
+        .collect();
+
+    let rendered_blocks = if blocks.is_empty() {
+        String::new()
     } else {
-        format!("{}\n\n{}\n", content.trim_end(), block.trim())
+        format!("\n\n{}\n", blocks.join("\n\n"))
+    };
+
+    if marker_positions.len() >= 2 {
+        let first_marker_end = marker_positions[0] + PERSONAL_PROJECTS_MARKER.len();
+        let second_marker_start = marker_positions[1];
+        format!(
+            "{}{}{}",
+            &content[..first_marker_end],
+            rendered_blocks,
+            &content[second_marker_start..]
+        )
+    } else if let Some(first_marker_start) = marker_positions.first().copied() {
+        let first_marker_end = first_marker_start + PERSONAL_PROJECTS_MARKER.len();
+        format!(
+            "{}{}{}",
+            &content[..first_marker_end],
+            rendered_blocks,
+            &content[first_marker_end..]
+        )
+    } else if blocks.is_empty() {
+        content.to_string()
+    } else {
+        format!("{content}\n\n{}\n", blocks.join("\n\n"))
+    }
+}
+
+fn cleanup_legacy_vhost_file(php_version: &crate::models::project::PhpVersion, tx: &LogSender) {
+    let legacy_path = legacy_vhost_conf_path(php_version);
+    if !legacy_path.exists() {
+        return;
+    }
+
+    match fs::remove_file(&legacy_path) {
+        Ok(()) => {
+            let _ = tx.send(LogLine::info(
+                "[Restore] Archivo legacy vhost.conf removido del flujo activo",
+            ));
+        }
+        Err(e) => {
+            let _ = tx.send(LogLine::warn(format!(
+                "[Restore] Advertencia al remover vhost.conf legacy: {e}"
+            )));
+        }
     }
 }
 
@@ -755,9 +800,21 @@ fn validate_restore_work_path(project: &Project) -> Result<(), InfraError> {
 }
 
 fn vhost_conf_path(project: &Project) -> PathBuf {
+    vhost_conf_path_for_php(&project.php_version)
+}
+
+fn vhost_conf_path_for_php(php_version: &crate::models::project::PhpVersion) -> PathBuf {
     Path::new(DOCKER_DIR)
         .join("bin")
-        .join(project.php_version.dir_name())
+        .join(php_version.dir_name())
+        .join("vhost")
+        .join("vhost.conf")
+}
+
+fn legacy_vhost_conf_path(php_version: &crate::models::project::PhpVersion) -> PathBuf {
+    Path::new(DOCKER_DIR)
+        .join("bin")
+        .join(php_version.dir_name())
         .join("vhost.conf")
 }
 
@@ -957,11 +1014,13 @@ mod tests {
     }
 
     #[test]
-    fn insert_vhost_block_preserves_marker() {
-        let content = "### PERSONAL PROJECTS ###\n";
-        let result = insert_vhost_block(
+    fn rewrite_personal_projects_section_preserves_marker() {
+        let content = "### PERSONAL PROJECTS ###\n### PERSONAL PROJECTS ###\n";
+        let result = rewrite_personal_projects_section(
             content,
-            "<VirtualHost *:80>\nServerName demo.dock\n</VirtualHost>",
+            &[String::from(
+                "<VirtualHost *:80>\nServerName demo.dock\n</VirtualHost>",
+            )],
         );
         assert!(result.contains("### PERSONAL PROJECTS ###"));
         assert!(result.contains("demo.dock"));
