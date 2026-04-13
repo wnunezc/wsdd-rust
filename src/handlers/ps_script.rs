@@ -335,6 +335,39 @@ pub fn launch(program: &str, args: &[&str], work_dir: Option<&str>) {
     }
 }
 
+/// Abre una URL con el handler predeterminado del sistema sin parpadeo de consola.
+pub fn launch_url(url: &str) {
+    #[cfg(windows)]
+    {
+        use windows::core::PCWSTR;
+        use windows::Win32::UI::Shell::ShellExecuteW;
+        use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+
+        let verb: Vec<u16> = "open".encode_utf16().chain(std::iter::once(0)).collect();
+        let target: Vec<u16> = url.encode_utf16().chain(std::iter::once(0)).collect();
+
+        unsafe {
+            let result = ShellExecuteW(
+                None,
+                PCWSTR(verb.as_ptr()),
+                PCWSTR(target.as_ptr()),
+                PCWSTR::null(),
+                PCWSTR::null(),
+                SW_SHOWNORMAL,
+            );
+
+            if result.0 as usize <= 32 {
+                tracing::warn!(url, code = result.0 as usize, "No se pudo abrir la URL");
+            }
+        }
+    }
+
+    #[cfg(not(windows))]
+    {
+        launch("xdg-open", &[url], None);
+    }
+}
+
 /// Lanza PowerShell con ventana visible y sin salir al terminar (`-NoExit`).
 ///
 /// Equivalente a `PSScript.InvokeShellProgram()` en C#.

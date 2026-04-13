@@ -13,9 +13,6 @@
 //
 // Contact: wnunez@lh-2.net
 //! Panel de proyectos WSDD.
-//!
-//! Muestra la tabla de proyectos con acciones Deploy, Remove y Toolbox.
-//! Equivalente a `HandlerProject.Track()` + DataGridView en `Forms/Main.cs`.
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::LogLine;
@@ -29,7 +26,6 @@ pub enum DeployFlowOutcome {
     Failed,
 }
 
-/// Renderiza la tabla de proyectos.
 pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     ui.spacing_mut().item_spacing = egui::vec2(14.0, 9.0);
 
@@ -46,6 +42,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         Remove(String),
         Toolbox(String),
     }
+
     let mut pending: Option<PendingAction> = None;
     let col_name = tr("col_name");
     let col_domain = tr("col_domain");
@@ -70,20 +67,32 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
             ui.strong(col_toolbox.clone());
             ui.end_row();
 
-            for p in &projects {
-                ui.label(egui::RichText::new(&p.name).strong());
-                ui.label(&p.domain);
-                ui.label(p.php_version.display_name());
-                ui.label(if p.ssl { "✓" } else { "—" });
+            for project in &projects {
+                let project_busy = app.is_job_running(&project_job_key(&project.name));
 
-                if ui.button(&col_deploy).clicked() && pending.is_none() {
-                    pending = Some(PendingAction::Deploy(p.clone()));
+                ui.label(egui::RichText::new(&project.name).strong());
+                ui.label(&project.domain);
+                ui.label(project.php_version.display_name());
+                ui.label(if project.ssl { "\u{2713}" } else { "\u{2014}" });
+
+                if ui
+                    .add_enabled(!project_busy, egui::Button::new(&col_deploy))
+                    .clicked()
+                    && pending.is_none()
+                {
+                    pending = Some(PendingAction::Deploy(project.clone()));
                 }
-                if ui.button(&col_remove).clicked() && pending.is_none() {
-                    pending = Some(PendingAction::Remove(p.name.clone()));
+
+                if ui
+                    .add_enabled(!project_busy, egui::Button::new(&col_remove))
+                    .clicked()
+                    && pending.is_none()
+                {
+                    pending = Some(PendingAction::Remove(project.name.clone()));
                 }
+
                 if ui.button(&col_toolbox).clicked() && pending.is_none() {
-                    pending = Some(PendingAction::Toolbox(p.name.clone()));
+                    pending = Some(PendingAction::Toolbox(project.name.clone()));
                 }
 
                 ui.end_row();
@@ -92,7 +101,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
 
     match pending {
         Some(PendingAction::Deploy(project)) => {
-            let _ = prepare_deploy(app, project, false);
+            let _ = prepare_deploy(ui.ctx(), app, project, false);
         }
         Some(PendingAction::Remove(name)) => {
             app.ui.confirm_remove_project = Some(name);
@@ -105,8 +114,8 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     }
 }
 
-/// Prepara el deploy resolviendo primero las credenciales de Webmin.
 pub fn prepare_deploy(
+    ctx: &egui::Context,
     app: &mut WsddApp,
     project: Project,
     add_project_to_list: bool,
@@ -119,7 +128,7 @@ pub fn prepare_deploy(
         if add_project_to_list {
             add_project_to_memory_if_missing(app, &project);
         }
-        spawn_deploy(app, project);
+        spawn_deploy(ctx, app, project);
         return DeployFlowOutcome::Started;
     }
 
@@ -152,7 +161,7 @@ pub fn prepare_deploy(
             if add_project_to_list {
                 add_project_to_memory_if_missing(app, &project);
             }
-            spawn_deploy(app, project);
+            spawn_deploy(ctx, app, project);
             DeployFlowOutcome::Started
         }
         Ok(false) => {
@@ -173,40 +182,42 @@ pub fn prepare_deploy(
     }
 }
 
-/// Lanza el flujo de deploy completo en un background thread.
-///
-/// Llama a `handlers::deploy::deploy_project` que orquesta:
-/// volumen → options.yml → sync PHP/Webmin → rebuild PHP → vhost.conf → SSL (opc.) → hosts.
-pub fn spawn_deploy(app: &mut WsddApp, project: Project) {
+pub fn spawn_deploy(ctx: &egui::Context, app: &mut WsddApp, project: Project) {
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
     let settings = app.settings.clone();
+    let project_name = project.name.clone();
+    let job_key = project_job_key(&project_name);
+    let label = format!("Deploy project {}", project_name);
 
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::deploy::deploy_project(&project, &settings, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Deploy] Error: {e}")));
-        }
+    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+        crate::handlers::deploy::deploy_project(&project, &settings, &runner, &tx).map_err(|e| {
+            let message = format!("[Deploy] Error: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })
     });
 }
 
-/// Elimina un proyecto: quita de la lista en memoria y lanza limpieza de infra en background.
-///
-/// Llamado desde `main_window` tras confirmación del usuario.
-pub fn do_remove_project(app: &mut WsddApp, name: &str) {
+pub fn do_remove_project(ctx: &egui::Context, app: &mut WsddApp, name: &str) {
     let project = match app.projects.iter().find(|p| p.name == name) {
-        Some(p) => p.clone(),
+        Some(project) => project.clone(),
         None => return,
     };
 
-    // Quitar de la lista en memoria inmediatamente (feedback visual instantáneo)
-    app.projects.retain(|p| p.name != name);
+    app.projects.retain(|project_ref| project_ref.name != name);
 
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::deploy::remove_project(&project, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Remove] Error: {e}")));
-        }
+    let job_key = project_job_key(&project.name);
+    let label = format!("Remove project {}", project.name);
+
+    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+        crate::handlers::deploy::remove_project(&project, &runner, &tx).map_err(|e| {
+            let message = format!("[Remove] Error: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })
     });
 }
 
@@ -218,4 +229,8 @@ fn add_project_to_memory_if_missing(app: &mut WsddApp, project: &Project) {
     {
         app.projects.push(project.clone());
     }
+}
+
+fn project_job_key(name: &str) -> String {
+    format!("project:{name}")
 }

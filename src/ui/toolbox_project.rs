@@ -20,7 +20,7 @@
 
 use crate::app::WsddApp;
 use crate::handlers::log_types::LogLine;
-use crate::handlers::ps_script::launch;
+use crate::handlers::ps_script::{launch, launch_url};
 use crate::i18n::tr;
 use crate::ui::ActiveView;
 
@@ -97,7 +97,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     .on_hover_text(&url)
                     .clicked()
                 {
-                    launch("cmd", &["/c", "start", &url], None);
+                    launch_url(&url);
                 }
             });
 
@@ -114,12 +114,16 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 {
                     let tx = app.main_log_tx.clone();
                     let project_clone = project.clone();
-                    std::thread::spawn(move || {
-                        if let Err(e) =
-                            crate::handlers::backup::backup_project(&project_clone, &path, &tx)
-                        {
-                            let _ = tx.send(LogLine::error(format!("[Backup] Error: {e}")));
-                        }
+                    let job_key = format!("backup:project:{}", project.name);
+                    let label = format!("Backup project {}", project.name);
+                    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+                        crate::handlers::backup::backup_project(&project_clone, &path, &tx).map_err(
+                            |e| {
+                                let message = format!("[Backup] Error: {e}");
+                                let _ = tx.send(LogLine::error(message.clone()));
+                                message
+                            },
+                        )
                     });
                 }
             }

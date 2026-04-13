@@ -316,7 +316,7 @@ pub async fn pma_volume_exists() -> Result<bool, InfraError> {
 
 /// Verifica si los contenedores base de WSDD están desplegados.
 ///
-/// Verifica la presencia de: `WSDD-Proxy-Server`, `WSDD-MySql-Server`, `phpMyAdmin-Server`
+/// Verifica la presencia de: `WSDD-Proxy-Server`, `WSDD-MySql-Server`, `WSDD-phpMyAdmin-Server`
 ///
 /// # Errors
 /// [`InfraError::DockerUnreachable`] si docker no responde.
@@ -327,7 +327,7 @@ pub async fn base_containers_exist() -> Result<bool, InfraError> {
     }
     Ok(out.contains("WSDD-Proxy-Server")
         && out.contains("WSDD-MySql-Server")
-        && out.contains("phpMyAdmin-Server"))
+        && out.contains("WSDD-phpMyAdmin-Server"))
 }
 
 /// Verifica si existe un contenedor PHP de una versión específica.
@@ -551,6 +551,13 @@ pub fn list_containers_sync(runner: &PsRunner) -> Result<Vec<ContainerInfo>, Inf
     ];
     let result = runner.run_direct_sync("docker", &args, None, None)?;
     Ok(parse_container_list_sync(&result.text, runner))
+}
+
+pub async fn gather_poll_snapshot(runner: &PsRunner) -> ContainerPollSnapshot {
+    let runner = runner.clone();
+    tokio::task::spawn_blocking(move || gather_poll_snapshot_sync(&runner))
+        .await
+        .unwrap_or_default()
 }
 
 /// Obtiene en una sola llamada el listado de contenedores y el estado de Docker Desktop.

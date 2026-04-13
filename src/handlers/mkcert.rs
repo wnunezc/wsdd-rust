@@ -17,6 +17,7 @@
 //! Equivalente a `Handlers/HandlerMKCert.cs` en la versión C#.
 
 use anyhow::Result;
+use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(windows)]
@@ -26,14 +27,18 @@ use std::os::windows::process::CommandExt;
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use crate::handlers::log_types::{LogLine, LogSender};
-use crate::handlers::ps_script::PsRunner;
-use crate::handlers::ps_script::ScriptRunner;
+
+const DEFAULT_MKCERT_EXE: &str = r"C:\ProgramData\chocolatey\bin\mkcert.exe";
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
 /// Verifica si mkcert está disponible en el sistema.
 pub fn is_installed() -> bool {
-    let mut cmd = Command::new("mkcert");
+    let Some(mkcert_exe) = resolve_mkcert_exe() else {
+        return false;
+    };
+
+    let mut cmd = Command::new(mkcert_exe);
     cmd.arg("--version");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -52,7 +57,8 @@ pub fn install() -> Result<()> {
 /// Debe ejecutarse una vez tras instalar mkcert para que los
 /// certificados generados sean confiados por el sistema.
 pub fn generate_ca() -> Result<()> {
-    let mut cmd = Command::new("mkcert");
+    let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
+    let mut cmd = Command::new(mkcert_exe);
     cmd.arg("-install");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -67,7 +73,8 @@ pub fn generate_ca() -> Result<()> {
 pub fn generate(domain: &str) -> Result<()> {
     let output_dir = format!(r"C:\WSDD-Environment\certs\{domain}");
     std::fs::create_dir_all(&output_dir)?;
-    let mut cmd = Command::new("mkcert");
+    let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
+    let mut cmd = Command::new(mkcert_exe);
     cmd.args(["-key-file", &format!("{output_dir}\\key.pem")])
         .args(["-cert-file", &format!("{output_dir}\\cert.pem")])
         .arg(domain);
@@ -98,8 +105,7 @@ pub fn process_requirements(tx: &LogSender) -> bool {
         "mkcert no encontrado. Instalando via Chocolatey...",
     ));
 
-    let runner = PsRunner::new();
-    match runner.run_ps_sync("choco install mkcert -y", None, None) {
+    match install() {
         Ok(_) => {
             if !is_installed() {
                 let _ = tx.send(LogLine::error("✗ mkcert no responde tras la instalación"));
@@ -124,4 +130,27 @@ pub fn process_requirements(tx: &LogSender) -> bool {
             false
         }
     }
+}
+
+fn resolve_mkcert_exe() -> Option<PathBuf> {
+    let path = PathBuf::from(DEFAULT_MKCERT_EXE);
+    if path.is_file() {
+        return Some(path);
+    }
+
+    let mut cmd = Command::new("where.exe");
+    cmd.arg("mkcert.exe");
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(PathBuf::from)
 }

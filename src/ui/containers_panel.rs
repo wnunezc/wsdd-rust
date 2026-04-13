@@ -13,19 +13,13 @@
 //
 // Contact: wnunez@lh-2.net
 //! Panel de contenedores Docker.
-//!
-//! Muestra la tabla de contenedores WSDD con botones Start/Stop/Restart/Toolbox por fila.
-//! Equivalente a la sección de contenedores en `Forms/Main.cs`.
 
 use crate::app::WsddApp;
-use crate::handlers::docker::{
-    restart_container_sync, start_container_sync, stop_container_sync, ContainerInfo,
-};
+use crate::handlers::docker::{self, ContainerInfo};
 use crate::handlers::log_types::LogLine;
 use crate::i18n::tr;
 use crate::ui::ActiveView;
 
-/// Renderiza la tabla de contenedores.
 pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     ui.spacing_mut().item_spacing = egui::vec2(14.0, 9.0);
 
@@ -41,6 +35,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         ContainerOp(&'static str, String),
         Toolbox(String),
     }
+
     let mut pending: Option<PendingAction> = None;
     let col_name = tr("col_name");
     let col_status = tr("col_status");
@@ -48,9 +43,9 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     let col_stop = tr("main_stop");
     let col_restart = tr("main_restart");
     let col_toolbox = tr("col_toolbox");
-    let start_label = format!("▶ {}", tr("main_start"));
-    let stop_label = format!("■ {}", tr("main_stop"));
-    let restart_label = format!("↺ {}", tr("main_restart"));
+    let start_label = format!("{} {}", '\u{25B6}', tr("main_start"));
+    let stop_label = format!("{} {}", '\u{25A0}', tr("main_stop"));
+    let restart_label = format!("{} {}", '\u{21BA}', tr("main_restart"));
 
     egui::Grid::new("containers_grid")
         .num_columns(6)
@@ -66,33 +61,41 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
             ui.strong(col_toolbox.clone());
             ui.end_row();
 
-            for c in &containers {
-                let running = c.is_running();
+            for container in &containers {
+                let running = container.is_running();
+                let container_busy = app.is_job_running(&container_job_key(&container.name));
 
-                ui.label(egui::RichText::new(&c.name).strong());
+                ui.label(egui::RichText::new(&container.name).strong());
 
                 if running {
-                    ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &c.status);
+                    ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &container.status);
                 } else {
-                    ui.colored_label(egui::Color32::from_rgb(200, 80, 80), &c.status);
+                    ui.colored_label(egui::Color32::from_rgb(200, 80, 80), &container.status);
                 }
 
-                let start_btn = ui.add_enabled(!running, egui::Button::new(&start_label));
+                let start_btn =
+                    ui.add_enabled(!running && !container_busy, egui::Button::new(&start_label));
                 if start_btn.clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp("start", c.name.clone()));
+                    pending = Some(PendingAction::ContainerOp("start", container.name.clone()));
                 }
 
-                let stop_btn = ui.add_enabled(running, egui::Button::new(&stop_label));
+                let stop_btn =
+                    ui.add_enabled(running && !container_busy, egui::Button::new(&stop_label));
                 if stop_btn.clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp("stop", c.name.clone()));
+                    pending = Some(PendingAction::ContainerOp("stop", container.name.clone()));
                 }
 
-                if ui.button(&restart_label).clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp("restart", c.name.clone()));
+                let restart_btn =
+                    ui.add_enabled(!container_busy, egui::Button::new(&restart_label));
+                if restart_btn.clicked() && pending.is_none() {
+                    pending = Some(PendingAction::ContainerOp(
+                        "restart",
+                        container.name.clone(),
+                    ));
                 }
 
                 if ui.button(&col_toolbox).clicked() && pending.is_none() {
-                    pending = Some(PendingAction::Toolbox(c.name.clone()));
+                    pending = Some(PendingAction::Toolbox(container.name.clone()));
                 }
 
                 ui.end_row();
@@ -101,7 +104,7 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
 
     match pending {
         Some(PendingAction::ContainerOp(action, name)) => {
-            spawn_container_op(app, action, name);
+            spawn_container_op(ui.ctx(), app, action, name);
         }
         Some(PendingAction::Toolbox(name)) => {
             app.ui.toolbox_container_name = Some(name);
@@ -111,28 +114,35 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     }
 }
 
-/// Lanza una operación de contenedor en un background thread.
-fn spawn_container_op(app: &mut WsddApp, action: &'static str, name: String) {
-    let runner = app.runner.clone();
+fn spawn_container_op(ctx: &egui::Context, app: &mut WsddApp, action: &'static str, name: String) {
     let tx = app.main_log_tx.clone();
+    let job_key = container_job_key(&name);
+    let label = format!("Container {} {}", action, name);
 
-    let _ = tx.send(LogLine::info(format!("[Docker] {action} → {name}...")));
+    let _ = app.spawn_async_job(ctx, job_key, label, async move {
+        let _ = tx.send(LogLine::info(format!("[Docker] {action} -> {name}...")));
 
-    std::thread::spawn(move || {
         let result = match action {
-            "start" => start_container_sync(&runner, &name),
-            "stop" => stop_container_sync(&runner, &name),
-            "restart" => restart_container_sync(&runner, &name),
+            "start" => docker::start_container(&name, None).await,
+            "stop" => docker::stop_container(&name, None).await,
+            "restart" => docker::restart_container(&name, None).await,
             _ => Ok(()),
         };
 
         match result {
             Ok(()) => {
-                let _ = tx.send(LogLine::success(format!("[Docker] {name} — {action} OK ✓")));
+                let _ = tx.send(LogLine::success(format!("[Docker] {name} - {action} OK")));
+                Ok(())
             }
             Err(e) => {
-                let _ = tx.send(LogLine::error(format!("[Docker] {name} — error: {e}")));
+                let message = format!("[Docker] {name} - error: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                Err(message)
             }
         }
     });
+}
+
+fn container_job_key(name: &str) -> String {
+    format!("container:{name}")
 }

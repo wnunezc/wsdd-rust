@@ -16,7 +16,7 @@
 //!
 //! Equivalente a `Forms/AddNewProject.cs`.
 //! El estado del formulario vive en `UiState` (campos `form_*`).
-//! Al confirmar se lanza el deploy completo en un background thread.
+//! Al confirmar se lanza el deploy completo en background.
 
 use std::sync::mpsc;
 
@@ -166,7 +166,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
             ui.horizontal(|ui| {
                 if ui.button(&create_label).clicked() {
-                    try_submit(app);
+                    try_submit(ctx, app);
                 }
                 if ui.button(&cancel_label).clicked() {
                     app.ui.active = ActiveView::Main;
@@ -180,7 +180,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 }
 
 /// Valida el formulario y lanza el deploy si todo es correcto.
-fn try_submit(app: &mut WsddApp) {
+fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
     let name = app.ui.form_name.trim().to_string();
     let domain_raw = app.ui.form_domain.trim().to_string();
     let work_path = app.ui.form_work_path.trim().to_string();
@@ -248,7 +248,7 @@ fn try_submit(app: &mut WsddApp) {
 
     app.ui.form_error = None;
 
-    match projects_panel::prepare_deploy(app, project, true) {
+    match projects_panel::prepare_deploy(ctx, app, project, true) {
         projects_panel::DeployFlowOutcome::Started => {
             app.ui.active = ActiveView::Main;
         }

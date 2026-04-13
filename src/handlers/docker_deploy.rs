@@ -28,6 +28,7 @@
 
 use std::collections::HashMap;
 use std::io::Write;
+use std::time::{Duration, Instant};
 
 use crate::errors::InfraError;
 use crate::handlers::docker::{WSDD_NETWORK, WSDD_PROJECT};
@@ -109,6 +110,9 @@ const PHP84_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/bin/php8.4/webserver.php84.yml"
 ));
+const CREATE_READY_TIMEOUT: Duration = Duration::from_secs(30);
+const START_READY_TIMEOUT: Duration = Duration::from_secs(90);
+const READY_POLL_INTERVAL: Duration = Duration::from_secs(1);
 
 // ─── Requirements (llamado desde Loader) ─────────────────────────────────────
 
@@ -223,7 +227,7 @@ fn run_script_outcome(
 /// 1. `DOCKER_HOST=tcp://localhost:2375` (User + Machine)
 /// 2. Red `wsdd-network`
 /// 3. Volumen `pma-code`
-/// 4. Contenedores base via docker-compose (create --build + up -d)
+/// 4. Contenedores base via docker-compose (`up -d`, con build solo si hace falta)
 /// 5. Mostrar contenedores activos
 ///
 /// Retorna `Ok(())` solo si todos los pasos completan sin error.
@@ -433,54 +437,168 @@ fn check_base_containers_sync(runner: &PsRunner) -> Result<bool, InfraError> {
     }
     Ok(out.contains("WSDD-Proxy-Server")
         && out.contains("WSDD-MySql-Server")
-        && out.contains("phpMyAdmin-Server"))
+        && out.contains("WSDD-phpMyAdmin-Server"))
+}
+
+fn check_base_containers_running_sync(runner: &PsRunner) -> Result<bool, InfraError> {
+    let out = runner.run_direct_sync(
+        "docker",
+        &[
+            "ps",
+            "-a",
+            "--format",
+            "{{.Names}}|{{.Status}}",
+            "--filter",
+            "name=WSDD-",
+        ],
+        None,
+        None,
+    )?;
+
+    if out.text.contains("Error") {
+        return Err(InfraError::DockerUnreachable(out.text));
+    }
+
+    let mut proxy_running = false;
+    let mut mysql_running = false;
+    let mut pma_running = false;
+
+    for line in out.text.lines() {
+        let mut parts = line.splitn(2, '|');
+        let name = parts.next().unwrap_or_default().trim();
+        let status = parts.next().unwrap_or_default().trim().to_lowercase();
+        let running =
+            status.contains("up") || status.contains("running") || status.contains("started");
+
+        match name {
+            "WSDD-Proxy-Server" => proxy_running = running,
+            "WSDD-MySql-Server" => mysql_running = running,
+            "WSDD-phpMyAdmin-Server" => pma_running = running,
+            _ => {}
+        }
+    }
+
+    Ok(proxy_running && mysql_running && pma_running)
+}
+
+fn wait_until_sync<F>(
+    timeout: Duration,
+    interval: Duration,
+    mut check: F,
+) -> Result<bool, InfraError>
+where
+    F: FnMut() -> Result<bool, InfraError>,
+{
+    let deadline = Instant::now() + timeout;
+
+    loop {
+        if check()? {
+            return Ok(true);
+        }
+
+        if Instant::now() >= deadline {
+            return Ok(false);
+        }
+
+        std::thread::sleep(interval);
+    }
+}
+
+fn base_container_status_lines_sync(runner: &PsRunner) -> Result<Vec<String>, InfraError> {
+    let out = runner.run_direct_sync(
+        "docker",
+        &[
+            "ps",
+            "-a",
+            "--format",
+            "{{.Names}}|{{.Status}}",
+            "--filter",
+            "name=WSDD-",
+        ],
+        None,
+        None,
+    )?;
+
+    if out.text.contains("Error") {
+        return Err(InfraError::DockerUnreachable(out.text));
+    }
+
+    Ok(out
+        .text
+        .lines()
+        .filter(|line| {
+            line.contains("WSDD-Proxy-Server")
+                || line.contains("WSDD-MySql-Server")
+                || line.contains("WSDD-phpMyAdmin-Server")
+        })
+        .map(|line| line.trim().to_string())
+        .collect())
 }
 
 /// Despliega los contenedores base WSDD via docker-compose (sincrónico).
 ///
 /// # Flujo
-/// 1. `docker-compose create --build` — construye imágenes y crea contenedores
-/// 2. Espera 15s (settle de layers internos)
-/// 3. Verifica que los contenedores existan
-/// 4. `docker-compose up -d` — inicia los contenedores
-/// 5. Espera 15s (inicialización de servicios)
+/// 1. Si ya están corriendo, no hace nada
+/// 2. Si existen pero están detenidos, ejecuta `docker-compose up -d`
+/// 3. Si aún no existen, ejecuta `docker-compose up -d --build`
+/// 4. Espera confirmación real de creación y estado running
 fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
-    if check_base_containers_sync(runner)? {
-        let _ = tx.send(LogLine::success("✓ Contenedores WSDD ya están desplegados"));
+    if check_base_containers_running_sync(runner)? {
+        let _ = tx.send(LogLine::success(
+            "✓ Contenedores WSDD ya están desplegados y activos",
+        ));
         return Ok(());
     }
 
     let init_yml = crate::handlers::ps_script::docker_structure_dir().join("init.yml");
     let docker_dir = crate::handlers::ps_script::docker_structure_dir();
     let log_path = deploy_log_path();
+    let base_exists = check_base_containers_sync(runner)?;
 
-    // Paso 1: create --build
-    let _ = tx.send(LogLine::info(
-        "Construyendo contenedores WSDD — puede tardar varios minutos en la primera ejecución...",
-    ));
+    let (status_message, command_label, command) = if base_exists {
+        (
+            "Contenedores WSDD detectados pero no activos; intentando recuperarlos...",
+            "docker-compose up -d",
+            format!(
+                "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d",
+                init_yml.display()
+            ),
+        )
+    } else {
+        (
+            "Construyendo contenedores WSDD — puede tardar varios minutos en la primera ejecución...",
+            "docker-compose up -d --build",
+            format!(
+                "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d --build",
+                init_yml.display()
+            ),
+        )
+    };
+
+    let _ = tx.send(LogLine::info(status_message));
     let _ = tx.send(LogLine::info(format!(
         "  (output detallado en: {})",
         log_path.display()
     )));
-    write_deploy_log_header("docker-compose create --build");
+    write_deploy_log_header(command_label);
     let bridge = make_docker_progress_bridge(tx);
-    runner.run_ps_sync(
-        &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{}\" create --build",
-            init_yml.display()
-        ),
-        Some(&docker_dir),
-        Some(&bridge),
-    )?;
-    let _ = tx.send(LogLine::success(
-        "✓ Imágenes construidas y contenedores creados",
-    ));
+    runner.run_ps_sync(&command, Some(&docker_dir), Some(&bridge))?;
 
-    // Paso 2: esperar 15s
+    // Paso 2: esperar confirmacion real de creación
     let _ = tx.send(LogLine::info(
-        "Esperando que Docker procese los contenedores creados (15s)...",
+        "Esperando confirmacion real de contenedores creados...",
     ));
-    std::thread::sleep(std::time::Duration::from_secs(15));
+    if !wait_until_sync(CREATE_READY_TIMEOUT, READY_POLL_INTERVAL, || {
+        check_base_containers_sync(runner)
+    })? {
+        let _ = tx.send(LogLine::error(
+            "Los contenedores no se crearon correctamente",
+        ));
+        return Err(InfraError::UnexpectedOutput(
+            command_label.to_string(),
+            "contenedores no encontrados tras la creacion".to_string(),
+        ));
+    }
 
     // Paso 3: verificar
     if !check_base_containers_sync(runner)? {
@@ -488,29 +606,46 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
             "✗ Los contenedores no se crearon correctamente",
         ));
         return Err(InfraError::UnexpectedOutput(
-            "docker-compose create --build".to_string(),
+            command_label.to_string(),
             "contenedores no encontrados tras la creación".to_string(),
         ));
     }
 
-    // Paso 4: up -d
-    let _ = tx.send(LogLine::info("Iniciando contenedores WSDD..."));
-    write_deploy_log_header("docker-compose up -d");
-    let bridge2 = make_docker_progress_bridge(tx);
-    runner.run_ps_sync(
-        &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d",
-            init_yml.display()
-        ),
-        Some(&docker_dir),
-        Some(&bridge2),
-    )?;
-
-    // Paso 5: esperar 15s
+    // Paso 3: esperar readiness real de servicios
     let _ = tx.send(LogLine::info(
-        "Esperando que los servicios estén disponibles (15s)...",
+        "Esperando disponibilidad real de servicios base...",
     ));
-    std::thread::sleep(std::time::Duration::from_secs(15));
+    if !wait_until_sync(START_READY_TIMEOUT, READY_POLL_INTERVAL, || {
+        check_base_containers_running_sync(runner)
+    })? {
+        let _ = tx.send(LogLine::warn(
+            "Estado detectado de contenedores base al expirar la espera:",
+        ));
+        match base_container_status_lines_sync(runner) {
+            Ok(lines) if !lines.is_empty() => {
+                for line in lines {
+                    let _ = tx.send(LogLine::warn(format!("  {line}")));
+                }
+            }
+            Ok(_) => {
+                let _ = tx.send(LogLine::warn(
+                    "  No se pudo obtener estado visible de los contenedores base",
+                ));
+            }
+            Err(e) => {
+                let _ = tx.send(LogLine::warn(format!(
+                    "  No se pudo consultar estado final de contenedores: {e}"
+                )));
+            }
+        }
+        let _ = tx.send(LogLine::error(
+            "Los servicios base no quedaron disponibles a tiempo",
+        ));
+        return Err(InfraError::UnexpectedOutput(
+            command_label.to_string(),
+            "los servicios base no alcanzaron estado running".to_string(),
+        ));
+    }
 
     let _ = tx.send(LogLine::success(
         "✓ Contenedores WSDD desplegados correctamente",

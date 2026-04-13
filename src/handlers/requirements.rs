@@ -12,13 +12,13 @@
 // The author shall not be liable for any damages.
 //
 // Contact: wnunez@lh-2.net
-//! Verificación y aseguramiento de requisitos del sistema.
+//! Verificacion y aseguramiento de requisitos del sistema.
 //!
-//! Equivalente a `Handlers/Requirement.cs` en la versión C#.
+//! Equivalente a `Handlers/Requirement.cs` en la version C#.
 //!
 //! # Responsabilidades
 //! - `ensure_admin`: elevar privilegios UAC al arranque
-//! - `run_requirements`: orquestar el check de Docker/Choco/MKCert (Fase 3)
+//! - `run_requirements`: orquestar el check de PowerShell/Choco/MKCert/Docker
 
 use std::sync::mpsc;
 
@@ -28,42 +28,31 @@ use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::setting::AppSettings;
 use crate::handlers::{chocolatey, docker_deploy, hosts, mkcert, powershell};
 
-// ─── Resultado del proceso de requirements ────────────────────────────────────
-
-/// Resultado del proceso completo de verificación de requisitos.
-///
-/// Enviado por `run_requirements` al canal `outcome_tx` cuando termina.
+/// Resultado del proceso completo de verificacion de requisitos.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LoaderOutcome {
-    /// Todos los requisitos OK — primer arranque: mostrar botón "Continuar".
+    /// Todos los requisitos OK y es primer arranque: mostrar boton Continuar.
     DoneWithContinue,
-    /// Todos los requisitos OK — arranque posterior: avanzar a Main silenciosamente.
+    /// Todos los requisitos OK en arranque posterior: ir a Main silenciosamente.
     AllDone,
-    /// Docker instalado por primera vez o actualizado — el sistema necesita reinicio.
+    /// Reservado para instalaciones que requieran reinicio del sistema.
     NeedsReboot,
-    /// Error bloqueante — Docker no está instalado en el sistema.
+    /// Error bloqueante: la app no puede continuar.
     BlockingError,
 }
 
-// ─── Proceso de requirements (Fase 3) ────────────────────────────────────────
-
-/// Ejecuta el proceso completo de verificación e instalación de requisitos.
+/// Ejecuta el proceso completo de verificacion e instalacion de requisitos.
 ///
-/// **Debe ejecutarse en un hilo separado** — contiene operaciones bloqueantes
-/// (scripts PowerShell, instalaciones via choco) que no pueden correr en el
-/// render loop de egui.
+/// Debe ejecutarse fuera del render loop de egui porque contiene operaciones
+/// bloqueantes (instaladores, scripts PowerShell, Docker, mkcert).
 ///
-/// # Flujo
-/// 1. Chocolatey (instala si falta)
-/// 2. PowerShell 7.5+ (instala/actualiza si falta)
-/// 3. Docker (bloqueante si no instalado)
-/// 4. MKCert (instala via choco si falta, genera CA)
-/// 4. Envía `LoaderOutcome` al canal `outcome_tx`
-///
-/// # Parámetros
-/// - `log_tx`: canal para enviar líneas de log a la UI en tiempo real
-/// - `outcome_tx`: canal para el resultado final (controla botones del Loader)
-/// - `first_run`: `true` si viene de Welcome → Comenzar (muestra botón Continuar)
+/// Flujo:
+/// 1. PowerShell 7.5+
+/// 2. Chocolatey
+/// 3. MKCert
+/// 4. Docker
+/// 5. Deploy Environment
+/// 6. Hosts
 pub fn run_requirements(
     log_tx: LogSender,
     outcome_tx: mpsc::Sender<LoaderOutcome>,
@@ -71,32 +60,34 @@ pub fn run_requirements(
 ) {
     let runner = crate::handlers::ps_script::PsRunner::new();
 
-    // Cargar settings al inicio — se guardan al final solo si todo OK
     let mut settings = match AppSettings::load() {
         Ok(settings) => settings,
         Err(e) => {
             let _ = log_tx.send(LogLine::error(format!(
-                "✗ Configuracion incompatible o invalida: {e}"
+                "Configuracion incompatible o invalida: {e}"
             )));
             let _ = outcome_tx.send(LoaderOutcome::BlockingError);
             return;
         }
     };
 
-    // ── 1. Chocolatey ──────────────────────────────────────────────────────
-    if !chocolatey::process_requirements(&log_tx) {
-        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
-        return;
-    }
-
-    // ── 2. PowerShell 7.5+ ────────────────────────────────────────────────
-    let _ = tx_log_separator(&log_tx);
     if !powershell::process_requirements(&log_tx) {
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
 
-    // ── 3. Docker ──────────────────────────────────────────────────────────
+    let _ = tx_log_separator(&log_tx);
+    if !chocolatey::process_requirements(&log_tx) {
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
+    let _ = tx_log_separator(&log_tx);
+    if !mkcert::process_requirements(&log_tx) {
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
     let _ = tx_log_separator(&log_tx);
     let docker_outcome = docker_deploy::process_requirements_sync(&runner, &log_tx);
     if docker_outcome != docker_deploy::DockerRequirementOutcome::Ready {
@@ -104,21 +95,13 @@ pub fn run_requirements(
         return;
     }
 
-    // ── 4. MKCert ──────────────────────────────────────────────────────────
-    let _ = tx_log_separator(&log_tx);
-    if !mkcert::process_requirements(&log_tx) {
-        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
-        return;
-    }
-
-    // ── 4. Deploy Environment ─────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
     if let Err(e) = settings.validate_prerequisite_credentials() {
         let _ = log_tx.send(LogLine::error(format!(
-            "✗ Credenciales incompletas para MySQL/phpMyAdmin: {e}"
+            "Credenciales incompletas para MySQL/phpMyAdmin: {e}"
         )));
         let _ = log_tx.send(LogLine::error(
-            "  Completa la configuracion inicial antes de desplegar los prerequisitos.",
+            "Completa la configuracion inicial antes de desplegar los prerequisitos.",
         ));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
@@ -126,7 +109,7 @@ pub fn run_requirements(
 
     if let Err(e) = docker_deploy::sync_prerequisite_compose_sync(&settings) {
         let _ = log_tx.send(LogLine::error(format!(
-            "✗ Error al preparar init.yml con credenciales: {e}"
+            "Error al preparar init.yml con credenciales: {e}"
         )));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
@@ -134,34 +117,27 @@ pub fn run_requirements(
 
     let _ = log_tx.send(LogLine::info("Inicializando entorno Docker..."));
     if let Err(e) = docker_deploy::deploy_environment_sync(&runner, &log_tx) {
-        let _ = log_tx.send(LogLine::error(format!(
-            "✗ Error al inicializar entorno: {e}"
-        )));
+        let _ = log_tx.send(LogLine::error(format!("Error al inicializar entorno: {e}")));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
 
-    // ── 5. Hosts ──────────────────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
     if let Err(e) = hosts::update_host(None, &log_tx) {
         let _ = log_tx.send(LogLine::error(format!(
-            "✗ Error al actualizar archivo hosts: {e:#}"
+            "Error al actualizar archivo hosts: {e:#}"
         )));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;
     }
 
-    // ── Guardar setup completado ──────────────────────────────────────────
-    // Solo se guarda si TODOS los pasos anteriores completaron sin error
     settings.setup_completed = true;
     if let Err(e) = settings.save() {
         tracing::error!("No se pudo guardar setup_completed: {e}");
-        // No es bloqueante para la UI — en el próximo arranque re-ejecutará el deploy
     }
 
-    // ── Resultado final ────────────────────────────────────────────────────
     let _ = tx_log_separator(&log_tx);
-    let _ = log_tx.send(LogLine::success("✓ Sistema listo para WSDD"));
+    let _ = log_tx.send(LogLine::success("Sistema listo para WSDD"));
 
     let outcome = if first_run {
         LoaderOutcome::DoneWithContinue
@@ -173,11 +149,9 @@ pub fn run_requirements(
 
 fn tx_log_separator(tx: &LogSender) -> Result<(), mpsc::SendError<LogLine>> {
     tx.send(LogLine::info(
-        "─────────────────────────────────────────────",
+        "---------------------------------------------",
     ))
 }
-
-// ─── Admin / UAC ──────────────────────────────────────────────────────────────
 
 /// Verifica que la aplicacion se ejecuta con privilegios de administrador.
 /// Si no, relanza el proceso elevado (UAC).

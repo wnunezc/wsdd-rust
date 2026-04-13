@@ -33,6 +33,17 @@ pub enum LogLevel {
     Error,
 }
 
+impl LogLevel {
+    fn icon(&self) -> &'static str {
+        match self {
+            Self::Info => "ℹ",
+            Self::Success => "✓",
+            Self::Warn => "⚠",
+            Self::Error => "✗",
+        }
+    }
+}
+
 // ─── LogLine ──────────────────────────────────────────────────────────────────
 
 /// Línea de log con texto y nivel.
@@ -55,7 +66,7 @@ pub struct LogLine {
 impl LogLine {
     pub fn info(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: normalize_text(LogLevel::Info, text.into()),
             level: LogLevel::Info,
             key: None,
         }
@@ -63,7 +74,7 @@ impl LogLine {
 
     pub fn success(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: normalize_text(LogLevel::Success, text.into()),
             level: LogLevel::Success,
             key: None,
         }
@@ -71,7 +82,7 @@ impl LogLine {
 
     pub fn warn(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: normalize_text(LogLevel::Warn, text.into()),
             level: LogLevel::Warn,
             key: None,
         }
@@ -79,7 +90,7 @@ impl LogLine {
 
     pub fn error(text: impl Into<String>) -> Self {
         Self {
-            text: text.into(),
+            text: normalize_text(LogLevel::Error, text.into()),
             level: LogLevel::Error,
             key: None,
         }
@@ -93,6 +104,25 @@ impl LogLine {
         self.key = Some(key.into());
         self
     }
+}
+
+fn normalize_text(level: LogLevel, text: String) -> String {
+    if text.trim().is_empty() {
+        return text;
+    }
+
+    if has_leading_level_icon(&text) {
+        return text;
+    }
+
+    format!("{} {}", level.icon(), text)
+}
+
+fn has_leading_level_icon(text: &str) -> bool {
+    let trimmed = text.trim_start();
+    ["ℹ", "✓", "⚠", "✗"]
+        .iter()
+        .any(|icon| trimmed.starts_with(icon))
 }
 
 // ─── Tipos de canal ───────────────────────────────────────────────────────────

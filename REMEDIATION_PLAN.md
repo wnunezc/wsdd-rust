@@ -53,8 +53,8 @@ salvo nueva instruccion explicita del usuario.
 | `WP-01` | Alto | Cerrado por confirmacion explicita del usuario en `rc.11` | Opcion `B` aprobada |
 | `WP-02` | Alto | Cerrado por confirmacion explicita del usuario en `rc.12` | Opcion `B` aprobada |
 | `WP-03` | Alto | Cerrado por confirmacion explicita del usuario en `rc.13` | Opcion `A` endurecida aprobada |
-| `WP-04` | Alto | Siguiente paquete prioritario tras cierre de `WP-03` | Pendiente |
-| `WP-05` | Alto | Pendiente de decision | Pendiente |
+| `WP-04` | Alto | Cerrado por confirmacion explicita del usuario en `rc.14` | Opcion `B` aprobada |
+| `WP-05` | Alto | Siguiente paquete prioritario tras cierre de `WP-04` | Pendiente |
 | `WP-06` | Medio | Pendiente de decision | Pendiente |
 | `WP-07` | Medio | Pendiente de decision | Pendiente |
 | `WP-08` | Medio | Pendiente de decision | Pendiente |
@@ -153,7 +153,14 @@ salvo nueva instruccion explicita del usuario.
 
 - Prioridad: Alto
 - Estado actual:
-  - siguiente paquete prioritario tras el cierre de `WP-03` en `rc.13`
+  - opcion `B` aprobada por el usuario
+  - implementado en `rc.14` y cerrado por confirmacion explicita del usuario
+  - coordinacion central de jobs largos desde `app.rs`
+  - migrados al coordinador: loader requirements, polling, lifecycle Docker/WSL, start/stop/restart de contenedores, deploy/remove, backup/restore, toolbox de contenedor
+  - reemplazados sleeps fijos del deploy base por polling de readiness real
+  - notas no bloqueantes documentadas para futuro:
+    - no existe estado `queued` formal
+    - quedan hilos utilitarios puntuales fuera del coordinador (`folder picker`, bridges de streaming y helpers internos)
 - Hallazgos base:
   - `std::thread::spawn` disperso
   - sleeps fijos en `docker_deploy.rs`
@@ -167,7 +174,7 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `B` para este paquete
 - Criterio de cierre:
   - la UI no dispara jobs ad hoc sin control
   - cada tarea larga tiene estado, logs y finalizacion trazable
@@ -175,6 +182,8 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-05` Robustez de deploy/remove e idempotencia
 
 - Prioridad: Alto
+- Estado actual:
+  - siguiente paquete prioritario tras el cierre de `WP-04` en `rc.14`
 - Hallazgos base:
   - deploy secuencial con rollback limitado
   - remove con limitacion conocida en `hosts`
@@ -294,8 +303,8 @@ salvo nueva instruccion explicita del usuario.
 2. Cerrar `WP-01`
 3. Cerrar `WP-03`
 4. Cerrar `WP-02`
-5. Cerrar `WP-05`
-6. Cerrar `WP-04`
+5. Cerrar `WP-04`
+6. Cerrar `WP-05`
 7. Cerrar `WP-06`
 8. Cerrar `WP-07`
 9. Cerrar `WP-08`

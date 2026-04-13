@@ -17,6 +17,7 @@
 //! Equivalente a `Handlers/HandlerChocolatey.cs` en la versión C#.
 
 use anyhow::{Context, Result};
+use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(windows)]
@@ -27,11 +28,17 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use crate::handlers::log_types::{LogLine, LogSender};
 
+const DEFAULT_CHOCO_EXE: &str = r"C:\ProgramData\chocolatey\bin\choco.exe";
+
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
 /// Verifica si Chocolatey está disponible en el sistema.
 pub fn is_installed() -> bool {
-    let mut cmd = Command::new("choco");
+    let Some(choco_exe) = resolve_choco_exe() else {
+        return false;
+    };
+
+    let mut cmd = Command::new(choco_exe);
     cmd.arg("--version");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -42,7 +49,9 @@ pub fn is_installed() -> bool {
 
 /// Instala un paquete via Chocolatey.
 pub fn install(package: &str) -> Result<()> {
-    let mut cmd = Command::new("choco");
+    let choco_exe =
+        resolve_choco_exe().context("Chocolatey no está disponible en la sesión actual")?;
+    let mut cmd = Command::new(choco_exe);
     cmd.args(["install", package, "-y", "--no-progress"]);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -124,4 +133,34 @@ fn install_chocolatey(command: &str) -> Result<()> {
             status.code().unwrap_or(-1)
         ))
     }
+}
+
+fn resolve_choco_exe() -> Option<PathBuf> {
+    std::env::var_os("ChocolateyInstall")
+        .map(PathBuf::from)
+        .map(|base| base.join("bin").join("choco.exe"))
+        .filter(|path| path.is_file())
+        .or_else(|| {
+            let path = PathBuf::from(DEFAULT_CHOCO_EXE);
+            path.is_file().then_some(path)
+        })
+        .or_else(|| resolve_from_path("choco.exe"))
+}
+
+fn resolve_from_path(program: &str) -> Option<PathBuf> {
+    let mut cmd = Command::new("where.exe");
+    cmd.arg(program);
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+
+    let output = cmd.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .map(str::trim)
+        .find(|line| !line.is_empty())
+        .map(PathBuf::from)
 }

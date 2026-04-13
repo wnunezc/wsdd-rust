@@ -485,7 +485,7 @@ fn render_webmin_credentials_dialog(ctx: &egui::Context, app: &mut WsddApp) {
                 app.projects.push(prompt.project.clone());
             }
 
-            crate::ui::projects_panel::spawn_deploy(app, prompt.project);
+            crate::ui::projects_panel::spawn_deploy(ctx, app, prompt.project);
             app.ui.form_error = None;
             app.ui.active = ActiveView::Main;
         }

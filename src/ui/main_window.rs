@@ -26,10 +26,10 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::app::WsddApp;
-use crate::handlers::docker::gather_poll_snapshot_sync;
+use crate::handlers::docker;
 use crate::handlers::external_app;
 use crate::handlers::log_types::{LogLevel, LogLine};
-use crate::handlers::ps_script::{launch, ScriptRunner};
+use crate::handlers::ps_script::{launch, launch_url};
 use crate::handlers::setting::AppTheme;
 use crate::i18n::{tr, trf};
 use crate::ui::ActiveView;
@@ -104,13 +104,7 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                             }
                             ui.separator();
                             if ui.button(&reload_docker).clicked() {
-                                start_script_sequence_action(
-                                    ctx,
-                                    app,
-                                    "[Docker] Reiniciando Docker Desktop...",
-                                    "[Docker] Docker Desktop reiniciado.",
-                                    &["dd-stop.ps1", "dd-start.ps1"],
-                                );
+                                start_docker_restart(ctx, app);
                                 ui.close_menu();
                             }
                             if ui.button(&clear_logs).clicked() {
@@ -121,15 +115,15 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
 
                         ui.menu_button(menu_tools, |ui| {
                             if ui.button(&backup_environment).clicked() {
-                                start_environment_backup(app);
+                                start_environment_backup(ctx, app);
                                 ui.close_menu();
                             }
                             if ui.button(&restore_environment).clicked() {
-                                start_environment_restore(app);
+                                start_environment_restore(ctx, app);
                                 ui.close_menu();
                             }
                             if ui.button(&restore_project_backup).clicked() {
-                                start_project_restore(app);
+                                start_project_restore(ctx, app);
                                 ui.close_menu();
                             }
                             ui.separator();
@@ -138,33 +132,15 @@ fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                                 ui.close_menu();
                             }
                             if ui.button(&wsl_restart).clicked() {
-                                start_script_sequence_action(
-                                    ctx,
-                                    app,
-                                    "[WSL] Reiniciando servicios WSL...",
-                                    "[WSL] Servicios WSL reiniciados.",
-                                    &["wsl-restart.ps1"],
-                                );
+                                start_wsl_restart(ctx, app);
                                 ui.close_menu();
                             }
                             if ui.button(&wsl_shutdown).clicked() {
-                                start_script_sequence_action(
-                                    ctx,
-                                    app,
-                                    "[WSL] Apagando WSL por completo...",
-                                    "[WSL] WSL apagado.",
-                                    &["wsl-shutdown.ps1"],
-                                );
+                                start_wsl_shutdown(ctx, app);
                                 ui.close_menu();
                             }
                             if ui.button(&wsl_start).clicked() {
-                                start_script_sequence_action(
-                                    ctx,
-                                    app,
-                                    "[WSL] Iniciando servicios WSL...",
-                                    "[WSL] Servicios WSL iniciados.",
-                                    &["wsl-start.ps1"],
-                                );
+                                start_wsl_start(ctx, app);
                                 ui.close_menu();
                             }
                             ui.separator();
@@ -231,7 +207,7 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
                             .on_hover_text(&open_phpmyadmin)
                             .clicked()
                         {
-                            launch("cmd", &["/c", "start", "http://pma.wsdd.dock"], None);
+                            launch_url("http://pma.wsdd.dock");
                         }
 
                         ui.add_space(2.0);
@@ -533,7 +509,7 @@ fn render_confirm_dialog(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if ui.button(delete_label).clicked() {
-                    projects_panel::do_remove_project(app, &name);
+                    projects_panel::do_remove_project(ctx, app, &name);
                     app.ui.confirm_remove_project = None;
                 }
                 if ui.button(cancel_label).clicked() {
@@ -603,41 +579,80 @@ fn start_poll(ctx: &egui::Context, app: &mut WsddApp) {
     app.container_poll_active = true;
 
     let runner = app.runner.clone();
-    let ctx = ctx.clone();
-
-    std::thread::spawn(move || {
-        let snapshot = gather_poll_snapshot_sync(&runner);
+    let started = app.spawn_async_job(ctx, "poll:containers", "Poll containers", async move {
+        let snapshot = docker::gather_poll_snapshot(&runner).await;
         let _ = tx.send(snapshot);
-        ctx.request_repaint();
+        Ok(())
+    });
+
+    if !started {
+        app.container_poll_rx = None;
+        app.container_poll_active = false;
+    }
+}
+
+fn start_docker_restart(ctx: &egui::Context, app: &mut WsddApp) {
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    let _ = app.spawn_async_job(
+        ctx,
+        "lifecycle:docker",
+        "Restart Docker Desktop",
+        async move {
+            let _ = tx.send(LogLine::info("[Docker] Reiniciando Docker Desktop..."));
+            docker::restart(&runner, None).await.map_err(|e| {
+                let message = format!("[Lifecycle] Error reiniciando Docker Desktop: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                message
+            })?;
+            let _ = tx.send(LogLine::success("[Docker] Docker Desktop reiniciado."));
+            Ok(())
+        },
+    );
+}
+
+fn start_wsl_restart(ctx: &egui::Context, app: &mut WsddApp) {
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    let _ = app.spawn_async_job(ctx, "lifecycle:wsl", "Restart WSL", async move {
+        let _ = tx.send(LogLine::info("[WSL] Reiniciando servicios WSL..."));
+        docker::restart_wsl(&runner, None).await.map_err(|e| {
+            let message = format!("[Lifecycle] Error reiniciando WSL: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })?;
+        let _ = tx.send(LogLine::success("[WSL] Servicios WSL reiniciados."));
+        Ok(())
     });
 }
 
-fn start_script_sequence_action(
-    ctx: &egui::Context,
-    app: &mut WsddApp,
-    started: &'static str,
-    success: &'static str,
-    scripts: &'static [&'static str],
-) {
+fn start_wsl_shutdown(ctx: &egui::Context, app: &mut WsddApp) {
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
-    let ctx = ctx.clone();
+    let _ = app.spawn_async_job(ctx, "lifecycle:wsl", "Shutdown WSL", async move {
+        let _ = tx.send(LogLine::info("[WSL] Apagando WSL por completo..."));
+        docker::stop_wsl(&runner, None).await.map_err(|e| {
+            let message = format!("[Lifecycle] Error apagando WSL: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })?;
+        let _ = tx.send(LogLine::success("[WSL] WSL apagado."));
+        Ok(())
+    });
+}
 
-    std::thread::spawn(move || {
-        let _ = tx.send(LogLine::info(started));
-
-        for script in scripts {
-            if let Err(e) = runner.run_script_sync(script, None, None) {
-                let _ = tx.send(LogLine::error(format!(
-                    "[Lifecycle] Error ejecutando {script}: {e}"
-                )));
-                ctx.request_repaint();
-                return;
-            }
-        }
-
-        let _ = tx.send(LogLine::success(success));
-        ctx.request_repaint();
+fn start_wsl_start(ctx: &egui::Context, app: &mut WsddApp) {
+    let tx = app.main_log_tx.clone();
+    let runner = app.runner.clone();
+    let _ = app.spawn_async_job(ctx, "lifecycle:wsl", "Start WSL", async move {
+        let _ = tx.send(LogLine::info("[WSL] Iniciando servicios WSL..."));
+        docker::start_wsl(&runner, None).await.map_err(|e| {
+            let message = format!("[Lifecycle] Error iniciando WSL: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })?;
+        let _ = tx.send(LogLine::success("[WSL] Servicios WSL iniciados."));
+        Ok(())
     });
 }
 
@@ -758,7 +773,7 @@ fn reload_projects(app: &mut WsddApp) {
     }
 }
 
-fn start_environment_backup(app: &mut WsddApp) {
+fn start_environment_backup(ctx: &egui::Context, app: &mut WsddApp) {
     let Some(path) = rfd::FileDialog::new()
         .set_title(tr("backup_dialog_save_title"))
         .add_filter("WSDD Backup", &["zip"])
@@ -770,14 +785,16 @@ fn start_environment_backup(app: &mut WsddApp) {
 
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::backup::backup_environment(&path, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Backup] Error: {e}")));
-        }
+    let _ = app.spawn_blocking_job(ctx, "backup:environment", "Backup environment", move || {
+        crate::handlers::backup::backup_environment(&path, &runner, &tx).map_err(|e| {
+            let message = format!("[Backup] Error: {e}");
+            let _ = tx.send(LogLine::error(message.clone()));
+            message
+        })
     });
 }
 
-fn start_environment_restore(app: &mut WsddApp) {
+fn start_environment_restore(ctx: &egui::Context, app: &mut WsddApp) {
     let Some(path) = rfd::FileDialog::new()
         .set_title(tr("backup_dialog_restore_title"))
         .add_filter("WSDD Backup", &["zip"])
@@ -788,14 +805,21 @@ fn start_environment_restore(app: &mut WsddApp) {
 
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::backup::restore_environment(&path, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Restore] Error: {e}")));
-        }
-    });
+    let _ = app.spawn_blocking_job(
+        ctx,
+        "restore:environment",
+        "Restore environment",
+        move || {
+            crate::handlers::backup::restore_environment(&path, &runner, &tx).map_err(|e| {
+                let message = format!("[Restore] Error: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                message
+            })
+        },
+    );
 }
 
-fn start_project_restore(app: &mut WsddApp) {
+fn start_project_restore(ctx: &egui::Context, app: &mut WsddApp) {
     let Some(path) = rfd::FileDialog::new()
         .set_title(tr("project_restore_dialog_title"))
         .add_filter("WSDD Backup", &["zip"])
@@ -806,9 +830,17 @@ fn start_project_restore(app: &mut WsddApp) {
 
     let tx = app.main_log_tx.clone();
     let runner = app.runner.clone();
-    std::thread::spawn(move || {
-        if let Err(e) = crate::handlers::backup::restore_project(&path, &runner, &tx) {
-            let _ = tx.send(LogLine::error(format!("[Restore] Error: {e}")));
-        }
-    });
+    let _ = app.spawn_blocking_job(
+        ctx,
+        "restore:project",
+        "Restore project backup",
+        move || {
+            crate::handlers::backup::restore_project(&path, &runner, &tx).map_err(|e| {
+                let message = format!("[Restore] Error: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                message
+            })?;
+            Ok(())
+        },
+    );
 }

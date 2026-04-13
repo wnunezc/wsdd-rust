@@ -15,8 +15,13 @@
 // Estado global de la aplicación. Equivalente a HandlerWSDD.cs.
 // Mantiene estado entre frames de egui y coordina los handlers.
 
-use std::sync::mpsc;
+use std::collections::HashMap;
+use std::future::Future;
+use std::sync::{mpsc, OnceLock};
 use std::time::Instant;
+
+use anyhow::Context;
+use tokio::runtime::{Builder, Runtime};
 
 use crate::handlers::docker::{ContainerInfo, ContainerPollSnapshot, DockerDesktopStatus};
 use crate::handlers::log_types::LogLine;
@@ -26,10 +31,53 @@ use crate::handlers::setting::AppSettings;
 use crate::models::project::Project;
 use crate::ui::{ActiveView, UiState};
 
+pub type JobRuntime = &'static Runtime;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum BackgroundJobStatus {
+    Running,
+    Succeeded,
+    Failed,
+}
+
+#[derive(Debug, Clone)]
+pub struct BackgroundJob {
+    pub key: String,
+    pub label: String,
+    pub status: BackgroundJobStatus,
+    pub started_at: Instant,
+    pub finished_at: Option<Instant>,
+    pub last_error: Option<String>,
+}
+
+#[derive(Debug)]
+enum BackgroundJobEvent {
+    Finished { key: String, error: Option<String> },
+}
+
+pub fn create_job_runtime() -> anyhow::Result<JobRuntime> {
+    static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+    if let Some(runtime) = RUNTIME.get() {
+        return Ok(runtime);
+    }
+
+    let runtime = Builder::new_multi_thread()
+        .enable_all()
+        .thread_name("wsdd-job")
+        .build()
+        .context("No se pudo crear el runtime de jobs de WSDD")?;
+
+    let _ = RUNTIME.set(runtime);
+    RUNTIME
+        .get()
+        .context("No se pudo inicializar el runtime compartido de WSDD")
+}
+
 pub struct WsddApp {
     pub settings: AppSettings,
     pub ui: UiState,
     pub first_run: bool,
+    pub job_runtime: JobRuntime,
 
     // ── Fase 3: proceso de requirements ──────────────────────────────────
     /// Canal de log: líneas enviadas por los handlers al Loader.
@@ -68,10 +116,17 @@ pub struct WsddApp {
     pub last_container_poll: Instant,
     /// Estado resumido de Docker Desktop usado por la barra inferior.
     pub docker_status: DockerDesktopStatus,
+    job_event_tx: mpsc::Sender<BackgroundJobEvent>,
+    job_event_rx: mpsc::Receiver<BackgroundJobEvent>,
+    pub jobs: HashMap<String, BackgroundJob>,
 }
 
 impl WsddApp {
-    pub fn new(cc: &eframe::CreationContext<'_>, settings: AppSettings) -> Self {
+    pub fn new(
+        cc: &eframe::CreationContext<'_>,
+        settings: AppSettings,
+        job_runtime: JobRuntime,
+    ) -> Self {
         Self::setup_fonts(&cc.egui_ctx);
 
         crate::i18n::set_language(settings.language);
@@ -86,11 +141,13 @@ impl WsddApp {
         };
 
         let (main_log_tx, main_log_rx) = mpsc::channel::<LogLine>();
+        let (job_event_tx, job_event_rx) = mpsc::channel::<BackgroundJobEvent>();
 
         Self {
             first_run,
             ui: UiState::new(initial_view),
             settings,
+            job_runtime,
             requirement_rx: None,
             loader_outcome_rx: None,
             loader_done: false,
@@ -100,7 +157,7 @@ impl WsddApp {
             requirements_started: false,
             runner: PsRunner::new(),
             containers: Vec::new(),
-            projects: Vec::new(),
+            projects: crate::handlers::project::list_all().unwrap_or_default(),
             main_log: Vec::new(),
             main_log_tx,
             main_log_rx,
@@ -110,6 +167,9 @@ impl WsddApp {
                 .checked_sub(std::time::Duration::from_secs(10))
                 .unwrap_or_else(Instant::now),
             docker_status: DockerDesktopStatus::default(),
+            job_event_tx,
+            job_event_rx,
+            jobs: HashMap::new(),
         }
     }
 
@@ -180,6 +240,24 @@ impl WsddApp {
 
     /// Drena todos los canales pendientes. Llamar al inicio de cada frame.
     pub fn drain_channels(&mut self) {
+        while let Ok(event) = self.job_event_rx.try_recv() {
+            let BackgroundJobEvent::Finished { key, error } = event;
+            if let Some(job) = self.jobs.get_mut(&key) {
+                job.status = if error.is_some() {
+                    BackgroundJobStatus::Failed
+                } else {
+                    BackgroundJobStatus::Succeeded
+                };
+                job.finished_at = Some(Instant::now());
+                job.last_error = error;
+            }
+
+            if key == "poll:containers" {
+                self.container_poll_active = false;
+                self.last_container_poll = Instant::now();
+            }
+        }
+
         // Log principal — sobreescritura in-place por key (igual que loader)
         while let Ok(line) = self.main_log_rx.try_recv() {
             if let Some(ref key) = line.key.clone() {
@@ -217,6 +295,67 @@ impl WsddApp {
             self.container_poll_active = false;
             self.last_container_poll = Instant::now();
         }
+    }
+
+    pub fn is_job_running(&self, key: &str) -> bool {
+        self.jobs
+            .get(key)
+            .is_some_and(|job| job.status == BackgroundJobStatus::Running)
+    }
+
+    pub fn spawn_async_job<Fut>(
+        &mut self,
+        ctx: &egui::Context,
+        key: impl Into<String>,
+        label: impl Into<String>,
+        future: Fut,
+    ) -> bool
+    where
+        Fut: Future<Output = Result<(), String>> + Send + 'static,
+    {
+        let key = key.into();
+        if self.is_job_running(&key) {
+            return false;
+        }
+
+        self.jobs.insert(
+            key.clone(),
+            BackgroundJob {
+                key: key.clone(),
+                label: label.into(),
+                status: BackgroundJobStatus::Running,
+                started_at: Instant::now(),
+                finished_at: None,
+                last_error: None,
+            },
+        );
+
+        let event_tx = self.job_event_tx.clone();
+        let ctx = ctx.clone();
+        self.job_runtime.spawn(async move {
+            let error = future.await.err();
+            let _ = event_tx.send(BackgroundJobEvent::Finished { key, error });
+            ctx.request_repaint();
+        });
+
+        true
+    }
+
+    pub fn spawn_blocking_job<F>(
+        &mut self,
+        ctx: &egui::Context,
+        key: impl Into<String>,
+        label: impl Into<String>,
+        task: F,
+    ) -> bool
+    where
+        F: FnOnce() -> Result<(), String> + Send + 'static,
+    {
+        self.spawn_async_job(ctx, key, label, async move {
+            tokio::task::spawn_blocking(task)
+                .await
+                .map_err(|e| format!("background task join error: {e}"))?
+        })
     }
 }
 

@@ -1,5 +1,5 @@
 WebStack Deployer for Docker
-版本 1.0.0-rc.13
+版本 1.0.0-rc.14
 版权 © 2026 Walter Núñez / Icaros Net S.A.
 巴拿马。保留所有权利。
 

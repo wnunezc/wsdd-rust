@@ -13,36 +13,34 @@
 //
 // Contact: wnunez@lh-2.net
 //! Herramientas del contenedor Docker.
-//!
-//! Equivalente a `Forms/ToolBoxContainer.cs`.
-//! Permite abrir TTY, reiniciar, ver logs y abrir URLs del contenedor.
 
 use crate::app::WsddApp;
-use crate::handlers::docker::restart_container_sync;
+use crate::handlers::docker;
 use crate::handlers::log_types::LogLine;
-use crate::handlers::ps_script::{launch, launch_shell_window};
+use crate::handlers::ps_script::{launch_shell_window, launch_url};
 use crate::i18n::tr;
 use crate::models::project::PhpVersion;
 use crate::ui::ActiveView;
 
-/// Renderiza el panel de herramientas del contenedor.
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let name = match app.ui.toolbox_container_name.clone() {
-        Some(n) => n,
+        Some(name) => name,
         None => {
             app.ui.active = ActiveView::Main;
             return;
         }
     };
 
-    // Buscar el ContainerInfo para obtener URLs y estado
-    let container = app.containers.iter().find(|c| c.name == name).cloned();
-
+    let container = app
+        .containers
+        .iter()
+        .find(|entry| entry.name == name)
+        .cloned();
     let mut spawn_restart = false;
     let mut open = true;
 
     crate::ui::render_modal_backdrop(ctx, "toolbox_container_backdrop");
-    egui::Window::new(format!("{} — {}", tr("col_toolbox"), name))
+    egui::Window::new(format!("{} - {}", tr("col_toolbox"), name))
         .collapsible(false)
         .resizable(false)
         .order(egui::Order::Foreground)
@@ -63,14 +61,12 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let webmin_user_label = format!("{}:", tr("settings_webmin_user"));
 
             ui.add_space(4.0);
-
-            // ── Acciones del contenedor ───────────────────────────────────
             ui.strong(operations);
             ui.add_space(4.0);
 
             ui.horizontal(|ui| {
                 if ui
-                    .button(format!("⬛ {}", tr("toolbox_tty")))
+                    .button(format!("{} {}", '\u{2B1B}', tr("toolbox_tty")))
                     .on_hover_text(tr("toolbox_tty_hint"))
                     .clicked()
                 {
@@ -78,7 +74,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
 
                 if ui
-                    .button(format!("↺ {restart_label}"))
+                    .button(format!("{} {restart_label}", '\u{21BA}'))
                     .on_hover_text(&restart_label)
                     .clicked()
                 {
@@ -86,7 +82,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
 
                 if ui
-                    .button(format!("📋 {logs_label}"))
+                    .button(format!("{} {logs_label}", '\u{1F4CB}'))
                     .on_hover_text(tr("toolbox_logs_hint"))
                     .clicked()
                 {
@@ -94,58 +90,65 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
             });
 
-            // ── URLs del contenedor ───────────────────────────────────────
-            if let Some(ref c) = container {
-                if !c.urls.is_empty() {
+            if let Some(ref container_info) = container {
+                if !container_info.urls.is_empty() {
                     ui.add_space(12.0);
                     ui.separator();
                     ui.strong(urls_title);
                     ui.add_space(4.0);
 
-                    for url in &c.urls {
+                    for url in &container_info.urls {
                         let display = if url.starts_with("http") {
                             url.clone()
                         } else {
                             format!("http://{url}")
                         };
                         if ui.link(&display).clicked() {
-                            launch("cmd", &["/c", "start", &display], None);
+                            launch_url(&display);
                         }
                     }
                 }
 
-                // Estado
                 ui.add_space(12.0);
                 ui.separator();
                 ui.strong(status_title);
                 ui.add_space(4.0);
+
                 egui::Grid::new("toolbox_container_info")
                     .num_columns(2)
                     .spacing([12.0, 6.0])
                     .show(ui, |ui| {
                         ui.label(&name_label);
-                        ui.label(&c.name);
+                        ui.label(&container_info.name);
                         ui.end_row();
 
                         ui.label(&image_label);
-                        ui.label(&c.image);
+                        ui.label(&container_info.image);
                         ui.end_row();
 
                         ui.label(&status_label);
-                        if c.is_running() {
-                            ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &c.status);
+                        if container_info.is_running() {
+                            ui.colored_label(
+                                egui::Color32::from_rgb(80, 200, 80),
+                                &container_info.status,
+                            );
                         } else {
-                            ui.colored_label(egui::Color32::from_rgb(200, 80, 80), &c.status);
+                            ui.colored_label(
+                                egui::Color32::from_rgb(200, 80, 80),
+                                &container_info.status,
+                            );
                         }
                         ui.end_row();
 
-                        if !c.ports.is_empty() {
+                        if !container_info.ports.is_empty() {
                             ui.label(&ports_label);
-                            ui.label(&c.ports);
+                            ui.label(&container_info.ports);
                             ui.end_row();
                         }
 
-                        if let Some(php_version) = PhpVersion::from_container_name(&c.name) {
+                        if let Some(php_version) =
+                            PhpVersion::from_container_name(&container_info.name)
+                        {
                             if let Some(credentials) =
                                 app.settings.webmin_credentials_for(&php_version)
                             {
@@ -165,21 +168,27 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             }
         });
 
-    // Ejecutar restart fuera del closure para evitar borrow conflict
     if spawn_restart {
-        let runner = app.runner.clone();
         let tx = app.main_log_tx.clone();
-        let cname = name.clone();
-        std::thread::spawn(move || {
-            let _ = tx.send(LogLine::info(format!("[Docker] Reiniciando {cname}...")));
-            match restart_container_sync(&runner, &cname) {
+        let container_name = name.clone();
+        let job_key = format!("container:{container_name}");
+        let label = format!("Restart container {}", container_name);
+
+        let _ = app.spawn_async_job(ctx, job_key, label, async move {
+            let _ = tx.send(LogLine::info(format!(
+                "[Docker] Reiniciando {container_name}..."
+            )));
+            match docker::restart_container(&container_name, None).await {
                 Ok(()) => {
-                    let _ = tx.send(LogLine::success(format!("[Docker] {cname} reiniciado ✓")));
+                    let _ = tx.send(LogLine::success(format!(
+                        "[Docker] {container_name} reiniciado OK"
+                    )));
+                    Ok(())
                 }
                 Err(e) => {
-                    let _ = tx.send(LogLine::error(format!(
-                        "[Docker] Error al reiniciar {cname}: {e}"
-                    )));
+                    let message = format!("[Docker] Error al reiniciar {container_name}: {e}");
+                    let _ = tx.send(LogLine::error(message.clone()));
+                    Err(message)
                 }
             }
         });

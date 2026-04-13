@@ -23,6 +23,7 @@
 use std::path::Path;
 
 use crate::errors::InfraError;
+use crate::handlers::docker;
 use crate::handlers::docker::WSDD_PROJECT;
 use crate::handlers::docker_deploy;
 use crate::handlers::docker_deploy::{make_docker_progress_bridge, make_log_bridge};
@@ -206,9 +207,11 @@ fn step_update_options_yml(project: &Project, tx: &LogSender) -> Result<(), Infr
     Ok(())
 }
 
-/// Stop -> rm -> create --build -> up -d para el contenedor PHP del proyecto.
+/// Stop -> rm -> recreate del contenedor PHP del proyecto.
 ///
-/// El stop y rm son best-effort.
+/// Solo fuerza `--build` cuando el contenedor PHP aún no existe.
+/// En altas/bajas normales de proyectos basta recrear el contenedor para que
+/// Apache recoja `options.phpXX.yml` y `vhost.conf`, evitando builds basura.
 fn step_rebuild_php_container(
     project: &Project,
     runner: &PsRunner,
@@ -217,6 +220,10 @@ fn step_rebuild_php_container(
     let container_name = format!("WSDD-Web-Server-{}", project.php_version.container_tag());
     let php_dir_name = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
+    let should_build =
+        docker::php_container_exists_sync(runner, project.php_version.container_tag())
+            .map(|exists| !exists)
+            .unwrap_or(true);
 
     let bin_dir_str = php_bin_dir(php_dir_name);
     let bin_dir = Path::new(&bin_dir_str);
@@ -230,26 +237,19 @@ fn step_rebuild_php_container(
     let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
     let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
 
-    let _ = tx.send(LogLine::info(
-        "[Deploy] Construyendo contenedor PHP (puede tardar)...",
-    ));
+    let _ = tx.send(LogLine::info(if should_build {
+        "[Deploy] Construyendo y creando contenedor PHP (puede tardar)..."
+    } else {
+        "[Deploy] Recreando contenedor PHP..."
+    }));
     let bridge = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
         &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" create --build"
+            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            if should_build { "--build " } else { "" }
         ),
         Some(bin_dir),
         Some(&bridge),
-    )?;
-
-    let _ = tx.send(LogLine::info("[Deploy] Iniciando contenedor PHP..."));
-    let bridge2 = make_docker_progress_bridge(tx);
-    runner.run_ps_sync(
-        &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d"
-        ),
-        Some(bin_dir),
-        Some(&bridge2),
     )?;
 
     let _ = tx.send(LogLine::success(format!(

@@ -78,14 +78,16 @@ fn start_requirements(ctx: &egui::Context, app: &mut WsddApp) {
     app.requirement_rx = Some(log_rx);
     app.loader_outcome_rx = Some(outcome_rx);
 
-    let ctx_clone = ctx.clone();
     let first_run = !app.loader_silent;
-
-    std::thread::spawn(move || {
-        run_requirements(log_tx, outcome_tx, first_run);
-        // Notificar a egui que hay nuevo estado para renderizar
-        ctx_clone.request_repaint();
-    });
+    let _ = app.spawn_blocking_job(
+        ctx,
+        "requirements:loader",
+        "Loader requirements",
+        move || {
+            run_requirements(log_tx, outcome_tx, first_run);
+            Ok(())
+        },
+    );
 }
 
 // ─── Drenado de canales ───────────────────────────────────────────────────────
@@ -124,8 +126,15 @@ fn handle_outcome(app: &mut WsddApp) {
             match outcome {
                 LoaderOutcome::BlockingError => app.loader_error = true,
                 LoaderOutcome::NeedsReboot => app.loader_needs_reboot = true,
-                LoaderOutcome::AllDone | LoaderOutcome::DoneWithContinue => {
-                    // loader_error y loader_needs_reboot quedan en false → éxito
+                LoaderOutcome::AllDone => {
+                    app.settings.setup_completed = true;
+                    app.first_run = false;
+                    app.loader_silent = true;
+                }
+                LoaderOutcome::DoneWithContinue => {
+                    app.settings.setup_completed = true;
+                    app.first_run = false;
+                    app.loader_silent = false;
                 }
             }
         }
@@ -197,8 +206,8 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
             ui.add_space(6.0);
 
             // Terminal con líneas coloreadas
-            let bottom_bar_height = if app.loader_done { 56.0 } else { 8.0 };
-            let scroll_height = ui.available_height() - bottom_bar_height;
+            let bottom_bar_height = if app.loader_done { 92.0 } else { 8.0 };
+            let scroll_height = (ui.available_height() - bottom_bar_height).max(140.0);
 
             let dark = ui.visuals().dark_mode;
             let frame_fill = if dark {
@@ -243,7 +252,11 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
                 ui.horizontal(|ui| {
                     ui.add_space(8.0);
                     // Botón Copiar — izquierda
-                    if ui.small_button(&copy_label).clicked() {
+                    let copy_button = egui::Button::new(
+                        RichText::new(format!("⎘ {copy_label}")).size(16.0).strong(),
+                    )
+                    .min_size(egui::vec2(150.0, 40.0));
+                    if ui.add(copy_button).clicked() {
                         let text: String = app
                             .ui
                             .requirement_log
@@ -270,25 +283,39 @@ fn render_terminal(ctx: &egui::Context, app: &mut WsddApp) {
 }
 
 fn render_buttons(ui: &mut egui::Ui, app: &mut WsddApp) {
+    let button_size = egui::vec2(190.0, 44.0);
+
     if app.loader_error {
         // Error bloqueante — Docker no instalado
-        if ui.button(format!("  {}  ", tr("menu_exit"))).clicked() {
+        let exit_button = egui::Button::new(
+            RichText::new(format!("✗ {}", tr("menu_exit")))
+                .size(17.0)
+                .strong(),
+        )
+        .min_size(button_size);
+        if ui.add(exit_button).clicked() {
             std::process::exit(0);
         }
     } else if app.loader_needs_reboot {
         // Reinicio necesario tras instalar Docker
-        if ui
-            .button(format!("  {}  ", tr("loader_restart_system")))
-            .clicked()
-        {
+        let reboot_button = egui::Button::new(
+            RichText::new(format!("↻ {}", tr("loader_restart_system")))
+                .size(17.0)
+                .strong(),
+        )
+        .min_size(button_size);
+        if ui.add(reboot_button).clicked() {
             relaunch_app();
         }
     } else {
         // Éxito — primer arranque muestra el botón (silent ya transitó antes)
-        if ui
-            .button(format!("  {}  ", tr("loader_open_wsdd")))
-            .clicked()
-        {
+        let open_button = egui::Button::new(
+            RichText::new(format!("➜ {}", tr("loader_open_wsdd")))
+                .size(17.0)
+                .strong(),
+        )
+        .min_size(button_size);
+        if ui.add(open_button).clicked() {
             app.ui.active = ActiveView::Main;
         }
     }

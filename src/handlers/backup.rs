@@ -35,7 +35,7 @@ use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
 use crate::errors::InfraError;
-use crate::handlers::docker::{WSDD_NETWORK, WSDD_PROJECT};
+use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_PROJECT};
 use crate::handlers::docker_deploy;
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
@@ -584,6 +584,10 @@ fn rebuild_php_container(
     let container_name = format!("WSDD-Web-Server-{}", project.php_version.container_tag());
     let php_dir = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
+    let should_build =
+        docker::php_container_exists_sync(runner, project.php_version.container_tag())
+            .map(|exists| !exists)
+            .unwrap_or(true);
     let options_yml = yml::options_path(php_dir, compose_tag);
     let webserver_yml =
         format!(r"C:\WSDD-Environment\Docker-Structure\bin\{php_dir}\webserver.{compose_tag}.yml");
@@ -591,27 +595,25 @@ fn rebuild_php_container(
     let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
     let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
 
-    let _ = tx.send(LogLine::info(format!(
-        "[Restore] Reconstruyendo contenedor {}...",
-        container_name
-    )));
+    let message = if should_build {
+        format!(
+            "[Restore] Reconstruyendo y creando contenedor {}...",
+            container_name
+        )
+    } else {
+        format!("[Restore] Recreando contenedor {}...", container_name)
+    };
+    let _ = tx.send(LogLine::info(message));
 
     let bridge = docker_deploy::make_log_bridge(tx);
     let docker_dir = Path::new(DOCKER_DIR).join("bin").join(php_dir);
     runner.run_ps_sync(
         &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" create --build"
+            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            if should_build { "--build " } else { "" }
         ),
         Some(&docker_dir),
         Some(&bridge),
-    )?;
-    let bridge2 = docker_deploy::make_log_bridge(tx);
-    runner.run_ps_sync(
-        &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d"
-        ),
-        Some(&docker_dir),
-        Some(&bridge2),
     )?;
 
     Ok(())

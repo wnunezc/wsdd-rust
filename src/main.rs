@@ -31,6 +31,7 @@ fn main() -> Result<()> {
     handlers::requirements::ensure_admin()?;
 
     resources::init()?;
+    let job_runtime = app::create_job_runtime()?;
 
     // Initialize i18n with user's language preference (or default)
     let settings = match handlers::setting::AppSettings::load() {
@@ -61,7 +62,13 @@ fn main() -> Result<()> {
     eframe::run_native(
         "WSDD",
         options,
-        Box::new(move |cc| Ok(Box::new(app::WsddApp::new(cc, settings.clone())))),
+        Box::new(move |cc| {
+            Ok(Box::new(app::WsddApp::new(
+                cc,
+                settings.clone(),
+                job_runtime,
+            )))
+        }),
     )
     .map_err(|e| anyhow::anyhow!("UI error: {e}"))
 }
