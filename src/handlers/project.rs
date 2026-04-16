@@ -102,6 +102,11 @@ pub fn delete(name: &str) -> Result<(), InfraError> {
     Ok(())
 }
 
+/// Retorna la ruta completa al archivo JSON persistido para un proyecto.
+pub fn file_path(name: &str) -> PathBuf {
+    project_path(name)
+}
+
 // ─── Helpers privados ─────────────────────────────────────────────────────────
 
 fn project_path(name: &str) -> PathBuf {

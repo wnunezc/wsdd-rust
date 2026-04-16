@@ -45,8 +45,7 @@ L'application cree et gere le repertoire `C:\WSDD-Environment\`:
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — Scripts PowerShell d'automatisation
-├── Docker-Structure\   — docker-compose et images PHP
-├── certs\              — Certificats SSL par domaine
+├── Docker-Structure\   — docker-compose, images PHP et assets SSL
 └── wsdd-config.json    — Configuration de l'application
 ```
 
@@ -78,7 +77,7 @@ C:\WSDD-Environment\
 
 ## Informations techniques
 
-- **Version**: 1.0.0-rc.14 (edition Rust)
+- **Version**: 1.0.0-rc.15 (edition Rust)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: JSON dans `C:\WSDD-Environment\wsdd-config.json`

@@ -20,7 +20,7 @@
 //!
 //! Todas las funciones son sincronicas; llamar desde `std::thread::spawn`.
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use crate::errors::InfraError;
 use crate::handlers::docker;
@@ -37,6 +37,41 @@ use crate::models::project::{PhpVersion, Project};
 
 const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
 const PERSONAL_PROJECTS_MARKER: &str = "### PERSONAL PROJECTS ###";
+
+#[derive(Debug, Clone)]
+struct FileSnapshot {
+    path: PathBuf,
+    contents: Option<Vec<u8>>,
+}
+
+impl FileSnapshot {
+    fn capture(path: impl Into<PathBuf>) -> Result<Self, InfraError> {
+        let path = path.into();
+        let contents = if path.exists() {
+            Some(std::fs::read(&path).map_err(InfraError::Io)?)
+        } else {
+            None
+        };
+        Ok(Self { path, contents })
+    }
+
+    fn restore(&self) -> Result<(), InfraError> {
+        match &self.contents {
+            Some(contents) => {
+                if let Some(parent) = self.path.parent() {
+                    std::fs::create_dir_all(parent).map_err(InfraError::Io)?;
+                }
+                std::fs::write(&self.path, contents).map_err(InfraError::Io)?;
+            }
+            None => {
+                if self.path.exists() {
+                    std::fs::remove_file(&self.path).map_err(InfraError::Io)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
 fn php_bin_dir(php_dir_name: &str) -> String {
     format!(r"C:\WSDD-Environment\Docker-Structure\bin\{}", php_dir_name)
@@ -70,6 +105,61 @@ fn webserver_yml_path(php_dir_name: &str, compose_tag: &str) -> String {
     )
 }
 
+fn project_file_path(project_name: &str) -> PathBuf {
+    project_handler::file_path(project_name)
+}
+
+fn volume_name(project: &Project) -> String {
+    format!("{}-{}", project.php_version.compose_tag(), project.domain)
+}
+
+fn php_container_name(project: &Project) -> String {
+    format!("WSDD-Web-Server-{}", project.php_version.container_tag())
+}
+
+fn ssl_file_paths(project: &Project) -> [PathBuf; 2] {
+    [
+        Path::new(SSL_DIR).join(format!("{}.crt", project.domain)),
+        Path::new(SSL_DIR).join(format!("{}.key", project.domain)),
+    ]
+}
+
+fn restore_snapshot_best_effort(snapshot: &FileSnapshot, label: &str, tx: &LogSender) {
+    if let Err(e) = snapshot.restore() {
+        let _ = tx.send(LogLine::warn(format!(
+            "[Rollback] No se pudo restaurar {label}: {e}"
+        )));
+    }
+}
+
+fn restore_hosts_snapshot_best_effort(snapshot: &[u8], tx: &LogSender) {
+    if let Err(e) = hosts::restore_snapshot(snapshot, Some(tx)) {
+        let _ = tx.send(LogLine::warn(format!(
+            "[Rollback] No se pudo restaurar hosts: {e}"
+        )));
+    }
+}
+
+fn project_volume_exists(project: &Project, runner: &PsRunner) -> Result<bool, InfraError> {
+    let volume_name = volume_name(project);
+    let out = runner.run_direct_sync(
+        "docker",
+        &["volume", "ls", "--format", "{{.Name}}"],
+        None,
+        None,
+    )?;
+    Ok(out
+        .text
+        .lines()
+        .map(str::trim)
+        .any(|line| line == volume_name))
+}
+
+fn php_container_exists(project: &Project, runner: &PsRunner) -> Result<bool, InfraError> {
+    docker::php_container_exists_sync(runner, project.php_version.container_tag())
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
+}
+
 /// Despliega un proyecto WSDD completo.
 ///
 /// Flujo:
@@ -92,25 +182,84 @@ pub fn deploy_project(
         project.name
     )));
 
-    project_handler::save(project)?;
-    let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
+    let project_snapshot = FileSnapshot::capture(project_file_path(&project.name))?;
+    let options_snapshot = FileSnapshot::capture(yml::options_path(
+        project.php_version.dir_name(),
+        project.php_version.compose_tag(),
+    ))?;
+    let vhost_snapshot =
+        FileSnapshot::capture(active_vhost_conf_path(project.php_version.dir_name()))?;
+    let ssl_snapshots = ssl_file_paths(project)
+        .into_iter()
+        .map(FileSnapshot::capture)
+        .collect::<Result<Vec<_>, _>>()?;
+    let hosts_snapshot = hosts::capture_snapshot()
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
+    let volume_existed_before = project_volume_exists(project, runner)?;
+    let container_existed_before = php_container_exists(project, runner)?;
+    let mut volume_created = false;
+    let mut container_rebuilt = false;
 
-    step_create_volume(project, runner, tx)?;
-    step_update_options_yml(project, tx)?;
+    let result = (|| -> Result<(), InfraError> {
+        project_handler::save(project)?;
+        let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
 
-    docker_deploy::sync_php_version_resources_sync(settings, &project.php_version)?;
-    let _ = tx.send(LogLine::success(
-        "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
-    ));
+        volume_created = step_create_volume(project, runner, tx)?;
+        step_update_options_yml(project, tx)?;
 
-    step_update_vhost(project, tx)?;
-    step_rebuild_php_container(project, runner, tx)?;
+        docker_deploy::sync_php_version_resources_sync(settings, &project.php_version)?;
+        let _ = tx.send(LogLine::success(
+            "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
+        ));
 
-    if project.ssl {
-        step_setup_ssl(project, runner, tx)?;
+        step_update_vhost(project, tx)?;
+        step_sync_php_container(project, runner, tx, true)?;
+        container_rebuilt = true;
+
+        if project.ssl {
+            step_setup_ssl(project, runner, tx)?;
+        }
+
+        step_update_hosts(project, tx)?;
+        Ok(())
+    })();
+
+    if let Err(err) = result {
+        let _ = tx.send(LogLine::warn(
+            "[Rollback] Fallo detectado. Restaurando estado previo del deploy...",
+        ));
+        restore_snapshot_best_effort(&project_snapshot, "project.json", tx);
+        restore_snapshot_best_effort(&options_snapshot, "options.yml", tx);
+        restore_snapshot_best_effort(&vhost_snapshot, "vhost.conf", tx);
+        for snapshot in &ssl_snapshots {
+            restore_snapshot_best_effort(snapshot, "certificados SSL", tx);
+        }
+        restore_hosts_snapshot_best_effort(&hosts_snapshot, tx);
+
+        if container_rebuilt {
+            if container_existed_before {
+                if let Err(e) = step_sync_php_container(project, runner, tx, false) {
+                    let _ = tx.send(LogLine::warn(format!(
+                        "[Rollback] No se pudo restaurar el contenedor PHP: {e}"
+                    )));
+                }
+            } else if let Err(e) = step_remove_php_container(project, runner, tx) {
+                let _ = tx.send(LogLine::warn(format!(
+                    "[Rollback] No se pudo limpiar el contenedor PHP nuevo: {e}"
+                )));
+            }
+        }
+
+        if volume_created && !volume_existed_before {
+            if let Err(e) = step_remove_volume(project, runner, tx) {
+                let _ = tx.send(LogLine::warn(format!(
+                    "[Rollback] No se pudo limpiar el volumen nuevo: {e}"
+                )));
+            }
+        }
+
+        return Err(err);
     }
-
-    step_update_hosts(project, tx)?;
 
     let _ = tx.send(LogLine::success(format!(
         "[Deploy] '{}' desplegado correctamente ✓",
@@ -125,10 +274,10 @@ pub fn deploy_project(
 /// 1. Elimina el dominio de `options.phpXX.yml`.
 /// 2. Regenera el vhost activo excluyendo el proyecto objetivo.
 /// 3. Reconstruye el contenedor PHP.
-/// 4. Elimina el volumen Docker.
-/// 5. Borra el proyecto del disco.
-///
-/// Los dominios no se eliminan de `hosts` (limitacion conocida).
+/// 4. Elimina el dominio del archivo `hosts`.
+/// 5. Elimina los certificados SSL del proyecto.
+/// 6. Elimina el volumen Docker.
+/// 7. Borra el proyecto del disco.
 pub fn remove_project(
     project: &Project,
     runner: &PsRunner,
@@ -139,11 +288,73 @@ pub fn remove_project(
         project.name
     )));
 
-    step_remove_options_yml(project, tx);
-    step_remove_vhost(project, tx);
-    step_rebuild_php_container(project, runner, tx)?;
-    step_remove_volume(project, runner, tx);
-    project_handler::delete(&project.name)?;
+    let project_snapshot = FileSnapshot::capture(project_file_path(&project.name))?;
+    let options_snapshot = FileSnapshot::capture(yml::options_path(
+        project.php_version.dir_name(),
+        project.php_version.compose_tag(),
+    ))?;
+    let vhost_snapshot =
+        FileSnapshot::capture(active_vhost_conf_path(project.php_version.dir_name()))?;
+    let ssl_snapshots = ssl_file_paths(project)
+        .into_iter()
+        .map(FileSnapshot::capture)
+        .collect::<Result<Vec<_>, _>>()?;
+    let hosts_snapshot = hosts::capture_snapshot()
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
+    let container_existed_before = php_container_exists(project, runner)?;
+    let mut container_rebuilt = false;
+    let mut volume_removed = false;
+
+    let result = (|| -> Result<(), InfraError> {
+        step_remove_options_yml(project, tx)?;
+        step_remove_vhost(project, tx)?;
+
+        if container_existed_before {
+            step_sync_php_container(project, runner, tx, false)?;
+            container_rebuilt = true;
+        } else {
+            let _ = tx.send(LogLine::info(
+                "[Remove] El contenedor PHP no existe; se omite recreate",
+            ));
+        }
+
+        step_remove_hosts(project, tx)?;
+        step_remove_ssl(project, tx)?;
+        volume_removed = step_remove_volume(project, runner, tx)?;
+        project_handler::delete(&project.name)?;
+        Ok(())
+    })();
+
+    if let Err(err) = result {
+        let _ = tx.send(LogLine::warn(
+            "[Rollback] Fallo detectado. Restaurando estado previo del remove...",
+        ));
+        restore_snapshot_best_effort(&project_snapshot, "project.json", tx);
+        restore_snapshot_best_effort(&options_snapshot, "options.yml", tx);
+        restore_snapshot_best_effort(&vhost_snapshot, "vhost.conf", tx);
+        for snapshot in &ssl_snapshots {
+            restore_snapshot_best_effort(snapshot, "certificados SSL", tx);
+        }
+        restore_hosts_snapshot_best_effort(&hosts_snapshot, tx);
+
+        if container_rebuilt {
+            if let Err(e) = step_sync_php_container(project, runner, tx, false) {
+                let _ = tx.send(LogLine::warn(format!(
+                    "[Rollback] No se pudo restaurar el contenedor PHP: {e}"
+                )));
+            }
+        }
+
+        if volume_removed {
+            if let Err(e) = step_create_volume(project, runner, tx) {
+                let _ = tx.send(LogLine::warn(format!(
+                    "[Rollback] No se pudo recrear el volumen removido: {e}"
+                )));
+            }
+        }
+
+        return Err(err);
+    }
 
     let _ = tx.send(LogLine::success(format!(
         "[Remove] '{}' eliminado ✓",
@@ -156,10 +367,17 @@ fn step_create_volume(
     project: &Project,
     runner: &PsRunner,
     tx: &LogSender,
-) -> Result<(), InfraError> {
-    let compose_tag = project.php_version.compose_tag();
-    let volume_name = format!("{}-{}", compose_tag, project.domain);
+) -> Result<bool, InfraError> {
+    let volume_name = volume_name(project);
     let device_opt = format!("device={}", project.work_path);
+
+    if project_volume_exists(project, runner)? {
+        let _ = tx.send(LogLine::success(format!(
+            "[Deploy] Volumen '{}' ya existe; se reutiliza ✓",
+            volume_name
+        )));
+        return Ok(false);
+    }
 
     let _ = tx.send(LogLine::info(format!(
         "[Deploy] Creando volumen Docker '{}'...",
@@ -190,7 +408,7 @@ fn step_create_volume(
         "[Deploy] Volumen '{}' creado ✓",
         volume_name
     )));
-    Ok(())
+    Ok(true)
 }
 
 fn step_update_options_yml(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
@@ -212,18 +430,17 @@ fn step_update_options_yml(project: &Project, tx: &LogSender) -> Result<(), Infr
 /// Solo fuerza `--build` cuando el contenedor PHP aún no existe.
 /// En altas/bajas normales de proyectos basta recrear el contenedor para que
 /// Apache recoja `options.phpXX.yml` y `vhost.conf`, evitando builds basura.
-fn step_rebuild_php_container(
+fn step_sync_php_container(
     project: &Project,
     runner: &PsRunner,
     tx: &LogSender,
+    build_on_missing: bool,
 ) -> Result<(), InfraError> {
-    let container_name = format!("WSDD-Web-Server-{}", project.php_version.container_tag());
+    let container_name = php_container_name(project);
     let php_dir_name = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
-    let should_build =
-        docker::php_container_exists_sync(runner, project.php_version.container_tag())
-            .map(|exists| !exists)
-            .unwrap_or(true);
+    let container_exists = php_container_exists(project, runner)?;
+    let should_build = build_on_missing && !container_exists;
 
     let bin_dir_str = php_bin_dir(php_dir_name);
     let bin_dir = Path::new(&bin_dir_str);
@@ -231,16 +448,16 @@ fn step_rebuild_php_container(
     let options_yml = yml::options_path(php_dir_name, compose_tag);
 
     let _ = tx.send(LogLine::info(format!(
-        "[Deploy] Deteniendo {}...",
+        "[Runtime] Deteniendo {}...",
         container_name
     )));
     let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
     let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
 
     let _ = tx.send(LogLine::info(if should_build {
-        "[Deploy] Construyendo y creando contenedor PHP (puede tardar)..."
+        "[Runtime] Construyendo y creando contenedor PHP (puede tardar)..."
     } else {
-        "[Deploy] Recreando contenedor PHP..."
+        "[Runtime] Recreando contenedor PHP..."
     }));
     let bridge = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
@@ -253,9 +470,24 @@ fn step_rebuild_php_container(
     )?;
 
     let _ = tx.send(LogLine::success(format!(
-        "[Deploy] {} reconstruido ✓",
+        "[Runtime] {} sincronizado ✓",
         container_name
     )));
+    Ok(())
+}
+
+fn step_remove_php_container(
+    project: &Project,
+    runner: &PsRunner,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let container_name = php_container_name(project);
+    let _ = tx.send(LogLine::info(format!(
+        "[Rollback] Eliminando contenedor PHP '{}'...",
+        container_name
+    )));
+    let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
+    let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
     Ok(())
 }
 
@@ -309,67 +541,72 @@ fn step_update_hosts(project: &Project, tx: &LogSender) -> Result<(), InfraError
         .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))
 }
 
-fn step_remove_options_yml(project: &Project, tx: &LogSender) {
+fn step_remove_options_yml(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
     let options_file = yml::options_path(
         project.php_version.dir_name(),
         project.php_version.compose_tag(),
     );
-    match yml::remove_project_from_options_yml(
+    yml::remove_project_from_options_yml(
         &options_file,
         &project.domain,
         project.php_version.compose_tag(),
-    ) {
-        Ok(()) => {
-            let _ = tx.send(LogLine::success("[Remove] options.yml actualizado ✓"));
-        }
-        Err(e) => {
-            let _ = tx.send(LogLine::warn(format!(
-                "[Remove] Advertencia options.yml: {e}"
-            )));
-        }
-    }
+    )?;
+    let _ = tx.send(LogLine::success("[Remove] options.yml actualizado ✓"));
+    Ok(())
 }
 
-fn step_remove_volume(project: &Project, runner: &PsRunner, tx: &LogSender) {
-    let volume_name = format!("{}-{}", project.php_version.compose_tag(), project.domain);
+fn step_remove_volume(
+    project: &Project,
+    runner: &PsRunner,
+    tx: &LogSender,
+) -> Result<bool, InfraError> {
+    let volume_name = volume_name(project);
+    if !project_volume_exists(project, runner)? {
+        let _ = tx.send(LogLine::info(format!(
+            "[Remove] El volumen '{}' ya no existe.",
+            volume_name
+        )));
+        return Ok(false);
+    }
+
     let _ = tx.send(LogLine::info(format!(
         "[Remove] Eliminando volumen '{}'...",
         volume_name
     )));
-    match runner.run_direct_sync("docker", &["volume", "rm", &volume_name], None, None) {
-        Ok(_) => {
-            let _ = tx.send(LogLine::success(format!(
-                "[Remove] Volumen '{}' eliminado ✓",
-                volume_name
-            )));
-        }
-        Err(e) => {
-            let _ = tx.send(LogLine::warn(format!("[Remove] Advertencia volumen: {e}")));
-        }
-    }
+    runner.run_direct_sync("docker", &["volume", "rm", &volume_name], None, None)?;
+    let _ = tx.send(LogLine::success(format!(
+        "[Remove] Volumen '{}' eliminado ✓",
+        volume_name
+    )));
+    Ok(true)
 }
 
-fn step_remove_vhost(project: &Project, tx: &LogSender) {
-    let projects = match php_projects(&project.php_version, Some(&project.name)) {
-        Ok(projects) => projects,
-        Err(e) => {
-            let _ = tx.send(LogLine::warn(format!(
-                "[Remove] Advertencia vhost.conf: {e}"
-            )));
-            return;
-        }
-    };
+fn step_remove_vhost(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
+    let projects = php_projects(&project.php_version, Some(&project.name))?;
+    sync_active_vhost(project.php_version.dir_name(), &projects, tx)?;
+    let _ = tx.send(LogLine::success("[Remove] vhost activo regenerado ✓"));
+    Ok(())
+}
 
-    match sync_active_vhost(project.php_version.dir_name(), &projects, tx) {
-        Ok(()) => {
-            let _ = tx.send(LogLine::success("[Remove] vhost activo regenerado ✓"));
+fn step_remove_hosts(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
+    hosts::remove_domains(&[project.domain.as_str()], tx)
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
+    let _ = tx.send(LogLine::success("[Remove] Archivo hosts actualizado ✓"));
+    Ok(())
+}
+
+fn step_remove_ssl(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
+    for path in ssl_file_paths(project) {
+        if !path.exists() {
+            continue;
         }
-        Err(e) => {
-            let _ = tx.send(LogLine::warn(format!(
-                "[Remove] Advertencia vhost.conf: {e}"
-            )));
-        }
+        std::fs::remove_file(&path).map_err(InfraError::Io)?;
+        let _ = tx.send(LogLine::success(format!(
+            "[Remove] Certificado removido ✓ {}",
+            path.display()
+        )));
     }
+    Ok(())
 }
 
 fn php_projects(

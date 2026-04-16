@@ -89,8 +89,7 @@ Software que debe estar instalado previamente:
 Ubicacion de datos de WSDD:
   C:\\WSDD-Environment\\
   ├── PS-Script\\         Scripts de automatizacion PowerShell
-  ├── Docker-Structure\\  Configuracion de contenedores y proyectos
-  ├── certs\\            Certificados SSL por dominio
+  ├── Docker-Structure\\  Configuracion de contenedores, proyectos y SSL
   └── wsdd-config.json  Configuracion de la aplicacion
 ",
     },
@@ -260,14 +259,16 @@ FLUJO DE DEPLOY:
 FLUJO DE REMOVE:
   1. handlers::yml::remove_project_from_options_yml()
                                   → elimina el proyecto del options.yml
-  2. Reconstruye el contenedor PHP sin el proyecto
-  3. docker volume rm             → elimina el volumen del proyecto
-  4. Elimina el bloque vhost.conf del proyecto
-  5. handlers::project::delete()  → borra el JSON del proyecto
+  2. Elimina el bloque vhost.conf del proyecto
+  3. Reconstruye el contenedor PHP sin el proyecto
+  4. handlers::hosts::remove_domains() → elimina el dominio del archivo hosts
+  5. Elimina los archivos SSL del proyecto en Docker-Structure/ssl
+  6. docker volume rm             → elimina el volumen del proyecto
+  7. handlers::project::delete()  → borra el JSON del proyecto
 
 IMPORTANTE:
   • Remove NO elimina el codigo fuente del proyecto.
-  • Remove NO revierte las entradas de hosts (Docker/mkcert las gestiona).
+  • Remove SI revierte las entradas de hosts y los SSL gestionados por WSDD.
   • El dominio puede tardar unos segundos en dejar de resolver tras el Remove.
 ",
     },
@@ -373,9 +374,9 @@ CONFIANZA EN EL NAVEGADOR:
   3. Reiniciar el navegador.
 
 UBICACION DE CERTIFICADOS:
-  C:\\WSDD-Environment\\certs\\{dominio}\\
-  ├── cert.pem  — Certificado
-  └── key.pem   — Clave privada
+  C:\\WSDD-Environment\\Docker-Structure\\ssl\\
+  ├── {dominio}.crt  — Certificado
+  └── {dominio}.key  — Clave privada
 ",
     },
     Section {
@@ -493,12 +494,11 @@ C:\\WSDD-Environment\\
 │   ├── bin\\
 │   │   └── php{X.X}\\
 │   │       └── options.php{XX}.yml   Configuracion de contenedores PHP
+│   ├── ssl\\
+│   │   ├── {dominio}.crt            Certificado SSL del dominio
+│   │   └── {dominio}.key            Clave privada SSL
 │   └── projects\\
 │       └── {nombre}.json            Datos de cada proyecto registrado
-└── certs\\
-    └── {dominio}\\
-        ├── cert.pem              Certificado SSL del dominio
-        └── key.pem               Clave privada SSL
 
 %USERPROFILE%\\.wslconfig         Configuracion de recursos WSL2
 
@@ -565,8 +565,7 @@ Software that must be pre-installed:
 WSDD data location:
   C:\\WSDD-Environment\\
   ├── PS-Script\\         PowerShell automation scripts
-  ├── Docker-Structure\\  Container and project configuration
-  ├── certs\\            SSL certificates per domain
+  ├── Docker-Structure\\  Container, project, and SSL configuration
   └── wsdd-config.json  Application settings
 ",
     },
@@ -736,14 +735,16 @@ DEPLOY FLOW:
 REMOVE FLOW:
   1. handlers::yml::remove_project_from_options_yml()
                                   → removes project from options.yml
-  2. Rebuilds PHP container without the project
-  3. docker volume rm             → removes project volume
-  4. Removes project vhost.conf block
-  5. handlers::project::delete()  → deletes project JSON
+  2. Removes project vhost.conf block
+  3. Rebuilds PHP container without the project
+  4. handlers::hosts::remove_domains() → removes project domain from hosts
+  5. Removes project SSL files from Docker-Structure/ssl
+  6. docker volume rm             → removes project volume
+  7. handlers::project::delete()  → deletes project JSON
 
 IMPORTANT:
   • Remove does NOT delete project source code.
-  • Remove does NOT revert hosts entries (Docker/mkcert manages them).
+  • Remove reverts hosts entries and WSDD-managed SSL files for that domain.
   • Domain may take a few seconds to stop resolving after Remove.
 ",
     },
@@ -849,9 +850,9 @@ BROWSER TRUST:
   3. Restart browser.
 
 CERTIFICATE LOCATION:
-  C:\\WSDD-Environment\\certs\\{domain}\\
-  ├── cert.pem  — Certificate
-  └── key.pem   — Private key
+  C:\\WSDD-Environment\\Docker-Structure\\ssl\\
+  ├── {domain}.crt  — Certificate
+  └── {domain}.key  — Private key
 ",
     },
     Section {
@@ -969,12 +970,11 @@ C:\\WSDD-Environment\\
 │   ├── bin\\
 │   │   └── php{X.X}\\
 │   │       └── options.php{XX}.yml   PHP container configuration
+│   ├── ssl\\
+│   │   ├── {domain}.crt            Domain SSL certificate
+│   │   └── {domain}.key            SSL private key
 │   └── projects\\
 │       └── {name}.json            Data for each registered project
-└── certs\\
-    └── {domain}\\
-        ├── cert.pem              Domain SSL certificate
-        └── key.pem               SSL private key
 
 %USERPROFILE%\\.wslconfig         WSL2 resource configuration
 
@@ -1042,8 +1042,7 @@ Logiciels a installer au prealable:
 Emplacement des donnees WSDD:
   C:\\WSDD-Environment\\
   ├── PS-Script\\         Scripts d'automatisation PowerShell
-  ├── Docker-Structure\\  Configuration des conteneurs et projets
-  ├── certs\\            Certificats SSL par domaine
+  ├── Docker-Structure\\  Configuration des conteneurs, projets et SSL
   └── wsdd-config.json  Parametres de l'application
 ",
     },
@@ -1182,13 +1181,16 @@ FLUX DEPLOY:
 
 FLUX REMOVE:
   1. Supprime le projet du options.yml
-  2. Reconstruit le conteneur PHP sans le projet
-  3. docker volume rm             → supprime le volume du projet
-  4. Supprime le bloc vhost.conf du projet
-  5. Supprime le JSON du projet
+  2. Supprime le bloc vhost.conf du projet
+  3. Reconstruit le conteneur PHP sans le projet
+  4. Retire le domaine du fichier hosts
+  5. Supprime les fichiers SSL du projet dans Docker-Structure/ssl
+  6. docker volume rm             → supprime le volume du projet
+  7. Supprime le JSON du projet
 
 IMPORTANT:
   • Remove NE supprime PAS le code source du projet.
+  • Remove revert aussi les entrees hosts et les SSL geres par WSDD.
   • Le domaine peut mettre quelques secondes a ne plus resoudre.
 ",
     },
@@ -1270,9 +1272,9 @@ RENOUVELER UN CERTIFICAT:
   Le certificat est regenere automatiquement.
 
 EMPLACEMENT DES CERTIFICATS:
-  C:\\WSDD-Environment\\certs\\{domaine}\\
-  ├── cert.pem  — Certificat
-  └── key.pem   — Cle privee
+  C:\\WSDD-Environment\\Docker-Structure\\ssl\\
+  ├── {domaine}.crt  — Certificat
+  └── {domaine}.key  — Cle privee
 ",
     },
     Section {
@@ -1347,12 +1349,11 @@ C:\\WSDD-Environment\\
 │   ├── bin\\
 │   │   └── php{X.X}\\
 │   │       └── options.php{XX}.yml   Configuration des conteneurs PHP
+│   ├── ssl\\
+│   │   ├── {domaine}.crt            Certificat SSL du domaine
+│   │   └── {domaine}.key            Cle privee SSL
 │   └── projects\\
 │       └── {nom}.json            Donnees de chaque projet enregistre
-└── certs\\
-    └── {domaine}\\
-        ├── cert.pem              Certificat SSL du domaine
-        └── key.pem               Cle privee SSL
 
 %USERPROFILE%\\.wslconfig         Configuration des ressources WSL2
 
@@ -1420,8 +1421,7 @@ WSDD 自动安装的软件:
 WSDD 数据位置:
   C:\\WSDD-Environment\\
   ├── PS-Script\\         PowerShell 自动化脚本
-  ├── Docker-Structure\\  容器和项目配置
-  ├── certs\\            每个域名的 SSL 证书
+  ├── Docker-Structure\\  容器、项目和 SSL 配置
   └── wsdd-config.json  应用程序设置
 ",
     },
@@ -1646,9 +1646,9 @@ WSDD 使用 mkcert 生成本地受信任的 SSL 证书。
   证书自动重新生成。
 
 证书位置:
-  C:\\WSDD-Environment\\certs\\{domain}\\
-  ├── cert.pem  — 证书
-  └── key.pem   — 私钥
+  C:\\WSDD-Environment\\Docker-Structure\\ssl\\
+  ├── {domain}.crt  — 证书
+  └── {domain}.key  — 私钥
 ",
     },
     Section {
@@ -1725,10 +1725,9 @@ C:\\WSDD-Environment\\
 │   │       └── options.php{XX}.yml   PHP 容器配置
 │   └── projects\\
 │       └── {name}.json            每个注册项目的数据
-└── certs\\
-    └── {domain}\\
-        ├── cert.pem              域名 SSL 证书
-        └── key.pem               SSL 私钥
+│   ├── ssl\\
+│   │   ├── {domain}.crt          域名 SSL 证书
+│   │   └── {domain}.key          SSL 私钥
 
 %USERPROFILE%\\.wslconfig         WSL2 资源配置
 

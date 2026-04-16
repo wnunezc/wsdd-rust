@@ -1,6 +1,6 @@
 [package]
 name = "wsdd-launcher"
-version = "1.0.0-rc.14"
+version = "1.0.0-rc.15"
 edition = "2021"
 description = "Launcher and updater for WebStack Deployer for Docker"
 authors = ["Walter Nunez / Icaros Net S.A"]

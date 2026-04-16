@@ -54,7 +54,7 @@ salvo nueva instruccion explicita del usuario.
 | `WP-02` | Alto | Cerrado por confirmacion explicita del usuario en `rc.12` | Opcion `B` aprobada |
 | `WP-03` | Alto | Cerrado por confirmacion explicita del usuario en `rc.13` | Opcion `A` endurecida aprobada |
 | `WP-04` | Alto | Cerrado por confirmacion explicita del usuario en `rc.14` | Opcion `B` aprobada |
-| `WP-05` | Alto | Siguiente paquete prioritario tras cierre de `WP-04` | Pendiente |
+| `WP-05` | Alto | Cerrado por confirmacion explicita del usuario en `rc.15` | Opcion `B` acotada aprobada |
 | `WP-06` | Medio | Pendiente de decision | Pendiente |
 | `WP-07` | Medio | Pendiente de decision | Pendiente |
 | `WP-08` | Medio | Pendiente de decision | Pendiente |
@@ -183,10 +183,14 @@ salvo nueva instruccion explicita del usuario.
 
 - Prioridad: Alto
 - Estado actual:
-  - siguiente paquete prioritario tras el cierre de `WP-04` en `rc.14`
+  - opcion `B` acotada aprobada por el usuario
+  - implementado en `rc.15`
+  - validado manualmente por el usuario
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - deploy secuencial con rollback limitado
   - remove con limitacion conocida en `hosts`
+  - rutas SSL desalineadas entre README/help, backup/restore y deploy real
 - Objetivo:
   - reducir estados parciales y dejar operaciones repetibles
 - Opciones a elegir:
@@ -196,10 +200,12 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `B` acotada para este paquete
 - Criterio de cierre:
   - deploy/remove soportan reintentos
   - fallos dejan diagnostico y recuperacion clara
+  - ruta SSL canonica queda en `C:\WSDD-Environment\Docker-Structure\ssl`
+  - documentacion publica y ayuda interna quedan alineadas al comportamiento real
 
 ### `WP-06` Configuracion, paths y supuestos de entorno
 

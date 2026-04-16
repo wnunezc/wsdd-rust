@@ -46,8 +46,7 @@ La aplicacion crea y gestiona el directorio `C:\WSDD-Environment\`:
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — Scripts PowerShell de automatizacion
-├── Docker-Structure\   — docker-compose e imagenes PHP
-├── certs\              — Certificados SSL por dominio
+├── Docker-Structure\   — docker-compose, imagenes PHP y assets SSL
 ├── wsdd-config.json    — Configuracion de la aplicacion
 └── wsdd-secrets.json   — Secrets administrados para contenedores
 ```
@@ -78,7 +77,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0-rc.14 (Rust edition)
+- **Version**: 1.0.0-rc.15 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

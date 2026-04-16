@@ -54,11 +54,9 @@ pub fn add_project_to_options_yml(
 ) -> Result<(), InfraError> {
     let volume_name = format!("{php_compose_tag}-{project_ref}");
     let mut lines: Vec<String> = read_lines(path)?;
-
-    // ── 1. Idempotencia ────────────────────────────────────────────────────
-    if lines.iter().any(|l| l.contains(project_ref)) {
-        return Ok(());
-    }
+    let mount_line = format!("- {volume_name}:/var/www/html/{project_ref}");
+    let global_entry = format!("  {volume_name}:");
+    let mut changed = false;
 
     // ── 2. VIRTUAL_HOST ────────────────────────────────────────────────────
     let vh_idx = lines
@@ -82,7 +80,17 @@ pub fn add_project_to_options_yml(
         .unwrap_or("")
         .trim()
         .to_string();
-    lines[vh_idx] = format!("{indent}VIRTUAL_HOST: {current_hosts},{project_ref}");
+    let mut hosts: Vec<String> = current_hosts
+        .split(',')
+        .map(str::trim)
+        .filter(|host| !host.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+    if !hosts.iter().any(|host| host == project_ref) {
+        hosts.push(project_ref.to_string());
+        lines[vh_idx] = format!("{indent}VIRTUAL_HOST: {}", hosts.join(","));
+        changed = true;
+    }
 
     // ── 3. Volume mount en la sección volumes: del servicio ───────────────
     // Buscar `    volumes:` (sección del servicio, no la global al fondo)
@@ -104,10 +112,10 @@ pub fn add_project_to_options_yml(
     while insert_vol_at < lines.len() && lines[insert_vol_at].trim_start().starts_with('-') {
         insert_vol_at += 1;
     }
-    lines.insert(
-        insert_vol_at,
-        format!("      - {volume_name}:/var/www/html/{project_ref}"),
-    );
+    if !lines.iter().any(|l| l.trim() == mount_line) {
+        lines.insert(insert_vol_at, format!("      {mount_line}"));
+        changed = true;
+    }
 
     // ── 4. Declaración global de volumes ──────────────────────────────────
     // Buscar `volumes:` al nivel raíz (sin indentación)
@@ -115,24 +123,37 @@ pub fn add_project_to_options_yml(
         .iter()
         .position(|l| l.trim() == "volumes:" && !l.starts_with(' '))
     {
-        // La sección ya existe — insertar al final de sus entradas
-        let mut insert_at = global_idx + 1;
-        while insert_at < lines.len()
-            && (lines[insert_at].starts_with("  ") || lines[insert_at].trim().is_empty())
-        {
-            insert_at += 1;
+        if let Some(existing_idx) = lines.iter().position(|l| l.trim_end() == global_entry) {
+            if existing_idx + 1 >= lines.len() || lines[existing_idx + 1].trim() != "external: true"
+            {
+                lines.insert(existing_idx + 1, "    external: true".to_string());
+                changed = true;
+            }
+        } else {
+            let mut insert_at = global_idx + 1;
+            while insert_at < lines.len()
+                && (lines[insert_at].starts_with("  ") || lines[insert_at].trim().is_empty())
+            {
+                insert_at += 1;
+            }
+            lines.insert(insert_at, "    external: true".to_string());
+            lines.insert(insert_at, global_entry);
+            changed = true;
         }
-        lines.insert(insert_at, "    external: true".to_string());
-        lines.insert(insert_at, format!("  {volume_name}:"));
     } else {
         // No existe la sección global — agregarla al final
         lines.push(String::new());
         lines.push("volumes:".to_string());
-        lines.push(format!("  {volume_name}:"));
+        lines.push(global_entry);
         lines.push("    external: true".to_string());
+        changed = true;
     }
 
-    write_lines(path, &lines)
+    if changed {
+        write_lines(path, &lines)?;
+    }
+
+    Ok(())
 }
 
 // ─── Eliminar proyecto de options.yml ────────────────────────────────────────
@@ -154,11 +175,7 @@ pub fn remove_project_from_options_yml(
 ) -> Result<(), InfraError> {
     let volume_name = format!("{php_compose_tag}-{project_ref}");
     let mut lines: Vec<String> = read_lines(path)?;
-
-    // ── 1. Idempotencia ────────────────────────────────────────────────────
-    if !lines.iter().any(|l| l.contains(project_ref)) {
-        return Ok(());
-    }
+    let mount_line = format!("- {volume_name}:/var/www/html/{project_ref}");
 
     // ── 2. VIRTUAL_HOST — eliminar project_ref de la lista ────────────────
     if let Some(idx) = lines
@@ -184,7 +201,7 @@ pub fn remove_project_from_options_yml(
     }
 
     // ── 3. Volume mount del proyecto ──────────────────────────────────────
-    lines.retain(|l| !l.contains(&format!("{volume_name}:")));
+    lines.retain(|l| l.trim() != mount_line);
 
     // ── 4. Declaración global del volume (2 líneas: nombre + external) ────
     // Buscar `  volume_name:` (2 espacios = nivel global volumes)
@@ -302,5 +319,70 @@ services:
             !content.contains("php83-myapp.dock"),
             "volume mount eliminado"
         );
+        assert!(
+            !content.contains("external: true\n    external: true"),
+            "no debe duplicar external"
+        );
+    }
+
+    #[test]
+    fn add_project_repairs_partial_state() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_partial.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock,cron83.wsdd.dock,wm83.wsdd.dock,myapp.dock
+      VIRTUAL_PORT: 80
+    volumes:
+      - ./dev:/var/www/html/dev
+      - ./vhost:/etc/apache2/sites-enabled
+volumes:
+",
+        )
+        .unwrap();
+
+        add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert_eq!(
+            content.matches("myapp.dock").count(),
+            2,
+            "el dominio no debe duplicarse y debe existir en host + mount"
+        );
+        assert!(content.contains("php83-myapp.dock:/var/www/html/myapp.dock"));
+        assert!(content.contains("  php83-myapp.dock:"));
+        assert!(content.contains("    external: true"));
+    }
+
+    #[test]
+    fn remove_project_drops_external_line_for_removed_volume() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_remove_external.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock,myapp.dock
+    volumes:
+      - php83-myapp.dock:/var/www/html/myapp.dock
+volumes:
+  php83-myapp.dock:
+    external: true
+",
+        )
+        .unwrap();
+
+        remove_project_from_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(!content.contains("php83-myapp.dock:/var/www/html/myapp.dock"));
+        assert!(!content.contains("  php83-myapp.dock:"));
+        assert!(!content.contains("    external: true"));
     }
 }

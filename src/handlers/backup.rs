@@ -373,9 +373,20 @@ fn stage_project_certs(root: &Path, project: &Project) -> Result<(), InfraError>
         return Ok(());
     }
 
-    let cert_dir = ssl_domain_dir(&project.domain);
-    if cert_dir.exists() {
-        copy_dir_recursive(&cert_dir, &root.join(PROJECT_CERTS_DIR))?;
+    let (cert_file, key_file) = ssl_file_paths(&project.domain);
+    let dest_dir = root.join(PROJECT_CERTS_DIR);
+    let staged_cert = dest_dir.join(format!("{}.crt", project.domain));
+    let staged_key = dest_dir.join(format!("{}.key", project.domain));
+
+    if cert_file.exists() || key_file.exists() {
+        fs::create_dir_all(&dest_dir).map_err(InfraError::Io)?;
+    }
+
+    if cert_file.exists() {
+        fs::copy(&cert_file, &staged_cert).map_err(InfraError::Io)?;
+    }
+    if key_file.exists() {
+        fs::copy(&key_file, &staged_key).map_err(InfraError::Io)?;
     }
     Ok(())
 }
@@ -386,9 +397,32 @@ fn restore_project_certs(root: &Path, project: &Project) -> Result<(), InfraErro
     }
 
     let certs_stage = root.join(PROJECT_CERTS_DIR);
-    if certs_stage.exists() {
-        copy_dir_recursive(&certs_stage, &ssl_domain_dir(&project.domain))?;
+    if !certs_stage.exists() {
+        return Ok(());
     }
+
+    let (target_cert, target_key) = ssl_file_paths(&project.domain);
+    if let Some(parent) = target_cert.parent() {
+        fs::create_dir_all(parent).map_err(InfraError::Io)?;
+    }
+
+    let staged_cert = certs_stage.join(format!("{}.crt", project.domain));
+    let staged_key = certs_stage.join(format!("{}.key", project.domain));
+    let legacy_cert = certs_stage.join("cert.pem");
+    let legacy_key = certs_stage.join("key.pem");
+
+    if staged_cert.exists() {
+        fs::copy(staged_cert, &target_cert).map_err(InfraError::Io)?;
+    } else if legacy_cert.exists() {
+        fs::copy(legacy_cert, &target_cert).map_err(InfraError::Io)?;
+    }
+
+    if staged_key.exists() {
+        fs::copy(staged_key, &target_key).map_err(InfraError::Io)?;
+    } else if legacy_key.exists() {
+        fs::copy(legacy_key, &target_key).map_err(InfraError::Io)?;
+    }
+
     Ok(())
 }
 
@@ -827,8 +861,11 @@ fn vhost_template_path(project: &Project) -> PathBuf {
         .join("tpl.vhost.conf")
 }
 
-fn ssl_domain_dir(domain: &str) -> PathBuf {
-    Path::new(SSL_DIR).join(domain)
+fn ssl_file_paths(domain: &str) -> (PathBuf, PathBuf) {
+    (
+        Path::new(SSL_DIR).join(format!("{domain}.crt")),
+        Path::new(SSL_DIR).join(format!("{domain}.key")),
+    )
 }
 
 fn write_manifest(root: &Path, manifest: &BackupManifest) -> Result<(), InfraError> {

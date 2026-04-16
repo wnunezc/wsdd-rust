@@ -14,7 +14,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Release Candidate `1.0.0-rc.14`
+- **Current stage**: Release Candidate `1.0.0-rc.15`
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
@@ -58,8 +58,7 @@ The application creates and manages the `C:\WSDD-Environment\` directory:
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — PowerShell automation scripts
-├── Docker-Structure\   — docker-compose and PHP images
-├── certs\              — SSL certificates per domain
+├── Docker-Structure\   — docker-compose, PHP images, and SSL assets
 ├── wsdd-config.json    — Application settings
 └── wsdd-secrets.json   — Managed secrets for containers
 ```
@@ -90,7 +89,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 1.0.0-rc.14 (Rust edition)
+- **Version**: 1.0.0-rc.15 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

@@ -5,7 +5,7 @@
 | Version | Path | Status |
 |---|---|---|
 | C# reference | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | Archived reference implementation |
-| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.14`) |
+| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.15`) |
 
 The Rust codebase is now the active implementation of WSDD. The original C# WinForms project
 remains as a reference for historical behavior and edge cases.
@@ -76,4 +76,4 @@ implemented in the active Rust line:
 
 - Public documentation is centered on [README.md](README.md).
 - Release packaging currently targets a Windows MSI installer.
-- GitHub publication is performed from `clean-main` to avoid leaking unrelated local work from `main`.
+- GitHub publication is performed from `main` (formerly `clean-main`, renamed after cleanup).

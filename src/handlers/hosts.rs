@@ -141,6 +141,48 @@ pub fn update_host(extra_domains: Option<&[&str]>, tx: &LogSender) -> Result<()>
     Ok(())
 }
 
+/// Captura el contenido completo actual del archivo hosts para rollback.
+pub fn capture_snapshot() -> Result<Vec<u8>> {
+    fs::read(HOSTS_PATH).context("No se pudo capturar snapshot del archivo hosts")
+}
+
+/// Restaura un snapshot previo del archivo hosts.
+pub fn restore_snapshot(snapshot: &[u8], tx: Option<&LogSender>) -> Result<()> {
+    write_hosts_file(snapshot, tx)
+}
+
+/// Elimina dominios específicos del bloque WSDD del archivo hosts.
+pub fn remove_domains(domains_to_remove: &[&str], tx: &LogSender) -> Result<()> {
+    let _ = tx.send(LogLine::info("Verificando archivo hosts de Windows..."));
+
+    let content = fs::read_to_string(HOSTS_PATH).context("No se pudo leer el archivo hosts")?;
+    let updated = remove_domains_from_block(&content, domains_to_remove);
+
+    if updated.replace("\r\n", "\n") == content.replace("\r\n", "\n") {
+        let _ = tx.send(LogLine::info(
+            "No hubo cambios en hosts para los dominios solicitados.",
+        ));
+        return Ok(());
+    }
+
+    if let Err(e) = backup_hosts() {
+        let _ = tx.send(LogLine::warn(format!(
+            "Advertencia: no se pudo crear backup de hosts: {e:#}"
+        )));
+    }
+
+    let mut normalized = updated.replace('\n', "\r\n");
+    if !normalized.ends_with("\r\n") {
+        normalized.push_str("\r\n");
+    }
+
+    write_hosts_file(normalized.as_bytes(), Some(tx))?;
+    let _ = tx.send(LogLine::success(
+        "✓ Archivo hosts actualizado correctamente",
+    ));
+    Ok(())
+}
+
 /// Escribe el contenido al archivo hosts con verificación read-back.
 ///
 /// Estrategias:
@@ -443,4 +485,102 @@ fn remove_wsdd_block(content: &str) -> String {
         }
     }
     result
+}
+
+fn remove_domains_from_block(content: &str, domains_to_remove: &[&str]) -> String {
+    let targets: Vec<String> = domains_to_remove
+        .iter()
+        .map(|d| d.trim().to_string())
+        .collect();
+    if targets.is_empty() {
+        return content.to_string();
+    }
+
+    let lines: Vec<&str> = content.lines().collect();
+    let Some(start) = lines.iter().position(|l| l.trim() == WSDD_MARKER_START) else {
+        return content.to_string();
+    };
+    let end = lines[start + 1..]
+        .iter()
+        .position(|l| l.trim() == WSDD_MARKER_END)
+        .map(|i| start + 1 + i)
+        .unwrap_or(lines.len());
+
+    let remaining_entries: Vec<&str> = lines[start + 1..end]
+        .iter()
+        .copied()
+        .filter(|line| {
+            line.split_whitespace()
+                .last()
+                .map(|domain| {
+                    !targets
+                        .iter()
+                        .any(|target| target.eq_ignore_ascii_case(domain))
+                })
+                .unwrap_or(true)
+        })
+        .collect();
+
+    let mut rewritten = Vec::new();
+    rewritten.extend_from_slice(&lines[..start]);
+    if !remaining_entries.is_empty() {
+        rewritten.push(WSDD_MARKER_START);
+        rewritten.extend(remaining_entries);
+        if end < lines.len() && lines[end].trim() == WSDD_MARKER_END {
+            rewritten.push(WSDD_MARKER_END);
+            rewritten.extend_from_slice(&lines[end + 1..]);
+        } else {
+            rewritten.extend_from_slice(&lines[end..]);
+        }
+    } else {
+        let tail_start = if end < lines.len() && lines[end].trim() == WSDD_MARKER_END {
+            end + 1
+        } else {
+            end
+        };
+        rewritten.extend_from_slice(&lines[tail_start..]);
+    }
+
+    rewritten.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn remove_domains_from_block_keeps_other_wsdd_entries() {
+        let content = "\
+127.0.0.1 localhost
+# WSDD Developer Area Docker
+127.0.0.1 pma.wsdd.dock
+127.0.0.1 mysql.wsdd.dock
+127.0.0.1 alpha.dock
+127.0.0.1 beta.dock
+# WSDD End of Area
+";
+        let updated = remove_domains_from_block(content, &["alpha.dock"]);
+
+        assert!(updated.contains("pma.wsdd.dock"));
+        assert!(updated.contains("mysql.wsdd.dock"));
+        assert!(updated.contains("beta.dock"));
+        assert!(!updated.contains("alpha.dock"));
+        assert!(updated.contains(WSDD_MARKER_START));
+        assert!(updated.contains(WSDD_MARKER_END));
+    }
+
+    #[test]
+    fn remove_domains_from_block_removes_empty_wsdd_block() {
+        let content = "\
+# WSDD Developer Area Docker
+127.0.0.1 alpha.dock
+# WSDD End of Area
+127.0.0.1 localhost
+";
+        let updated = remove_domains_from_block(content, &["alpha.dock"]);
+
+        assert!(!updated.contains(WSDD_MARKER_START));
+        assert!(!updated.contains(WSDD_MARKER_END));
+        assert!(updated.contains("127.0.0.1 localhost"));
+    }
 }

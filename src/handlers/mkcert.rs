@@ -29,6 +29,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 use crate::handlers::log_types::{LogLine, LogSender};
 
 const DEFAULT_MKCERT_EXE: &str = r"C:\ProgramData\chocolatey\bin\mkcert.exe";
+const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
@@ -68,15 +69,14 @@ pub fn generate_ca() -> Result<()> {
 
 /// Genera un certificado SSL para el dominio dado.
 ///
-/// Los archivos `key.pem` y `cert.pem` se guardan en
-/// `C:\WSDD-Environment\certs\{domain}\`.
+/// Los archivos `{domain}.key` y `{domain}.crt` se guardan en
+/// `C:\WSDD-Environment\Docker-Structure\ssl\`.
 pub fn generate(domain: &str) -> Result<()> {
-    let output_dir = format!(r"C:\WSDD-Environment\certs\{domain}");
-    std::fs::create_dir_all(&output_dir)?;
+    std::fs::create_dir_all(SSL_DIR)?;
     let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
     let mut cmd = Command::new(mkcert_exe);
-    cmd.args(["-key-file", &format!("{output_dir}\\key.pem")])
-        .args(["-cert-file", &format!("{output_dir}\\cert.pem")])
+    cmd.args(["-key-file", &format!(r"{SSL_DIR}\{domain}.key")])
+        .args(["-cert-file", &format!(r"{SSL_DIR}\{domain}.crt")])
         .arg(domain);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);

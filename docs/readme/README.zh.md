@@ -45,8 +45,7 @@
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — PowerShell 自动化脚本
-├── Docker-Structure\   — docker-compose 和 PHP 镜像
-├── certs\              — 每个域名的 SSL 证书
+├── Docker-Structure\   — docker-compose、PHP 镜像和 SSL 资源
 └── wsdd-config.json    — 应用程序配置
 ```
 
@@ -78,7 +77,7 @@ C:\WSDD-Environment\
 
 ## 技术信息
 
-- **Version**: 1.0.0-rc.14 (Rust edition)
+- **Version**: 1.0.0-rc.15 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` 中的 JSON
