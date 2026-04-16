@@ -348,10 +348,36 @@ volumes:
         add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
 
         let content = std::fs::read_to_string(&path).unwrap();
+        let virtual_host_line = content
+            .lines()
+            .find(|line| line.trim_start().starts_with("VIRTUAL_HOST:"))
+            .unwrap();
         assert_eq!(
-            content.matches("myapp.dock").count(),
-            2,
-            "el dominio no debe duplicarse y debe existir en host + mount"
+            virtual_host_line
+                .split_once(':')
+                .map(|x| x.1)
+                .unwrap_or("")
+                .split(',')
+                .filter(|host| host.trim() == "myapp.dock")
+                .count(),
+            1,
+            "el dominio no debe duplicarse en VIRTUAL_HOST"
+        );
+        assert_eq!(
+            content
+                .lines()
+                .filter(|line| line.trim() == "- php83-myapp.dock:/var/www/html/myapp.dock")
+                .count(),
+            1,
+            "el mount del proyecto debe existir una sola vez"
+        );
+        assert_eq!(
+            content
+                .lines()
+                .filter(|line| line.trim() == "php83-myapp.dock:")
+                .count(),
+            1,
+            "la declaracion global del volume debe existir una sola vez"
         );
         assert!(content.contains("php83-myapp.dock:/var/www/html/myapp.dock"));
         assert!(content.contains("  php83-myapp.dock:"));
