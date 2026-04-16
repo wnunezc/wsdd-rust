@@ -55,7 +55,7 @@ salvo nueva instruccion explicita del usuario.
 | `WP-03` | Alto | Cerrado por confirmacion explicita del usuario en `rc.13` | Opcion `A` endurecida aprobada |
 | `WP-04` | Alto | Cerrado por confirmacion explicita del usuario en `rc.14` | Opcion `B` aprobada |
 | `WP-05` | Alto | Cerrado por confirmacion explicita del usuario en `rc.15` | Opcion `B` acotada aprobada |
-| `WP-06` | Medio | Integrado en `main`; en revision | Opcion `B` aprobada |
+| `WP-06` | Medio | Cerrado por confirmacion explicita del usuario | Opcion `B` aprobada |
 | `WP-07` | Medio | Pendiente de decision | Pendiente |
 | `WP-08` | Medio | Pendiente de decision | Pendiente |
 | `WP-09` | Medio | Pendiente de decision | Pendiente |
@@ -216,7 +216,8 @@ salvo nueva instruccion explicita del usuario.
   - integrado en `main` local/remoto mediante merge `ad13993`
   - MSI local generado: `target/wix/wsdd-1.0.0.15-x86_64.msi`
   - prueba local del usuario: no se detecto ruptura de caracteristicas existentes
-  - pendiente de revision/confirmacion explicita para marcar cierre
+  - validacion manual desde cero: despliegue de la aplicacion, 1 contenedor y 2 proyectos configurados sin problema
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - paths Windows y ubicaciones de trabajo hardcodeadas
 - Objetivo:
