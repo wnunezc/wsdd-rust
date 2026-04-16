@@ -13,28 +13,29 @@
 //
 // Contact: wnunez@lh-2.net
 // Equivalente a Handlers/HandlerHosts.cs
-// Modifica C:\Windows\System32\drivers\etc\hosts (requiere admin)
+// Modifica el archivo hosts de Windows (requiere admin)
 
+use crate::config::environment::{path_config, path_to_string};
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use anyhow::{Context, Result};
 use std::fs;
 
-const HOSTS_PATH: &str = r"C:\Windows\System32\drivers\etc\hosts";
 const WSDD_MARKER_START: &str = "# WSDD Developer Area Docker";
 const WSDD_MARKER_END: &str = "# WSDD End of Area";
 
 /// Crea un backup del archivo hosts antes de modificarlo.
 /// Requiere que `C:\WSDD-Environment\` exista (creado por resources::extract).
 fn backup_hosts() -> Result<()> {
-    let backup = r"C:\WSDD-Environment\hosts.backup";
-    fs::copy(HOSTS_PATH, backup).context("No se pudo crear backup de hosts")?;
+    let paths = path_config();
+    fs::copy(paths.hosts_file(), paths.hosts_backup_file())
+        .context("No se pudo crear backup de hosts")?;
     Ok(())
 }
 
 /// Elimina todas las entradas WSDD del archivo hosts.
 pub fn remove_wsdd_entries() -> Result<()> {
-    let content = fs::read_to_string(HOSTS_PATH)?;
+    let content = fs::read_to_string(path_config().hosts_file())?;
     let cleaned = remove_wsdd_block(&content);
     backup_hosts()?;
     write_hosts_file(cleaned.as_bytes(), None)?;
@@ -77,7 +78,8 @@ pub fn update_host(extra_domains: Option<&[&str]>, tx: &LogSender) -> Result<()>
         }
     }
 
-    let content = fs::read_to_string(HOSTS_PATH).context("No se pudo leer el archivo hosts")?;
+    let content = fs::read_to_string(path_config().hosts_file())
+        .context("No se pudo leer el archivo hosts")?;
     let mut lines: Vec<String> = content.lines().map(String::from).collect();
 
     let start_idx = lines.iter().position(|l| l.trim() == WSDD_MARKER_START);
@@ -143,7 +145,7 @@ pub fn update_host(extra_domains: Option<&[&str]>, tx: &LogSender) -> Result<()>
 
 /// Captura el contenido completo actual del archivo hosts para rollback.
 pub fn capture_snapshot() -> Result<Vec<u8>> {
-    fs::read(HOSTS_PATH).context("No se pudo capturar snapshot del archivo hosts")
+    fs::read(path_config().hosts_file()).context("No se pudo capturar snapshot del archivo hosts")
 }
 
 /// Restaura un snapshot previo del archivo hosts.
@@ -155,7 +157,8 @@ pub fn restore_snapshot(snapshot: &[u8], tx: Option<&LogSender>) -> Result<()> {
 pub fn remove_domains(domains_to_remove: &[&str], tx: &LogSender) -> Result<()> {
     let _ = tx.send(LogLine::info("Verificando archivo hosts de Windows..."));
 
-    let content = fs::read_to_string(HOSTS_PATH).context("No se pudo leer el archivo hosts")?;
+    let content = fs::read_to_string(path_config().hosts_file())
+        .context("No se pudo leer el archivo hosts")?;
     let updated = remove_domains_from_block(&content, domains_to_remove);
 
     if updated.replace("\r\n", "\n") == content.replace("\r\n", "\n") {
@@ -191,9 +194,10 @@ pub fn remove_domains(domains_to_remove: &[&str], tx: &LogSender) -> Result<()> 
 /// 3. Si el intento 2 también falla, delega a `handle_av_block` para diagnóstico de AV.
 fn write_hosts_file(content: &[u8], tx: Option<&LogSender>) -> Result<()> {
     // ── Intento 1: escritura directa + verificación ───────────────────────────
-    if fs::write(HOSTS_PATH, content).is_ok() {
+    let paths = path_config();
+    if fs::write(paths.hosts_file(), content).is_ok() {
         // Verificar que el write realmente persistió (Docker Desktop / AV pueden revertir)
-        match fs::read(HOSTS_PATH) {
+        match fs::read(paths.hosts_file()) {
             Ok(actual) if actual == content => return Ok(()),
             Ok(_) => {
                 tracing::warn!(
@@ -207,11 +211,13 @@ fn write_hosts_file(content: &[u8], tx: Option<&LogSender>) -> Result<()> {
     }
 
     // ── Intento 2: PowerShell via PsRunner (mismo path que Docker/Choco) ──────
-    let tmp = r"C:\WSDD-Environment\hosts.tmp";
-    fs::write(tmp, content).context("No se pudo escribir archivo hosts temporal")?;
+    let tmp = paths.hosts_temp_file();
+    fs::write(&tmp, content).context("No se pudo escribir archivo hosts temporal")?;
 
     let runner = PsRunner::new();
-    let cmd = format!("Copy-Item -Force '{}' '{}'", tmp, HOSTS_PATH);
+    let tmp_display = path_to_string(&tmp);
+    let hosts_display = path_to_string(paths.hosts_file());
+    let cmd = format!("Copy-Item -Force '{}' '{}'", tmp_display, hosts_display);
     let ps_result = runner
         .run_ps_sync(&cmd, None, None)
         .map_err(|e| anyhow::anyhow!("PowerShell Copy-Item falló al actualizar hosts: {e}"));
@@ -220,7 +226,8 @@ fn write_hosts_file(content: &[u8], tx: Option<&LogSender>) -> Result<()> {
     ps_result?;
 
     // Verificar también el intento 2
-    let actual = fs::read(HOSTS_PATH).context("No se pudo leer hosts tras write vía PowerShell")?;
+    let actual =
+        fs::read(paths.hosts_file()).context("No se pudo leer hosts tras write vía PowerShell")?;
     if actual != content {
         // Ambos intentos fallaron — probablemente AV
         return handle_av_block(tx);

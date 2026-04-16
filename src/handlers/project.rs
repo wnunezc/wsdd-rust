@@ -26,11 +26,9 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::config::environment::path_config;
 use crate::errors::InfraError;
 use crate::models::project::Project;
-
-/// Directorio donde se guardan los archivos de proyectos.
-const PROJECTS_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\projects";
 
 // ─── API pública ──────────────────────────────────────────────────────────────
 
@@ -41,7 +39,7 @@ const PROJECTS_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\projects";
 /// # Errors
 /// [`InfraError::Io`] si el directorio no se puede crear o el archivo no se puede escribir.
 pub fn save(project: &Project) -> Result<(), InfraError> {
-    let dir = Path::new(PROJECTS_DIR);
+    let dir = path_config().projects_dir();
     std::fs::create_dir_all(dir).map_err(InfraError::Io)?;
 
     let json = serde_json::to_string_pretty(project)
@@ -57,7 +55,7 @@ pub fn save(project: &Project) -> Result<(), InfraError> {
 /// # Errors
 /// [`InfraError::Io`] si el directorio no existe y no se puede crear.
 pub fn list_all() -> Result<Vec<Project>, InfraError> {
-    let dir = Path::new(PROJECTS_DIR);
+    let dir = path_config().projects_dir();
     if !dir.exists() {
         return Ok(Vec::new());
     }
@@ -110,7 +108,7 @@ pub fn file_path(name: &str) -> PathBuf {
 // ─── Helpers privados ─────────────────────────────────────────────────────────
 
 fn project_path(name: &str) -> PathBuf {
-    Path::new(PROJECTS_DIR).join(format!("{name}.json"))
+    path_config().project_file(name)
 }
 
 fn load_from_file(path: &Path) -> Result<Project, InfraError> {

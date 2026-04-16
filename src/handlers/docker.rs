@@ -29,6 +29,7 @@
 //! let running = docker::probe_running(&runner).await?;
 //! ```
 
+use crate::config::environment::{env_config, DOCKER_HOST_VALUE};
 use crate::errors::InfraError;
 use crate::handlers::ps_script::{run_docker, OutputSender, ProcOutput, PsRunner, ScriptRunner};
 
@@ -288,7 +289,10 @@ pub async fn ensure_network(
     if network_exists().await? {
         return Ok(true); // ya existe
     }
-    let cmd = format!("docker network create --driver bridge {WSDD_NETWORK}");
+    let cmd = format!(
+        "{} network create --driver bridge {WSDD_NETWORK}",
+        env_config().docker_exe()
+    );
     let runner = runner.clone();
     let result = tokio::task::spawn_blocking(move || runner.run_ps_sync(&cmd, None, tx.as_ref()))
         .await
@@ -353,13 +357,16 @@ pub async fn php_container_exists(php_container_tag: &str) -> Result<bool, Infra
 /// [`InfraError::Io`] si PowerShell falla.
 pub async fn set_docker_host_env(runner: &PsRunner) -> Result<(), InfraError> {
     let cmds = [
-        r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "User")"#,
-        r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "Machine")"#,
+        format!(
+            r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "{DOCKER_HOST_VALUE}", "User")"#
+        ),
+        format!(
+            r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "{DOCKER_HOST_VALUE}", "Machine")"#
+        ),
     ];
 
     let runner_ref = runner.clone();
-    for cmd in &cmds {
-        let cmd = cmd.to_string();
+    for cmd in cmds {
         let r = runner_ref.clone();
         tokio::task::spawn_blocking(move || r.run_ps_sync(&cmd, None, None))
             .await
@@ -413,7 +420,10 @@ async fn parse_container_list(output: &str, runner: PsRunner) -> Vec<ContainerIn
 
         let name = parts[1].to_string();
         let r = runner.clone();
-        let cmd = format!("docker exec {name} printenv VIRTUAL_HOST");
+        let cmd = format!(
+            "{} exec {name} printenv VIRTUAL_HOST",
+            env_config().docker_exe()
+        );
         let urls_raw = tokio::task::spawn_blocking(move || r.run_ps_sync(&cmd, None, None))
             .await
             .ok()
@@ -549,7 +559,7 @@ pub fn list_containers_sync(runner: &PsRunner) -> Result<Vec<ContainerInfo>, Inf
         "--filter",
         "name=WSDD-",
     ];
-    let result = runner.run_direct_sync("docker", &args, None, None)?;
+    let result = runner.run_direct_sync(env_config().docker_exe(), &args, None, None)?;
     Ok(parse_container_list_sync(&result.text, runner))
 }
 
@@ -591,7 +601,10 @@ fn parse_container_list_sync(output: &str, runner: &PsRunner) -> Vec<ContainerIn
 }
 
 fn fetch_container_urls_sync(runner: &PsRunner, name: &str) -> Vec<String> {
-    let cmd = format!("docker exec {name} printenv VIRTUAL_HOST");
+    let cmd = format!(
+        "{} exec {name} printenv VIRTUAL_HOST",
+        env_config().docker_exe()
+    );
     runner
         .run_ps_sync(&cmd, None, None)
         .map(|out| parse_virtual_hosts(&out.text))
@@ -715,7 +728,7 @@ fn parse_docker_desktop_status(output: &str, daemon_ready: bool) -> DockerDeskto
 
 /// Inicia un contenedor por nombre de forma síncrona.
 pub fn start_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
-    let out = runner.run_direct_sync("docker", &["start", name], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["start", name], None, None)?;
     if out.success {
         Ok(())
     } else {
@@ -728,7 +741,7 @@ pub fn start_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraEr
 
 /// Detiene un contenedor por nombre de forma síncrona.
 pub fn stop_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
-    let out = runner.run_direct_sync("docker", &["stop", name], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["stop", name], None, None)?;
     if out.success {
         Ok(())
     } else {
@@ -741,7 +754,7 @@ pub fn stop_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraErr
 
 /// Reinicia un contenedor por nombre de forma síncrona.
 pub fn restart_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
-    let out = runner.run_direct_sync("docker", &["restart", name], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["restart", name], None, None)?;
     if out.success {
         Ok(())
     } else {
@@ -757,7 +770,7 @@ pub fn php_container_exists_sync(
     runner: &PsRunner,
     php_container_tag: &str,
 ) -> Result<bool, InfraError> {
-    let out = runner.run_direct_sync("docker", &["ps", "-a"], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["ps", "-a"], None, None)?;
     if out.text.contains("Error") {
         return Err(InfraError::DockerUnreachable(out.text));
     }

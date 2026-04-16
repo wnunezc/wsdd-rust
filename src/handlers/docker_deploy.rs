@@ -30,6 +30,7 @@ use std::collections::HashMap;
 use std::io::Write;
 use std::time::{Duration, Instant};
 
+use crate::config::environment::{env_config, path_config, path_to_string, DOCKER_HOST_VALUE};
 use crate::errors::InfraError;
 use crate::handlers::docker::{WSDD_NETWORK, WSDD_PROJECT};
 use crate::handlers::log_types::{LogLine, LogSender};
@@ -248,7 +249,7 @@ pub fn deploy_environment_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
 pub fn sync_prerequisite_compose_sync(settings: &AppSettings) -> Result<(), InfraError> {
     settings.validate_prerequisite_credentials()?;
 
-    let docker_dir = crate::handlers::ps_script::docker_structure_dir();
+    let docker_dir = path_config().docker_structure_dir();
     std::fs::create_dir_all(&docker_dir)?;
 
     let rendered = render_init_yml(&settings.prereq_credentials);
@@ -276,9 +277,7 @@ pub fn sync_php_version_resources_sync(
 
     credentials.validate_for_save()?;
 
-    let php_dir = crate::handlers::ps_script::docker_structure_dir()
-        .join("bin")
-        .join(php_version.dir_name());
+    let php_dir = path_config().php_dir(php_version.dir_name());
     std::fs::create_dir_all(&php_dir)?;
 
     std::fs::write(php_dir.join("Dockerfile"), dockerfile_template(php_version))?;
@@ -331,11 +330,15 @@ fn set_docker_host_env_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), Inf
         "Configurando DOCKER_HOST=tcp://localhost:2375...",
     ));
     let cmds = [
-        r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "User")"#,
-        r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "tcp://localhost:2375", "Machine")"#,
+        format!(
+            r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "{DOCKER_HOST_VALUE}", "User")"#
+        ),
+        format!(
+            r#"[Environment]::SetEnvironmentVariable("DOCKER_HOST", "{DOCKER_HOST_VALUE}", "Machine")"#
+        ),
     ];
     for cmd in cmds {
-        runner.run_ps_sync(cmd, None, None)?;
+        runner.run_ps_sync(&cmd, None, None)?;
     }
     let _ = tx.send(LogLine::success(
         "✓ DOCKER_HOST configurado (User + Machine)",
@@ -345,7 +348,7 @@ fn set_docker_host_env_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), Inf
 
 /// Verifica si la red wsdd-network existe (sincrónico).
 fn check_network_sync(runner: &PsRunner) -> Result<bool, InfraError> {
-    let out = runner.run_direct_sync("docker", &["network", "ls"], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["network", "ls"], None, None)?;
     if out.text.contains("Error") {
         return Err(InfraError::DockerUnreachable(out.text));
     }
@@ -362,7 +365,7 @@ fn ensure_network_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraErr
     let _ = tx.send(LogLine::warn("Red wsdd-network no encontrada — creando..."));
     let bridge = make_log_bridge(tx);
     runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &["network", "create", "--driver", "bridge", WSDD_NETWORK],
         None,
         Some(&bridge),
@@ -381,7 +384,7 @@ fn ensure_network_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraErr
 
 /// Verifica si el volumen pma-code existe (sincrónico).
 fn check_pma_volume_sync(runner: &PsRunner) -> Result<bool, InfraError> {
-    let out = runner.run_direct_sync("docker", &["volume", "ls"], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["volume", "ls"], None, None)?;
     if out.text.contains("Error") {
         return Err(InfraError::DockerUnreachable(out.text));
     }
@@ -396,11 +399,11 @@ fn create_pma_volume_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), Infra
         return Ok(());
     }
     let _ = tx.send(LogLine::warn("Volumen pma-code no encontrado — creando..."));
-    let device = r"C:\WSDD-Environment\Docker-Structure\bin\pma\app";
+    let device = path_to_string(path_config().pma_app_dir());
     let device_opt = format!("device={device}");
     let bridge = make_log_bridge(tx);
     runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "volume",
             "create",
@@ -431,7 +434,7 @@ fn create_pma_volume_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), Infra
 
 /// Verifica si los tres contenedores base WSDD existen (sincrónico).
 fn check_base_containers_sync(runner: &PsRunner) -> Result<bool, InfraError> {
-    let out = runner.run_direct_sync("docker", &["ps", "-a"], None, None)?;
+    let out = runner.run_direct_sync(env_config().docker_exe(), &["ps", "-a"], None, None)?;
     if out.text.contains("Error") {
         return Err(InfraError::DockerUnreachable(out.text));
     }
@@ -442,7 +445,7 @@ fn check_base_containers_sync(runner: &PsRunner) -> Result<bool, InfraError> {
 
 fn check_base_containers_running_sync(runner: &PsRunner) -> Result<bool, InfraError> {
     let out = runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "ps",
             "-a",
@@ -506,7 +509,7 @@ where
 
 fn base_container_status_lines_sync(runner: &PsRunner) -> Result<Vec<String>, InfraError> {
     let out = runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "ps",
             "-a",
@@ -550,8 +553,8 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
         return Ok(());
     }
 
-    let init_yml = crate::handlers::ps_script::docker_structure_dir().join("init.yml");
-    let docker_dir = crate::handlers::ps_script::docker_structure_dir();
+    let init_yml = path_config().init_yml();
+    let docker_dir = path_config().docker_structure_dir();
     let log_path = deploy_log_path();
     let base_exists = check_base_containers_sync(runner)?;
 
@@ -560,7 +563,8 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
             "Contenedores WSDD detectados pero no activos; intentando recuperarlos...",
             "docker-compose up -d",
             format!(
-                "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d",
+                "{} -p {WSDD_PROJECT} -f \"{}\" up -d",
+                env_config().docker_compose_exe(),
                 init_yml.display()
             ),
         )
@@ -569,7 +573,8 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
             "Construyendo contenedores WSDD — puede tardar varios minutos en la primera ejecución...",
             "docker-compose up -d --build",
             format!(
-                "docker-compose -p {WSDD_PROJECT} -f \"{}\" up -d --build",
+                "{} -p {WSDD_PROJECT} -f \"{}\" up -d --build",
+                env_config().docker_compose_exe(),
                 init_yml.display()
             ),
         )
@@ -659,7 +664,7 @@ fn deploy_base_containers_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), 
 fn show_running_containers_sync(runner: &PsRunner, tx: &LogSender) {
     let _ = tx.send(LogLine::info("Servicios activos:"));
     match runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "ps",
             "-a",
@@ -703,13 +708,13 @@ pub fn make_log_bridge(tx: &LogSender) -> OutputSender {
 
 /// Ruta del archivo de log de deploy con rotación diaria.
 fn deploy_log_path() -> std::path::PathBuf {
-    let log_dir = std::path::Path::new(r"C:\WSDD-Environment\logs");
+    let log_dir = path_config().logs_dir();
     let _ = std::fs::create_dir_all(log_dir);
     let day = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs() / 86400)
         .unwrap_or(0);
-    log_dir.join(format!("wsdd-deploy-d{day}.log"))
+    path_config().deploy_log_file(day)
 }
 
 /// Crea un `OutputSender` que procesa el output de `docker-compose` con progress in-place.

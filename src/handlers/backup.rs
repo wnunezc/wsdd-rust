@@ -34,6 +34,7 @@ use walkdir::WalkDir;
 use zip::write::SimpleFileOptions;
 use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::errors::InfraError;
 use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_PROJECT};
 use crate::handlers::docker_deploy;
@@ -44,9 +45,6 @@ use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use crate::handlers::yml;
 use crate::models::project::Project;
 
-const ENV_DIR: &str = r"C:\WSDD-Environment";
-const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
-const DOCKER_DIR: &str = r"C:\WSDD-Environment\Docker-Structure";
 const FULL_ENV_DIR: &str = "environment";
 const FULL_PROJECTS_DIR: &str = "projects";
 const DOCKER_STAGE_DIR: &str = "docker";
@@ -109,7 +107,7 @@ pub fn backup_environment(
     let staging = tempdir().map_err(InfraError::Io)?;
     let root = staging.path();
 
-    copy_dir_recursive(Path::new(ENV_DIR), &root.join(FULL_ENV_DIR))?;
+    copy_dir_recursive(path_config().environment_root(), &root.join(FULL_ENV_DIR))?;
 
     let projects = project_handler::list_all()?;
     for project in &projects {
@@ -176,7 +174,7 @@ pub fn restore_environment(
             "faltan archivos del entorno en el backup".to_string(),
         ));
     }
-    copy_dir_recursive(&env_stage, Path::new(ENV_DIR))?;
+    copy_dir_recursive(&env_stage, path_config().environment_root())?;
 
     for project in &manifest.projects {
         let src = extracted
@@ -193,7 +191,12 @@ pub fn restore_environment(
     if images_tar.exists() {
         let _ = tx.send(LogLine::info("[Restore] Importando imagenes Docker..."));
         let tar_arg = images_tar.to_string_lossy().to_string();
-        runner.run_direct_sync("docker", &["load", "-i", &tar_arg], None, None)?;
+        runner.run_direct_sync(
+            env_config().docker_exe(),
+            &["load", "-i", &tar_arg],
+            None,
+            None,
+        )?;
         let _ = tx.send(LogLine::success("[Restore] Imagenes importadas ✓"));
     }
 
@@ -428,7 +431,7 @@ fn restore_project_certs(root: &Path, project: &Project) -> Result<(), InfraErro
 
 fn collect_wsdd_images(runner: &PsRunner) -> Result<Vec<String>, InfraError> {
     let out = runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "ps",
             "-a",
@@ -471,7 +474,7 @@ fn export_images(
     ];
     args.extend(images.iter().cloned());
     let refs: Vec<&str> = args.iter().map(String::as_str).collect();
-    runner.run_direct_sync("docker", &refs, None, None)?;
+    runner.run_direct_sync(env_config().docker_exe(), &refs, None, None)?;
 
     let _ = tx.send(LogLine::success("[Backup] Imagenes Docker exportadas ✓"));
     Ok(())
@@ -486,7 +489,12 @@ fn export_network_snapshot(
         fs::create_dir_all(parent).map_err(InfraError::Io)?;
     }
 
-    let out = runner.run_direct_sync("docker", &["network", "inspect", WSDD_NETWORK], None, None);
+    let out = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["network", "inspect", WSDD_NETWORK],
+        None,
+        None,
+    );
     match out {
         Ok(snapshot) if snapshot.success => {
             fs::write(dest_json, snapshot.text).map_err(InfraError::Io)?;
@@ -503,7 +511,7 @@ fn export_network_snapshot(
 
 fn stop_and_remove_wsdd_containers(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
     let out = runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "ps",
             "-a",
@@ -533,8 +541,8 @@ fn stop_and_remove_wsdd_containers(runner: &PsRunner, tx: &LogSender) -> Result<
     ));
 
     for name in &names {
-        let _ = runner.run_direct_sync("docker", &["stop", name], None, None);
-        let _ = runner.run_direct_sync("docker", &["rm", name], None, None);
+        let _ = runner.run_direct_sync(env_config().docker_exe(), &["stop", name], None, None);
+        let _ = runner.run_direct_sync(env_config().docker_exe(), &["rm", name], None, None);
     }
 
     let _ = tx.send(LogLine::success(
@@ -588,9 +596,14 @@ fn create_project_bind_volume(project: &Project, runner: &PsRunner) -> Result<()
     let volume_name = format!("{}-{}", project.php_version.compose_tag(), project.domain);
     let device_opt = format!("device={}", project.work_path);
 
-    let _ = runner.run_direct_sync("docker", &["volume", "rm", &volume_name], None, None);
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["volume", "rm", &volume_name],
+        None,
+        None,
+    );
     runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "volume",
             "create",
@@ -623,11 +636,20 @@ fn rebuild_php_container(
             .map(|exists| !exists)
             .unwrap_or(true);
     let options_yml = yml::options_path(php_dir, compose_tag);
-    let webserver_yml =
-        format!(r"C:\WSDD-Environment\Docker-Structure\bin\{php_dir}\webserver.{compose_tag}.yml");
+    let webserver_yml = path_to_string(path_config().webserver_yml(php_dir, compose_tag));
 
-    let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
-    let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["stop", &container_name],
+        None,
+        None,
+    );
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["rm", &container_name],
+        None,
+        None,
+    );
 
     let message = if should_build {
         format!(
@@ -640,10 +662,11 @@ fn rebuild_php_container(
     let _ = tx.send(LogLine::info(message));
 
     let bridge = docker_deploy::make_log_bridge(tx);
-    let docker_dir = Path::new(DOCKER_DIR).join("bin").join(php_dir);
+    let docker_dir = path_config().php_dir(php_dir);
     runner.run_ps_sync(
         &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            env_config().docker_compose_exe(),
             if should_build { "--build " } else { "" }
         ),
         Some(&docker_dir),
@@ -655,7 +678,12 @@ fn rebuild_php_container(
 
 fn restart_proxy(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
     let _ = tx.send(LogLine::info("[Restore] Reiniciando WSDD-Proxy-Server..."));
-    runner.run_direct_sync("docker", &["restart", "WSDD-Proxy-Server"], None, None)?;
+    runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["restart", "WSDD-Proxy-Server"],
+        None,
+        None,
+    )?;
     Ok(())
 }
 
@@ -840,31 +868,21 @@ fn vhost_conf_path(project: &Project) -> PathBuf {
 }
 
 fn vhost_conf_path_for_php(php_version: &crate::models::project::PhpVersion) -> PathBuf {
-    Path::new(DOCKER_DIR)
-        .join("bin")
-        .join(php_version.dir_name())
-        .join("vhost")
-        .join("vhost.conf")
+    path_config().active_vhost_conf(php_version.dir_name())
 }
 
 fn legacy_vhost_conf_path(php_version: &crate::models::project::PhpVersion) -> PathBuf {
-    Path::new(DOCKER_DIR)
-        .join("bin")
-        .join(php_version.dir_name())
-        .join("vhost.conf")
+    path_config().legacy_vhost_conf(php_version.dir_name())
 }
 
 fn vhost_template_path(project: &Project) -> PathBuf {
-    Path::new(DOCKER_DIR)
-        .join("bin")
-        .join(project.php_version.dir_name())
-        .join("tpl.vhost.conf")
+    path_config().vhost_template(project.php_version.dir_name())
 }
 
 fn ssl_file_paths(domain: &str) -> (PathBuf, PathBuf) {
     (
-        Path::new(SSL_DIR).join(format!("{domain}.crt")),
-        Path::new(SSL_DIR).join(format!("{domain}.key")),
+        path_config().ssl_cert_file(domain),
+        path_config().ssl_key_file(domain),
     )
 }
 

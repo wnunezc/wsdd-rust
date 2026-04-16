@@ -29,6 +29,7 @@
 //! - `php_compose_tag` = `"php83"` (tag sin puntos — ver `PhpVersion::compose_tag()`)
 //! - `volume_name` = `"php83-myapp.dock"` (nombre del Docker volume externo)
 
+use crate::config::environment::{path_config, path_to_string};
 use crate::errors::InfraError;
 
 // ─── Agregar proyecto a options.yml ──────────────────────────────────────────
@@ -227,7 +228,7 @@ pub fn remove_project_from_options_yml(
 /// // → r"C:\WSDD-Environment\Docker-Structure\bin\php8.3\options.php83.yml"
 /// ```
 pub fn options_path(php_dir_name: &str, compose_tag: &str) -> String {
-    format!(r"C:\WSDD-Environment\Docker-Structure\bin\{php_dir_name}\options.{compose_tag}.yml")
+    path_to_string(path_config().options_yml(php_dir_name, compose_tag))
 }
 
 // ─── Helpers privados ─────────────────────────────────────────────────────────

@@ -17,7 +17,6 @@
 //! Equivalente a `Handlers/HandlerMKCert.cs` en la versión C#.
 
 use anyhow::Result;
-use std::path::PathBuf;
 use std::process::Command;
 
 #[cfg(windows)]
@@ -26,10 +25,8 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::handlers::log_types::{LogLine, LogSender};
-
-const DEFAULT_MKCERT_EXE: &str = r"C:\ProgramData\chocolatey\bin\mkcert.exe";
-const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
@@ -72,11 +69,14 @@ pub fn generate_ca() -> Result<()> {
 /// Los archivos `{domain}.key` y `{domain}.crt` se guardan en
 /// `C:\WSDD-Environment\Docker-Structure\ssl\`.
 pub fn generate(domain: &str) -> Result<()> {
-    std::fs::create_dir_all(SSL_DIR)?;
+    let paths = path_config();
+    std::fs::create_dir_all(paths.ssl_dir())?;
     let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
+    let key_file = path_to_string(paths.ssl_key_file(domain));
+    let cert_file = path_to_string(paths.ssl_cert_file(domain));
     let mut cmd = Command::new(mkcert_exe);
-    cmd.args(["-key-file", &format!(r"{SSL_DIR}\{domain}.key")])
-        .args(["-cert-file", &format!(r"{SSL_DIR}\{domain}.crt")])
+    cmd.args(["-key-file", &key_file])
+        .args(["-cert-file", &cert_file])
         .arg(domain);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -132,13 +132,13 @@ pub fn process_requirements(tx: &LogSender) -> bool {
     }
 }
 
-fn resolve_mkcert_exe() -> Option<PathBuf> {
-    let path = PathBuf::from(DEFAULT_MKCERT_EXE);
+fn resolve_mkcert_exe() -> Option<std::path::PathBuf> {
+    let path = env_config().default_mkcert_exe();
     if path.is_file() {
         return Some(path);
     }
 
-    let mut cmd = Command::new("where.exe");
+    let mut cmd = Command::new(env_config().where_exe());
     cmd.arg("mkcert.exe");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
@@ -152,5 +152,5 @@ fn resolve_mkcert_exe() -> Option<PathBuf> {
         .lines()
         .map(str::trim)
         .find(|line| !line.is_empty())
-        .map(PathBuf::from)
+        .map(std::path::PathBuf::from)
 }

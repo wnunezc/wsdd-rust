@@ -16,6 +16,7 @@
 //! Equivalente a la lógica de WSLGeneralSetting.cs — extendido con
 //! parámetros de rendimiento adicionales recomendados para WSL2.
 
+use crate::config::environment::env_config;
 use crate::errors::InfraError;
 use std::path::PathBuf;
 
@@ -157,8 +158,7 @@ impl Default for WslConfig {
 // ── Ruta ─────────────────────────────────────────────────────────────────────
 
 fn wslconfig_path() -> PathBuf {
-    let profile = std::env::var("USERPROFILE").unwrap_or_else(|_| r"C:\Users\Default".to_string());
-    PathBuf::from(profile).join(".wslconfig")
+    env_config().wsl_config_file()
 }
 
 // ── API pública ───────────────────────────────────────────────────────────────
