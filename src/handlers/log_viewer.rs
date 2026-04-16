@@ -18,9 +18,11 @@
 use anyhow::Result;
 use std::process::Command;
 
+use crate::config::environment::env_config;
+
 /// Obtiene los ultimos N lines de logs de un contenedor.
 pub fn get_logs(container_name: &str, tail: usize) -> Result<String> {
-    let output = Command::new("docker")
+    let output = Command::new(env_config().docker_exe())
         .args(["logs", "--tail", &tail.to_string(), container_name])
         .output()?;
     Ok(String::from_utf8_lossy(&output.stdout).to_string())

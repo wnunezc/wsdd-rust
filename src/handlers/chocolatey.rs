@@ -26,9 +26,8 @@ use std::os::windows::process::CommandExt;
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+use crate::config::environment::env_config;
 use crate::handlers::log_types::{LogLine, LogSender};
-
-const DEFAULT_CHOCO_EXE: &str = r"C:\ProgramData\chocolatey\bin\choco.exe";
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
@@ -109,8 +108,9 @@ pub fn process_requirements(tx: &LogSender) -> bool {
 }
 
 fn install_chocolatey(command: &str) -> Result<()> {
-    let mut cmd = Command::new("powershell.exe");
+    let mut cmd = Command::new(env_config().windows_powershell_exe());
     cmd.args([
+        "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
@@ -136,19 +136,19 @@ fn install_chocolatey(command: &str) -> Result<()> {
 }
 
 fn resolve_choco_exe() -> Option<PathBuf> {
-    std::env::var_os("ChocolateyInstall")
+    std::env::var_os(env_config().chocolatey_install_env())
         .map(PathBuf::from)
         .map(|base| base.join("bin").join("choco.exe"))
         .filter(|path| path.is_file())
         .or_else(|| {
-            let path = PathBuf::from(DEFAULT_CHOCO_EXE);
+            let path = env_config().default_choco_exe();
             path.is_file().then_some(path)
         })
         .or_else(|| resolve_from_path("choco.exe"))
 }
 
 fn resolve_from_path(program: &str) -> Option<PathBuf> {
-    let mut cmd = Command::new("where.exe");
+    let mut cmd = Command::new(env_config().where_exe());
     cmd.arg(program);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);

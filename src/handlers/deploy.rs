@@ -22,6 +22,7 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::errors::InfraError;
 use crate::handlers::docker;
 use crate::handlers::docker::WSDD_PROJECT;
@@ -35,7 +36,6 @@ use crate::handlers::setting::AppSettings;
 use crate::handlers::yml;
 use crate::models::project::{PhpVersion, Project};
 
-const SSL_DIR: &str = r"C:\WSDD-Environment\Docker-Structure\ssl";
 const PERSONAL_PROJECTS_MARKER: &str = "### PERSONAL PROJECTS ###";
 
 #[derive(Debug, Clone)]
@@ -74,35 +74,23 @@ impl FileSnapshot {
 }
 
 fn php_bin_dir(php_dir_name: &str) -> String {
-    format!(r"C:\WSDD-Environment\Docker-Structure\bin\{}", php_dir_name)
+    path_to_string(path_config().php_dir(php_dir_name))
 }
 
 fn active_vhost_conf_path(php_dir_name: &str) -> String {
-    format!(
-        r"C:\WSDD-Environment\Docker-Structure\bin\{}\vhost\vhost.conf",
-        php_dir_name
-    )
+    path_to_string(path_config().active_vhost_conf(php_dir_name))
 }
 
 fn legacy_vhost_conf_path(php_dir_name: &str) -> String {
-    format!(
-        r"C:\WSDD-Environment\Docker-Structure\bin\{}\vhost.conf",
-        php_dir_name
-    )
+    path_to_string(path_config().legacy_vhost_conf(php_dir_name))
 }
 
 fn vhost_template_path(php_dir_name: &str) -> String {
-    format!(
-        r"C:\WSDD-Environment\Docker-Structure\bin\{}\tpl.vhost.conf",
-        php_dir_name
-    )
+    path_to_string(path_config().vhost_template(php_dir_name))
 }
 
 fn webserver_yml_path(php_dir_name: &str, compose_tag: &str) -> String {
-    format!(
-        r"C:\WSDD-Environment\Docker-Structure\bin\{}\webserver.{}.yml",
-        php_dir_name, compose_tag
-    )
+    path_to_string(path_config().webserver_yml(php_dir_name, compose_tag))
 }
 
 fn project_file_path(project_name: &str) -> PathBuf {
@@ -119,8 +107,8 @@ fn php_container_name(project: &Project) -> String {
 
 fn ssl_file_paths(project: &Project) -> [PathBuf; 2] {
     [
-        Path::new(SSL_DIR).join(format!("{}.crt", project.domain)),
-        Path::new(SSL_DIR).join(format!("{}.key", project.domain)),
+        path_config().ssl_cert_file(&project.domain),
+        path_config().ssl_key_file(&project.domain),
     ]
 }
 
@@ -143,7 +131,7 @@ fn restore_hosts_snapshot_best_effort(snapshot: &[u8], tx: &LogSender) {
 fn project_volume_exists(project: &Project, runner: &PsRunner) -> Result<bool, InfraError> {
     let volume_name = volume_name(project);
     let out = runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &["volume", "ls", "--format", "{{.Name}}"],
         None,
         None,
@@ -386,7 +374,7 @@ fn step_create_volume(
 
     let bridge = make_log_bridge(tx);
     runner.run_direct_sync(
-        "docker",
+        env_config().docker_exe(),
         &[
             "volume",
             "create",
@@ -451,8 +439,18 @@ fn step_sync_php_container(
         "[Runtime] Deteniendo {}...",
         container_name
     )));
-    let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
-    let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["stop", &container_name],
+        None,
+        None,
+    );
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["rm", &container_name],
+        None,
+        None,
+    );
 
     let _ = tx.send(LogLine::info(if should_build {
         "[Runtime] Construyendo y creando contenedor PHP (puede tardar)..."
@@ -462,7 +460,8 @@ fn step_sync_php_container(
     let bridge = make_docker_progress_bridge(tx);
     runner.run_ps_sync(
         &format!(
-            "docker-compose -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            env_config().docker_compose_exe(),
             if should_build { "--build " } else { "" }
         ),
         Some(bin_dir),
@@ -486,8 +485,18 @@ fn step_remove_php_container(
         "[Rollback] Eliminando contenedor PHP '{}'...",
         container_name
     )));
-    let _ = runner.run_direct_sync("docker", &["stop", &container_name], None, None);
-    let _ = runner.run_direct_sync("docker", &["rm", &container_name], None, None);
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["stop", &container_name],
+        None,
+        None,
+    );
+    let _ = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["rm", &container_name],
+        None,
+        None,
+    );
     Ok(())
 }
 
@@ -503,10 +512,11 @@ fn step_update_vhost(project: &Project, tx: &LogSender) -> Result<(), InfraError
 
 /// Genera el certificado SSL con mkcert y reinicia el proxy.
 fn step_setup_ssl(project: &Project, runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
-    std::fs::create_dir_all(SSL_DIR).map_err(InfraError::Io)?;
+    let paths = path_config();
+    std::fs::create_dir_all(paths.ssl_dir()).map_err(InfraError::Io)?;
 
-    let cert_file = format!(r"{}\{}.crt", SSL_DIR, project.domain);
-    let key_file = format!(r"{}\{}.key", SSL_DIR, project.domain);
+    let cert_file = path_to_string(paths.ssl_cert_file(&project.domain));
+    let key_file = path_to_string(paths.ssl_key_file(&project.domain));
     let wildcard = format!("*.{}", project.domain);
 
     let _ = tx.send(LogLine::info(
@@ -526,7 +536,12 @@ fn step_setup_ssl(project: &Project, runner: &PsRunner, tx: &LogSender) -> Resul
     let _ = tx.send(LogLine::success("[Deploy] Certificado SSL generado ✓"));
 
     let _ = tx.send(LogLine::info("[Deploy] Reiniciando WSDD-Proxy-Server..."));
-    runner.run_direct_sync("docker", &["restart", "WSDD-Proxy-Server"], None, None)?;
+    runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["restart", "WSDD-Proxy-Server"],
+        None,
+        None,
+    )?;
     let _ = tx.send(LogLine::success("[Deploy] WSDD-Proxy-Server reiniciado ✓"));
 
     Ok(())
@@ -573,7 +588,12 @@ fn step_remove_volume(
         "[Remove] Eliminando volumen '{}'...",
         volume_name
     )));
-    runner.run_direct_sync("docker", &["volume", "rm", &volume_name], None, None)?;
+    runner.run_direct_sync(
+        env_config().docker_exe(),
+        &["volume", "rm", &volume_name],
+        None,
+        None,
+    )?;
     let _ = tx.send(LogLine::success(format!(
         "[Remove] Volumen '{}' eliminado ✓",
         volume_name

@@ -16,15 +16,12 @@
 // Persistencia de configuracion en JSON (reemplaza XML de la version C#)
 
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
 
+use crate::config::environment::{path_config, path_to_string};
 use crate::errors::InfraError;
 use crate::i18n::Language;
 use crate::models::project::PhpVersion;
 
-const CONFIG_FILE: &str = r"C:\WSDD-Environment\wsdd-config.json";
-const SECRETS_FILE: &str = r"C:\WSDD-Environment\wsdd-secrets.json";
-const LEGACY_INIT_YML: &str = r"C:\WSDD-Environment\Docker-Structure\init.yml";
 const CURRENT_CONFIG_VERSION: u32 = 4;
 const LEGACY_WEBMIN_USER: &str = "admin";
 const LEGACY_WEBMIN_PASSWORD: &str = "admin";
@@ -144,7 +141,7 @@ impl PrereqCredentials {
             return;
         }
 
-        let Ok(content) = std::fs::read_to_string(LEGACY_INIT_YML) else {
+        let Ok(content) = std::fs::read_to_string(path_config().init_yml()) else {
             return;
         };
 
@@ -296,7 +293,7 @@ impl Default for AppSettings {
             config_version: default_config_version(),
             setup_completed: false,
             docker_path: None,
-            projects_path: r"C:\WSDD-Projects".to_string(),
+            projects_path: path_to_string(path_config().default_projects_root()),
             wsl_distro: None,
             selected_monitor: 0,
             language: default_language(),
@@ -337,7 +334,7 @@ impl<'a> From<&'a AppSettings> for AppSettingsDisk<'a> {
 impl AppSettings {
     /// Carga la configuracion desde disco. Si no existe, retorna Default.
     pub fn load() -> Result<Self, InfraError> {
-        let path = PathBuf::from(CONFIG_FILE);
+        let path = path_config().config_file();
         let mut settings = if !path.exists() {
             Self::default()
         } else {
@@ -357,14 +354,14 @@ impl AppSettings {
 
     /// Persiste la configuracion en disco.
     pub fn save(&self) -> Result<(), InfraError> {
-        let path = PathBuf::from(CONFIG_FILE);
+        let path = path_config().config_file();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
         let content = serde_json::to_string_pretty(&AppSettingsDisk::from(self))?;
         std::fs::write(&path, content)?;
 
-        let secrets_path = PathBuf::from(SECRETS_FILE);
+        let secrets_path = path_config().secrets_file();
         if let Some(parent) = secrets_path.parent() {
             std::fs::create_dir_all(parent)?;
         }
@@ -586,7 +583,7 @@ fn normalize_webmin_credentials(list: &mut Vec<WebminCredentials>) {
 }
 
 fn load_secrets_file() -> Result<Option<AppSecrets>, InfraError> {
-    let path = PathBuf::from(SECRETS_FILE);
+    let path = path_config().secrets_file();
     if !path.exists() {
         return Ok(None);
     }

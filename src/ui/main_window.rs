@@ -26,6 +26,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use crate::app::WsddApp;
+use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::handlers::docker;
 use crate::handlers::external_app;
 use crate::handlers::log_types::{LogLevel, LogLine};
@@ -217,14 +218,11 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
                             .on_hover_text(&terminal_ps_hint)
                             .clicked()
                         {
+                            let env_dir = path_to_string(path_config().environment_root());
+                            let command = format!("Set-Location -LiteralPath '{}'", env_dir);
                             launch(
-                                "pwsh.exe",
-                                &[
-                                    "-NoExit",
-                                    "-NoProfile",
-                                    "-Command",
-                                    "cd C:\\WSDD-Environment",
-                                ],
+                                env_config().pwsh_exe(),
+                                &["-NoLogo", "-NoProfile", "-NoExit", "-Command", &command],
                                 None,
                             );
                         }
@@ -236,7 +234,9 @@ fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
                             .on_hover_text(&terminal_cmd_hint)
                             .clicked()
                         {
-                            launch("cmd.exe", &["/k", "cd /d C:\\WSDD-Environment"], None);
+                            let env_dir = path_to_string(path_config().environment_root());
+                            let command = format!("cd /d \"{env_dir}\"");
+                            launch("cmd.exe", &["/k", &command], None);
                         }
 
                         ui.add_space(4.0);

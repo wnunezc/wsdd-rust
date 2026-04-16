@@ -42,6 +42,7 @@ use std::process::{Command, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+use crate::config::environment::{env_config, path_config, DEFAULT_WSDD_ENV};
 use crate::errors::InfraError;
 
 // Re-exportar tipos de canal desde log_types como fachada pública.
@@ -52,8 +53,8 @@ pub use crate::handlers::log_types::{LogLevel, LogLine, LogSender, OutputSender}
 // ─── Constantes ───────────────────────────────────────────────────────────────
 
 /// Directorio raíz del entorno WSDD extraído en el sistema.
-pub const WSDD_ENV: &str = r"C:\WSDD-Environment";
-pub const MIN_SUPPORTED_PWSH_VERSION: &str = "7.5.0";
+pub const WSDD_ENV: &str = DEFAULT_WSDD_ENV;
+pub use crate::config::environment::MIN_SUPPORTED_PWSH_VERSION;
 
 /// Flag Win32 para crear proceso sin ventana visible.
 #[cfg(windows)]
@@ -203,6 +204,7 @@ impl ScriptRunner for PsRunner {
         exec_direct(
             &ps_exe,
             &[
+                "-NoLogo".to_string(),
                 "-NoProfile".to_string(),
                 "-NonInteractive".to_string(),
                 "-Command".to_string(),
@@ -245,17 +247,17 @@ impl ScriptRunner for PsRunner {
 
 /// Directorio raíz del entorno WSDD: `C:\WSDD-Environment\`
 pub fn env_dir() -> PathBuf {
-    PathBuf::from(WSDD_ENV)
+    path_config().environment_root().to_path_buf()
 }
 
 /// Directorio de scripts PS1: `C:\WSDD-Environment\PS-Script\`
 pub fn scripts_dir() -> PathBuf {
-    env_dir().join("PS-Script")
+    path_config().scripts_dir()
 }
 
 /// Directorio de la estructura Docker: `C:\WSDD-Environment\Docker-Structure\`
 pub fn docker_structure_dir() -> PathBuf {
-    env_dir().join("Docker-Structure")
+    path_config().docker_structure_dir()
 }
 
 // ─── API async pública ────────────────────────────────────────────────────────
@@ -313,7 +315,7 @@ pub async fn run_docker(
     tokio::task::spawn_blocking(move || {
         let refs: Vec<&str> = args.iter().map(String::as_str).collect();
         let runner = PsRunner::new();
-        runner.run_direct_sync("docker", &refs, None, tx.as_ref())
+        runner.run_direct_sync(env_config().docker_exe(), &refs, None, tx.as_ref())
     })
     .await
     .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?
@@ -375,14 +377,14 @@ pub fn launch_url(url: &str) {
 pub fn launch_shell_window(command: &str) {
     let program = supported_pwsh_executable().unwrap_or_else(|| {
         if which_pwsh() {
-            "pwsh.exe".to_string()
+            env_config().pwsh_exe().to_string()
         } else {
-            "powershell.exe".to_string()
+            env_config().windows_powershell_exe().to_string()
         }
     });
 
     if let Err(e) = Command::new(program)
-        .args(["-NoExit", "-Command", command])
+        .args(["-NoLogo", "-NoProfile", "-NoExit", "-Command", command])
         .spawn()
     {
         tracing::warn!(command, error = %e, "No se pudo abrir ventana PowerShell");
@@ -431,9 +433,9 @@ fn exec_powershell(
     let ps_exe = if let Some(ps_exe) = supported_pwsh_executable() {
         ps_exe
     } else if which_pwsh() {
-        "pwsh.exe".to_string()
+        env_config().pwsh_exe().to_string()
     } else {
-        "powershell.exe".to_string()
+        env_config().windows_powershell_exe().to_string()
     };
 
     // -NoProfile: evita que el perfil del usuario ejecute código ni escriba a stdout.
@@ -452,6 +454,7 @@ fn exec_powershell(
     exec_direct(
         &ps_exe,
         &[
+            "-NoLogo".to_string(),
             "-NoProfile".to_string(),
             "-NonInteractive".to_string(),
             "-Command".to_string(),
@@ -483,8 +486,8 @@ pub fn supported_pwsh_executable() -> Option<String> {
 fn detect_pwsh_candidates() -> Vec<PwshProbe> {
     let mut probes = Vec::new();
 
-    for candidate in [r"C:\Program Files\PowerShell\7\pwsh.exe", "pwsh.exe"] {
-        if let Some(probe) = probe_pwsh(candidate) {
+    for candidate in env_config().pwsh_candidates() {
+        if let Some(probe) = probe_pwsh(&candidate) {
             if probes
                 .iter()
                 .any(|existing: &PwshProbe| existing.program == probe.program)
@@ -502,6 +505,7 @@ fn detect_pwsh_candidates() -> Vec<PwshProbe> {
 fn probe_pwsh(program: &str) -> Option<PwshProbe> {
     let mut cmd = Command::new(program);
     cmd.args([
+        "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
         "-Command",
@@ -553,7 +557,7 @@ fn which_pwsh() -> bool {
     use std::sync::OnceLock;
     static PWSH_AVAILABLE: OnceLock<bool> = OnceLock::new();
     *PWSH_AVAILABLE.get_or_init(|| {
-        let mut cmd = std::process::Command::new("pwsh.exe");
+        let mut cmd = std::process::Command::new(env_config().pwsh_exe());
         cmd.arg("--version")
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::null());

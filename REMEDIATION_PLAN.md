@@ -55,7 +55,7 @@ salvo nueva instruccion explicita del usuario.
 | `WP-03` | Alto | Cerrado por confirmacion explicita del usuario en `rc.13` | Opcion `A` endurecida aprobada |
 | `WP-04` | Alto | Cerrado por confirmacion explicita del usuario en `rc.14` | Opcion `B` aprobada |
 | `WP-05` | Alto | Cerrado por confirmacion explicita del usuario en `rc.15` | Opcion `B` acotada aprobada |
-| `WP-06` | Medio | Pendiente de decision | Pendiente |
+| `WP-06` | Medio | En revision | Opcion `B` aprobada |
 | `WP-07` | Medio | Pendiente de decision | Pendiente |
 | `WP-08` | Medio | Pendiente de decision | Pendiente |
 | `WP-09` | Medio | Pendiente de decision | Pendiente |
@@ -210,6 +210,10 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-06` Configuracion, paths y supuestos de entorno
 
 - Prioridad: Medio
+- Estado actual:
+  - opcion `B` aprobada por el usuario
+  - implementado en rama `codex/wp-06-path-env-config`
+  - pendiente de revision/confirmacion explicita para marcar cierre
 - Hallazgos base:
   - paths Windows y ubicaciones de trabajo hardcodeadas
 - Objetivo:
@@ -221,7 +225,7 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `B` para este paquete
 - Criterio de cierre:
   - no hay rutas criticas duplicadas por todo el codigo
   - los tests pueden aislar paths relevantes

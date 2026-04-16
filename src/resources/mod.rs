@@ -26,7 +26,7 @@ use anyhow::{Context, Result};
 use std::io::Read;
 use std::path::Path;
 
-use crate::handlers::ps_script::WSDD_ENV;
+use crate::config::environment::path_config;
 
 static PS_SCRIPT_ZIP: &[u8] = include_bytes!(concat!(
     env!("CARGO_MANIFEST_DIR"),
@@ -39,7 +39,8 @@ static DOCKER_STRUCTURE_ZIP: &[u8] = include_bytes!(concat!(
 
 /// Inicializa el entorno WSDD extrayendo recursos si no existen.
 pub fn init() -> Result<()> {
-    let env_path = Path::new(WSDD_ENV);
+    let paths = path_config();
+    let env_path = paths.environment_root();
     std::fs::create_dir_all(env_path)?;
 
     // PS-Script: reparar si falta, esta vacio o fue modificado localmente.
@@ -48,7 +49,7 @@ pub fn init() -> Result<()> {
     }
 
     // Docker-Structure: extraer en primer arranque y autocorregir layouts dañados.
-    let docker_dir = env_path.join("Docker-Structure");
+    let docker_dir = paths.docker_structure_dir();
     if docker_structure_needs_repair(&docker_dir)? {
         extract_zip(DOCKER_STRUCTURE_ZIP, env_path)
             .context("Error extrayendo docker-structure.zip")?;

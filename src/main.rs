@@ -5,6 +5,7 @@
 #![allow(dead_code)] // handlers/models aún no conectados a la UI — se elimina al completar fases
 
 mod app;
+mod config;
 mod errors;
 mod handlers;
 mod i18n;

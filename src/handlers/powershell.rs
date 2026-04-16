@@ -22,6 +22,7 @@ use anyhow::{anyhow, Context, Result};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
 
+use crate::config::environment::env_config;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{
     current_pwsh_version, has_supported_pwsh, MIN_SUPPORTED_PWSH_VERSION,
@@ -29,9 +30,6 @@ use crate::handlers::ps_script::{
 
 #[cfg(windows)]
 const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-
-const POWERSHELL_RELEASE_BASE_URL: &str =
-    "https://github.com/PowerShell/PowerShell/releases/download";
 
 pub fn process_requirements(tx: &LogSender) -> bool {
     let _ = tx.send(LogLine::info(format!(
@@ -128,8 +126,9 @@ fn download_with_windows_powershell(url: &str, installer_path: &Path) -> Result<
         ps_single_quote(&installer_path.display().to_string())
     );
 
-    let mut cmd = Command::new("powershell.exe");
+    let mut cmd = Command::new(env_config().windows_powershell_exe());
     cmd.args([
+        "-NoLogo",
         "-NoProfile",
         "-NonInteractive",
         "-ExecutionPolicy",
@@ -156,7 +155,7 @@ fn download_with_windows_powershell(url: &str, installer_path: &Path) -> Result<
 
 fn download_with_curl(url: &str, installer_path: &Path) -> Result<()> {
     let output_path = installer_path.display().to_string();
-    let mut cmd = Command::new("curl.exe");
+    let mut cmd = Command::new(env_config().curl_exe());
     cmd.args(["-L", "--fail", "--silent", "--show-error", "--output"]);
     cmd.arg(&output_path);
     cmd.arg(url);
@@ -179,7 +178,7 @@ fn download_with_curl(url: &str, installer_path: &Path) -> Result<()> {
 
 fn run_msi_installer(installer_path: &Path) -> Result<()> {
     let path = installer_path.display().to_string();
-    let mut cmd = Command::new("msiexec.exe");
+    let mut cmd = Command::new(env_config().msiexec_exe());
     cmd.args([
         "/i",
         &path,
@@ -208,7 +207,8 @@ fn run_msi_installer(installer_path: &Path) -> Result<()> {
 fn installer_url() -> String {
     let version = MIN_SUPPORTED_PWSH_VERSION;
     format!(
-        "{POWERSHELL_RELEASE_BASE_URL}/v{version}/PowerShell-{version}-win-{}.msi",
+        "{}/v{version}/PowerShell-{version}-win-{}.msi",
+        env_config().powershell_release_base_url(),
         installer_arch()
     )
 }
