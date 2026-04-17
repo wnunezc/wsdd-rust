@@ -27,7 +27,7 @@ jobs:
 
       - name: Install WiX Toolset
         shell: powershell
-        run: choco install wixtoolset --version=3.14.1 -y --no-progress
+        run: choco install wixtoolset -y --no-progress
 
       - name: Install cargo-wix
         shell: powershell
