@@ -228,7 +228,5 @@
   "backup_dialog_save_title": "保存环境备份",
   "backup_dialog_restore_title": "选择环境备份",
   "project_backup_dialog_title": "保存项目备份",
-  "project_restore_dialog_title": "选择项目备份",
-
-  "display_selector_title": "选择显示器"
+  "project_restore_dialog_title": "选择项目备份"
 }

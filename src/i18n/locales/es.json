@@ -228,7 +228,5 @@
   "backup_dialog_save_title": "Guardar backup del entorno",
   "backup_dialog_restore_title": "Seleccionar backup del entorno",
   "project_backup_dialog_title": "Guardar backup del proyecto",
-  "project_restore_dialog_title": "Seleccionar backup del proyecto",
-
-  "display_selector_title": "Seleccionar monitor"
+  "project_restore_dialog_title": "Seleccionar backup del proyecto"
 }

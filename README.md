@@ -5,7 +5,7 @@ using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, and host
 
 *Languages: [English](README.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [हिन्दी](docs/readme/README.hi.md) | [中文](docs/readme/README.zh.md)*
 
-*Quick links: [Migration Map](MIGRATION.md) | [License](LICENSE.md) | [Notice](NOTICE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Report a Bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Quick links: [User Guide](docs/help/user-guide.en.md) | [Migration Map](MIGRATION.md) | [License](LICENSE.md) | [Notice](NOTICE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Report a Bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 ## About WSDD
 
@@ -14,7 +14,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Release Candidate `1.0.0-rc.15`
+- **Current stage**: Release Candidate `1.0.0-rc.18`
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
@@ -89,7 +89,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 1.0.0-rc.15 (Rust edition)
+- **Version**: 1.0.0-rc.18 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

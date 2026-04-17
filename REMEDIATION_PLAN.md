@@ -2,9 +2,9 @@
 
 ## Estado
 
-- Estado del plan: ACTIVO Y OBLIGATORIO
+- Estado del plan: CERRADO POR CONFIRMACION EXPLICITA DEL USUARIO
 - Fecha de activacion: 2026-04-11
-- Vigencia: hasta cerrar todos los paquetes abiertos de este documento
+- Vigencia: cerrada tras confirmar `WP-10`
 - Baseline publicado de referencia: `HEAD a83ba2c` / `main publicado (1.0.0-rc.11)`
 - Validacion updater RC6 -> RC7: OK, cerrada por el usuario
 - Decision global del usuario: NO publicar `1.0.0` estable hasta cerrar todos los problemas del plan
@@ -56,10 +56,10 @@ salvo nueva instruccion explicita del usuario.
 | `WP-04` | Alto | Cerrado por confirmacion explicita del usuario en `rc.14` | Opcion `B` aprobada |
 | `WP-05` | Alto | Cerrado por confirmacion explicita del usuario en `rc.15` | Opcion `B` acotada aprobada |
 | `WP-06` | Medio | Cerrado por confirmacion explicita del usuario | Opcion `B` aprobada |
-| `WP-07` | Medio | Pendiente de decision | Pendiente |
-| `WP-08` | Medio | Pendiente de decision | Pendiente |
-| `WP-09` | Medio | Pendiente de decision | Pendiente |
-| `WP-10` | Bajo | Pendiente de decision | Pendiente |
+| `WP-07` | Medio | Cerrado por confirmacion explicita del usuario tras `rc.16` local | Opcion `A` ajustada por lotes aprobada |
+| `WP-08` | Medio | Cerrado por confirmacion explicita del usuario | Opcion `A` incremental aprobada |
+| `WP-09` | Medio | Cerrado por confirmacion explicita del usuario | Opcion `B` aprobada |
+| `WP-10` | Bajo | Cerrado por confirmacion explicita del usuario tras `RC18` local | Opcion `A` por lotes aprobada |
 
 ## Paquetes de trabajo
 
@@ -237,6 +237,7 @@ salvo nueva instruccion explicita del usuario.
 ### `WP-07` Refactor SRP y modulos grandes
 
 - Prioridad: Medio
+- Estado: Cerrado por confirmacion explicita del usuario tras validar `RC16` local
 - Hallazgos base:
   - archivos grandes y con mas de una responsabilidad
 - Objetivo:
@@ -247,15 +248,31 @@ salvo nueva instruccion explicita del usuario.
   - `C` Congelar features y hacer una reestructuracion amplia de una vez
 - Sugerencia tecnica:
   - `A`
-- Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+- Decision aplicada:
+  - `A` ajustada por lotes: refactor incremental agrupando candidatos relacionados
 - Criterio de cierre:
   - los modulos criticos quedan divididos en responsabilidades claras
   - baja el costo de prueba y mantenimiento
+- Resultado:
+  - cortes SRP aplicados sobre backup, docker deploy, docker, main window, ps script, hosts, settings, app/ui, deploy, project model y loader
+  - APIs publicas preservadas siempre que fue posible
+  - `src/handlers/yml.rs` no se dividio por tener una responsabilidad clara y quedar en 375 lineas
+  - `src/ui/helps.rs` queda fuera de `WP-07` y pasa a `WP-08`
+  - MSI local `RC16` generado para validacion manual: `target/wix/wsdd-1.0.0.16-x86_64.msi`
 
 ### `WP-08` Documentacion viva y ayuda en app
 
 - Prioridad: Medio
+- Estado actual:
+  - opcion `A` incremental aplicada
+  - ayuda funcional movida a markdown embebido en `docs/help/*.md`
+  - `src/ui/helps.rs` queda como renderer/parser de ayuda
+  - README principal y traducidos enlazan la guia de usuario
+  - ajustes visuales validados en app:
+    - arbol/rutas en bloque monospace
+    - logs/terminal con monospace explicito
+    - IDs estables de `ScrollArea` en `Containers` y `Projects`
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - `src/ui/helps.rs` duplica y desalinea documentacion
 - Objetivo:
@@ -267,13 +284,23 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `A`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `A` incremental para este paquete
 - Criterio de cierre:
   - ayuda UI y docs publicas no se contradicen
+- Resultado:
+  - guia funcional viva en `docs/help/`
+  - UI de ayuda renderiza markdown embebido
+  - README queda como resumen corto y enlaza a la guia
+  - validaciones locales pasadas antes del cierre
 
 ### `WP-09` Estrategia de testing y validacion de release
 
 - Prioridad: Medio
+- Estado actual:
+  - opcion `B` aprobada por el usuario
+  - implementada estrategia documentada, pruebas de integracion aislada, checklist manual elevada y smoke release local
+  - `RC17` local generado para validacion manual
+  - cerrado por confirmacion explicita del usuario
 - Hallazgos base:
   - `cargo test` compila pero no ejecuta por elevacion en este entorno
   - faltan pruebas de integracion/release mas formales
@@ -286,13 +313,25 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aprobada opcion `B`
 - Criterio de cierre:
   - existe una estrategia reproducible para validar release
+  - cierre confirmado explicitamente por el usuario
 
 ### `WP-10` Limpieza de deuda tecnica menor
 
 - Prioridad: Bajo
+- Estado actual:
+  - cerrado por confirmacion explicita del usuario
+  - lotes locales implementados y validados en `RC18`
+  - flags incompatibles de `rustfmt` stable removidos
+  - `LoaderOutcome::NeedsReboot` y su UI muerta removidos porque ningun flujo lo emite
+  - `expect()` en `ps_script` ya no existe en el estado local; no requirio cambios
+  - untracked ajenos previos en `docs/screenshots/` y `docs/release/1.0.0-rc.3-draft.md` eliminados
+  - `display_selector.rs` eliminado junto con el modulo y claves i18n sin uso
+  - version local subida a `1.0.0-rc.18`
+  - MSI local generado para pruebas: `target/wix/wsdd-1.0.0.18-x86_64.msi`
+  - SHA256: `A5CDFA1A79CE17BBACD5C10823ADE3C9228F40EFC8DD3ABD0BC975FCE36CED5E`
 - Hallazgos base:
   - `display_selector.rs` pendiente
   - `LoaderOutcome::NeedsReboot` sin uso real
@@ -307,7 +346,7 @@ salvo nueva instruccion explicita del usuario.
 - Sugerencia tecnica:
   - `B`
 - Aprobacion requerida:
-  - elegir opcion `A`, `B` o `C`
+  - aplicada opcion `A` por lotes
 - Criterio de cierre:
   - no quedan placeholders/dead branches evidentes en el baseline release
 

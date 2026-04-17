@@ -5,7 +5,7 @@ local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y g
 
 *Idiomas: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*Enlaces rapidos: [Mapa de migracion](../../MIGRATION.md) | [Licencia](../legal/LICENSE.es.md) | [Repositorio principal](../../README.md) | [Reportar bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Enlaces rapidos: [Guia de usuario](../help/user-guide.es.md) | [Mapa de migracion](../../MIGRATION.md) | [Licencia](../legal/LICENSE.es.md) | [Repositorio principal](../../README.md) | [Reportar bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 ## Requisitos del sistema
 
@@ -77,7 +77,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0-rc.15 (Rust edition)
+- **Version**: 1.0.0-rc.18 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

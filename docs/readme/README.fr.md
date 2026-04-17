@@ -5,19 +5,20 @@ avec Docker. Inclut PHP multi-version, SSL local, MySQL, phpMyAdmin et la gestio
 
 *Langues: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*Liens rapides: [Carte de migration](../../MIGRATION.md) | [Licence](../legal/LICENSE.fr.md) | [Depot principal](../../README.md) | [Signaler un bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Liens rapides: [Guide utilisateur](../help/user-guide.fr.md) | [Carte de migration](../../MIGRATION.md) | [Licence](../legal/LICENSE.fr.md) | [Depot principal](../../README.md) | [Signaler un bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 ## Configuration systeme requise
 
 - **Systeme d'exploitation**: Windows 10 / Windows 11
 - **Privileges**: Administrateur (obligatoire)
-- **Docker Desktop**: Installe automatiquement s'il n'est pas present
-- **WSL 2**: Configure automatiquement
+- **Docker Desktop**: Doit etre installe par l'utilisateur avant le premier lancement
+- **WSL 2**: Requis par Docker Desktop
 - **Chocolatey**: Installe automatiquement s'il n'est pas present
+- **PowerShell**: 7.5+ (installe/mis a jour automatiquement si absent)
 
 ## Ce que fait cette application
 
-1. **Verifie et installe les dependances**: Docker Desktop, WSL 2, Chocolatey, MKCert
+1. **Verifie et prepare les dependances**: Chocolatey, PowerShell 7.5+, Docker Desktop, MKCert
 2. **Configure la stack Docker**: Nginx reverse proxy, MySQL, phpMyAdmin
 3. **Gere les projets web**: Cree des conteneurs PHP par version avec Apache + Xdebug
 4. **SSL local automatique**: Certificats MKCert par domaine, sans avertissements du navigateur
@@ -46,7 +47,8 @@ L'application cree et gere le repertoire `C:\WSDD-Environment\`:
 C:\WSDD-Environment\
 ├── PS-Script\          — Scripts PowerShell d'automatisation
 ├── Docker-Structure\   — docker-compose, images PHP et assets SSL
-└── wsdd-config.json    — Configuration de l'application
+├── wsdd-config.json    — Configuration de l'application
+└── wsdd-secrets.json   — Secrets geres pour les conteneurs
 ```
 
 ## Premier lancement — processus automatique
@@ -54,13 +56,11 @@ C:\WSDD-Environment\
 1. L'application verifie qu'elle dispose des privileges administrateur
 2. Extrait les ressources integrees vers `C:\WSDD-Environment\`
 3. Verifie Chocolatey → l'installe s'il manque
-4. Verifie Docker Desktop → l'installe s'il manque (redemarrage requis)
-5. Verifie MKCert → installe et configure l'autorite locale
-6. Demarre la stack Docker de base
-7. Affiche le panneau principal
-
-> **Note**: L'installation de Docker Desktop peut necessiter un redemarrage du systeme.
-> L'application reprendra automatiquement apres le redemarrage.
+4. Verifie PowerShell 7.5+ → l'installe/met a jour si absent
+5. Verifie Docker Desktop → bloque s'il n'est pas installe/configure
+6. Verifie MKCert → installe et configure l'autorite locale
+7. Demarre la stack Docker de base
+8. Affiche le panneau principal
 
 ## Utilisation apres le premier lancement
 
@@ -77,10 +77,11 @@ C:\WSDD-Environment\
 
 ## Informations techniques
 
-- **Version**: 1.0.0-rc.15 (edition Rust)
+- **Version**: 1.0.0-rc.18 (edition Rust)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: JSON dans `C:\WSDD-Environment\wsdd-config.json`
+- **Secrets**: JSON dans `C:\WSDD-Environment\wsdd-secrets.json`
 - **Logs**: Variable d'environnement `RUST_LOG=wsdd=debug` pour des logs detailles
 
 ## Licence

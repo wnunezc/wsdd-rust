@@ -35,8 +35,6 @@ pub enum LoaderOutcome {
     DoneWithContinue,
     /// Todos los requisitos OK en arranque posterior: ir a Main silenciosamente.
     AllDone,
-    /// Reservado para instalaciones que requieran reinicio del sistema.
-    NeedsReboot,
     /// Error bloqueante: la app no puede continuar.
     BlockingError,
 }

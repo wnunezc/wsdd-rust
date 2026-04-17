@@ -228,7 +228,5 @@
   "backup_dialog_save_title": "पर्यावरण बैकअप सहेजें",
   "backup_dialog_restore_title": "पर्यावरण बैकअप चुनें",
   "project_backup_dialog_title": "प्रोजेक्ट बैकअप सहेजें",
-  "project_restore_dialog_title": "प्रोजेक्ट बैकअप चुनें",
-
-  "display_selector_title": "मॉनिटर चुनें"
+  "project_restore_dialog_title": "प्रोजेक्ट बैकअप चुनें"
 }

@@ -33,15 +33,16 @@ Please keep changes aligned with the current architecture:
 Run the project checks that apply to your change:
 
 ```powershell
-cargo fmt
-cargo check
+cargo fmt --all -- --check
+cargo check --workspace
 cargo clippy -- -D warnings
 cargo test
 ```
 
 Notes:
 
-- `cargo test` may require elevation in some Windows environments
+- `cargo test --workspace` includes unit tests and isolated integration checks
+- elevated Docker/WSL/hosts validation is manual; follow `docs/release-validation.md`
 - If a validation step cannot run, explain why in the pull request description
 
 ## Pull request guidance
