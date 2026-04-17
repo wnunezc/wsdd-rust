@@ -9,6 +9,9 @@ on:
 env:
   CARGO_TERM_COLOR: always
 
+permissions:
+  contents: write
+
 jobs:
   windows-msi:
     runs-on: windows-latest
@@ -55,5 +58,30 @@ jobs:
         with:
           name: wsdd-msi
           path: |
+            target/wix/*.msi
+            target/wix/*.sha256.txt
+
+      - name: Prepare release notes
+        shell: powershell
+        run: |
+          $tagName = "${{ github.ref_name }}"
+          $version = $tagName.TrimStart('v')
+          $notesPath = "docs/release/$version-draft.md"
+          New-Item -ItemType Directory -Force -Path 'target' | Out-Null
+
+          if (Test-Path -LiteralPath $notesPath) {
+            Copy-Item -LiteralPath $notesPath -Destination 'target/release-notes.md' -Force
+          } else {
+            Set-Content -LiteralPath 'target/release-notes.md' -Value "WSDD $tagName"
+          }
+
+      - name: Publish GitHub prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          name: WSDD ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          body_path: target/release-notes.md
+          prerelease: true
+          files: |
             target/wix/*.msi
             target/wix/*.sha256.txt
