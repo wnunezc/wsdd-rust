@@ -75,13 +75,28 @@ jobs:
             Set-Content -LiteralPath 'target/release-notes.md' -Value "WSDD $tagName"
           }
 
-      - name: Publish GitHub prerelease
+      - name: Resolve release flags
+        id: release_flags
+        shell: powershell
+        run: |
+          $tagName = "${{ github.ref_name }}"
+          $isRc = $tagName -match '-rc\.'
+          $isLatestRcException = $tagName -eq 'v1.0.0-rc.18'
+
+          $preRelease = if ($isRc -and -not $isLatestRcException) { 'true' } else { 'false' }
+          $makeLatest = if ($isLatestRcException -or -not $isRc) { 'true' } else { 'false' }
+
+          "prerelease=$preRelease" >> $env:GITHUB_OUTPUT
+          "make_latest=$makeLatest" >> $env:GITHUB_OUTPUT
+
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           name: WSDD ${{ github.ref_name }}
           tag_name: ${{ github.ref_name }}
           body_path: target/release-notes.md
-          prerelease: true
+          prerelease: ${{ steps.release_flags.outputs.prerelease }}
+          make_latest: ${{ steps.release_flags.outputs.make_latest }}
           files: |
             target/wix/*.msi
             target/wix/*.sha256.txt
