@@ -61,7 +61,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     }
 
     if save {
-        actions::save(app);
+        actions::save(ctx, app);
     } else if cancel {
         actions::cancel(app);
     }

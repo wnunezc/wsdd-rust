@@ -19,9 +19,11 @@
 //! bridges. Implementation details live in focused submodules.
 
 mod base;
+mod optional_services;
 mod progress;
 mod templates;
 
+pub use optional_services::OptionalServiceKind;
 pub use progress::{make_docker_progress_bridge, make_log_bridge};
 
 use crate::config::environment::path_config;
@@ -141,6 +143,30 @@ pub fn sync_prerequisite_compose_sync(settings: &AppSettings) -> Result<(), Infr
     let rendered = templates::render_init_yml(&settings.prereq_credentials);
     std::fs::write(docker_dir.join("init.yml"), rendered)?;
     Ok(())
+}
+
+/// Writes optional service compose files without deploying them.
+pub fn sync_optional_service_resources_sync(settings: &AppSettings) -> Result<(), InfraError> {
+    optional_services::sync_resources_sync(settings)
+}
+
+/// Deploys one optional developer service from its isolated compose file.
+pub fn deploy_optional_service_sync(
+    runner: &PsRunner,
+    settings: &AppSettings,
+    kind: OptionalServiceKind,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    optional_services::deploy_service_sync(runner, settings, kind, tx)
+}
+
+/// Stops one optional developer service without deleting its data volume.
+pub fn stop_optional_service_sync(
+    runner: &PsRunner,
+    kind: OptionalServiceKind,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    optional_services::stop_service_sync(runner, kind, tx)
 }
 
 /// Synchronizes managed Docker resources for one PHP version before rebuild.

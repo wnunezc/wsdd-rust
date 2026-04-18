@@ -17,6 +17,7 @@
 use crate::app::WsddApp;
 use crate::handlers::docker;
 use crate::handlers::log_types::LogLine;
+use crate::handlers::mkcert;
 use crate::handlers::ps_script::{launch_shell_window, launch_url};
 use crate::i18n::tr;
 use crate::models::project::PhpVersion;
@@ -98,11 +99,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.add_space(4.0);
 
                     for url in &container_info.urls {
-                        let display = if url.starts_with("http") {
-                            url.clone()
-                        } else {
-                            format!("http://{url}")
-                        };
+                        let display = display_url(url);
                         if ui.link(&display).clicked() {
                             launch_url(&display);
                         }
@@ -197,5 +194,17 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     if !open {
         app.ui.toolbox_container_name = None;
         app.ui.active = ActiveView::Main;
+    }
+}
+
+fn display_url(url: &str) -> String {
+    if url.starts_with("http://") || url.starts_with("https://") {
+        return url.to_string();
+    }
+
+    if mkcert::is_internal_endpoint_domain(url) {
+        format!("https://{url}")
+    } else {
+        format!("http://{url}")
     }
 }

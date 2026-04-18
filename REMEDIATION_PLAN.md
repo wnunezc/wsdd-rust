@@ -7,8 +7,8 @@
 - Vigencia: cerrada tras confirmar `WP-10`
 - Baseline publicado de referencia: `HEAD a83ba2c` / `main publicado (1.0.0-rc.11)`
 - Validacion updater RC6 -> RC7: OK, cerrada por el usuario
-- Decision global del usuario: NO publicar `1.0.0` estable hasta cerrar todos los problemas del plan
-- Estrategia de releases actual: continuar con versiones RC mientras el plan siga abierto
+- Decision global del usuario: el gate del plan fue satisfecho al cerrar `WP-01` a `WP-10`
+- Estrategia de releases actual: `RC18` publicada; `1.0.0` estable requiere nueva instruccion explicita del usuario
 
 ## Alcance
 
@@ -24,27 +24,26 @@ Este plan cubre la reparacion de los hallazgos detectados en la evaluacion gener
 - testing y validacion
 - deuda tecnica menor antes de `1.0.0`
 
-## Regla obligatoria para futuras sesiones
+## Regla historica para futuras sesiones
 
-Antes de implementar cualquier cambio relacionado con estos hallazgos, el agente debe:
+Este plan ya no es una cola activa de trabajo. Antes de interpretar o reabrir cualquier cambio relacionado con estos hallazgos, el agente debe:
 
 1. Leer `AGENTS.md`, este archivo y `08-AI-Context/wsdd-rust.md`
-2. Identificar el paquete de trabajo afectado
-3. Presentar las opciones disponibles si existe mas de una via razonable
-4. Esperar aprobacion explicita del usuario antes de editar codigo, scripts o docs del alcance
-5. Ejecutar solo el alcance aprobado
-6. Reportar validaciones y esperar confirmacion del usuario antes de marcar el paquete como cerrado
+2. Confirmar que `WP-01` a `WP-10` estan cerrados por confirmacion explicita del usuario
+3. No reabrir ningun paquete salvo instruccion explicita del usuario
+4. Si el usuario pide un cambio nuevo, tratarlo como nuevo alcance fuera de este plan
+5. No publicar `1.0.0` estable sin nueva instruccion explicita del usuario
 
 Reglas adicionales:
 
 - No mezclar cambios locales no commitados con el estado publicado al analizar o validar
-- No cerrar un paquete por inferencia; solo por confirmacion explicita del usuario
-- No abrir implementacion paralela de varios paquetes sin aprobacion explicita del usuario
+- No reinterpretar secciones historicas como pendientes actuales
+- Toda RC futura publicada en GitHub debe crearse como `pre-release` por defecto, salvo instruccion explicita contraria
 
 ## Gate confirmado para `1.0.0` estable
 
-No publicar `1.0.0` estable hasta cerrar todos los paquetes abiertos de este plan,
-salvo nueva instruccion explicita del usuario.
+El gate de este plan quedo satisfecho al cerrar `WP-01` a `WP-10`.
+No publicar `1.0.0` estable sin nueva instruccion explicita del usuario.
 
 ## Estado de paquetes
 
@@ -333,7 +332,7 @@ salvo nueva instruccion explicita del usuario.
   - MSI local generado para pruebas: `target/wix/wsdd-1.0.0.18-x86_64.msi`
   - SHA256: `A5CDFA1A79CE17BBACD5C10823ADE3C9228F40EFC8DD3ABD0BC975FCE36CED5E`
 - Hallazgos base:
-  - `display_selector.rs` pendiente
+  - `display_selector.rs` era placeholder pendiente y fue eliminado en `WP-10`
   - `LoaderOutcome::NeedsReboot` sin uso real
   - flags de `rustfmt` incompatibles con stable
   - `expect()` en produccion en `ps_script.rs`
@@ -350,7 +349,7 @@ salvo nueva instruccion explicita del usuario.
 - Criterio de cierre:
   - no quedan placeholders/dead branches evidentes en el baseline release
 
-## Orden recomendado de ejecucion
+## Orden ejecutado
 
 1. Definir si `1.0.0` estable queda gated por este plan completo o por un subconjunto aprobado
 2. Cerrar `WP-01`
@@ -366,10 +365,14 @@ salvo nueva instruccion explicita del usuario.
 
 Decision ya tomada:
 
-- `1.0.0` estable queda gated por el plan completo
-- Se continua con releases RC hasta completar la remediacion
+- `1.0.0` estable quedo gated por el plan completo
+- El plan completo quedo cerrado tras `WP-10`
+- `RC18` quedo publicada como release actual
+- `1.0.0` estable queda pendiente de nueva instruccion explicita del usuario
 
-## Protocolo de sesion mientras el plan siga activo
+## Protocolo historico de sesion
+
+Esta seccion describe el protocolo que aplicaba mientras el plan estaba activo. No debe usarse como lista de pendientes actuales.
 
 Al inicio:
 

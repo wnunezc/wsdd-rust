@@ -134,15 +134,20 @@ pub fn current_language() -> Language {
 /// Translate a key using the current language, then English fallback, then the key itself.
 pub fn tr(key: &str) -> String {
     if let Ok(guard) = state_lock().read() {
-        if let Some(value) = guard.current.get(key) {
-            return value.clone();
-        }
-        if let Some(value) = guard.fallback_en.get(key) {
+        if let Some(value) = translate_from_maps(&guard.current, &guard.fallback_en, key) {
             return value.clone();
         }
     }
 
     key.to_string()
+}
+
+fn translate_from_maps<'a>(
+    current: &'a LocaleMap,
+    fallback_en: &'a LocaleMap,
+    key: &str,
+) -> Option<&'a String> {
+    current.get(key).or_else(|| fallback_en.get(key))
 }
 
 /// Translate a key and replace `{placeholders}` with provided values.
@@ -173,12 +178,34 @@ mod tests {
     }
 
     #[test]
-    fn all_locales_have_same_keys() {
+    fn english_locale_contains_all_non_english_keys() {
         let english_keys: BTreeSet<_> = load_locale(Language::En).into_keys().collect();
 
         for lang in Language::all() {
+            if *lang == Language::En {
+                continue;
+            }
+
             let keys: BTreeSet<_> = load_locale(*lang).into_keys().collect();
-            assert_eq!(english_keys, keys, "locale {} key mismatch", lang.code());
+            let extra_keys: Vec<_> = keys.difference(&english_keys).collect();
+            assert!(
+                extra_keys.is_empty(),
+                "locale {} has keys missing in English: {extra_keys:?}",
+                lang.code()
+            );
         }
+    }
+
+    #[test]
+    fn missing_current_language_key_falls_back_to_english() {
+        let current = LocaleMap::new();
+        let fallback_en =
+            LocaleMap::from([("main_containers".to_string(), "Containers".to_string())]);
+
+        assert_eq!(
+            translate_from_maps(&current, &fallback_en, "main_containers").map(String::as_str),
+            Some("Containers")
+        );
+        assert_eq!(translate_from_maps(&current, &fallback_en, "missing"), None);
     }
 }

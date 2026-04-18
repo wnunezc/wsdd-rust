@@ -1,11 +1,14 @@
 # WebStack Deployer for Docker (WSDD)
 
 Aplicacion de escritorio Windows que automatiza la configuracion de un entorno de desarrollo web
-local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y gestion de hosts.
+local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin, gestion de hosts,
+Xdebug y servicios opcionales Redis/Memcached/Mailpit.
 
 *Idiomas: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
 *Enlaces rapidos: [Guia de usuario](../help/user-guide.es.md) | [Mapa de migracion](../../MIGRATION.md) | [Licencia](../legal/LICENSE.es.md) | [Repositorio principal](../../README.md) | [Reportar bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+
+*Fallback de idioma: ingles para cualquier contenido de UI/ayuda no localizado.*
 
 ## Requisitos del sistema
 
@@ -23,6 +26,7 @@ local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin y g
 3. **Gestiona proyectos web**: Crea contenedores PHP por version con Apache + Xdebug
 4. **SSL local automatico**: Certificados MKCert por dominio, sin advertencias del navegador
 5. **Hosts automaticos**: Modifica `C:\Windows\System32\drivers\etc\hosts` por ti
+6. **Servicios opcionales**: Redis, Memcached y Mailpit estan desactivados por defecto y se despliegan solo al activarlos en Settings
 
 ## Contenedores Docker del stack
 
@@ -39,6 +43,14 @@ Por cada version activada se crean las URLs de desarrollo:
 - `cron{version}.wsdd.dock` — Gestor de cron jobs
 - `wm{version}.wsdd.dock` — Webmin (administracion del servidor)
 
+### Servicios opcionales (desactivados por defecto)
+- **WSDD-Redis-Server** — Redis para cache, colas y sesiones (`redis:7.4.8-alpine`)
+- **WSDD-Memcached-Server** — Memcached para cache legacy (`memcached:1.6.39-alpine`)
+- **WSDD-Mailpit-Server** — Captura SMTP local y UI web (`axllent/mailpit:v1.29.7`)
+
+Los servicios opcionales usan compose aislado en `Docker-Structure/services/`, proyectos Compose
+separados y la red compartida `wsdd-network`. No se despliegan con el stack base.
+
 ## Estructura del entorno en disco
 
 La aplicacion crea y gestiona el directorio `C:\WSDD-Environment\`:
@@ -46,7 +58,7 @@ La aplicacion crea y gestiona el directorio `C:\WSDD-Environment\`:
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — Scripts PowerShell de automatizacion
-├── Docker-Structure\   — docker-compose, imagenes PHP y assets SSL
+├── Docker-Structure\   — docker-compose, imagenes PHP, servicios y assets SSL
 ├── wsdd-config.json    — Configuracion de la aplicacion
 └── wsdd-secrets.json   — Secrets administrados para contenedores
 ```
@@ -77,7 +89,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0-rc.18 (Rust edition)
+- **Version**: 1.0.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

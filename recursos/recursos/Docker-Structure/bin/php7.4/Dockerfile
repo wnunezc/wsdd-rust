@@ -2,6 +2,7 @@ FROM php:7.4-apache-buster
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug-2.9.8"
+ARG XDEBUG_ENABLED="1"
 ARG WEBMIN_USER
 ARG WEBMIN_PASS
 
@@ -34,15 +35,21 @@ RUN a2enmod ssl
 RUN a2enmod headers 
 RUN a2enmod proxy_wstunnel
 
-RUN pecl channel-update pecl.php.net \
-    && pecl install ${XDEBUG_VERSION} \
-    && docker-php-ext-enable xdebug
-
-RUN echo "zend_extension=xdebug.so" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_enable=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_autostart=1" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.remote_port=9000" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+RUN if [ "$XDEBUG_ENABLED" = "1" ]; then \
+        pecl channel-update pecl.php.net \
+        && pecl install ${XDEBUG_VERSION} \
+        && docker-php-ext-enable xdebug \
+        && printf "%s\n" \
+            "zend_extension=xdebug.so" \
+            "xdebug.remote_enable=1" \
+            "xdebug.remote_autostart=0" \
+            "xdebug.remote_host=host.docker.internal" \
+            "xdebug.remote_port=9003" \
+            "xdebug.remote_connect_back=0" \
+            "xdebug.default_enable=1" \
+            "xdebug.idekey=WSDD" \
+            > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini; \
+    fi
 
 RUN service apache2 restart
 

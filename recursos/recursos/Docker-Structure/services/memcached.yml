@@ -1,0 +1,18 @@
+services:
+  memcached:
+    container_name: WSDD-Memcached-Server
+    image: memcached:1.6.39-alpine
+    restart: __WSDD_MEMCACHED_RESTART__
+    command: ["memcached", "-m", "__WSDD_MEMCACHED_MEMORY_MB__", "-p", "11211"]
+    ports:
+      - "127.0.0.1:__WSDD_MEMCACHED_HOST_PORT__:11211"
+    networks:
+      - wsdd-network
+    labels:
+      - "wsdd.optional-service.description=Memcached"
+      - "wsdd.optional-service.role=memcached"
+      - "wsdd.optional-service.managed=true"
+
+networks:
+  wsdd-network:
+    external: true

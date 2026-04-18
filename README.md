@@ -1,7 +1,8 @@
 # WebStack Deployer for Docker (WSDD)
 
 Windows desktop application that automates the setup of a local web development environment
-using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, and hosts management.
+using Docker. Includes multi-version PHP, local SSL, MySQL, phpMyAdmin, hosts management,
+Xdebug, and optional Redis/Memcached/Mailpit services.
 
 *Languages: [English](README.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [हिन्दी](docs/readme/README.hi.md) | [中文](docs/readme/README.zh.md)*
 
@@ -14,9 +15,10 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Release Candidate `1.0.0-rc.18`
+- **Current stage**: Stable `1.0.0` prepared locally, pending final manual validation
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
+- **Language fallback**: English is the fallback for any missing localized UI/help content
 - **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
 
 ## System Requirements
@@ -35,6 +37,7 @@ single desktop app.
 3. **Manages web projects**: Creates PHP containers per version with Apache + Xdebug
 4. **Automatic local SSL**: MKCert certificates per domain, no browser warnings
 5. **Automatic hosts**: Modifies `C:\Windows\System32\drivers\etc\hosts` for you
+6. **Optional developer services**: Redis, Memcached, and Mailpit are disabled by default and deploy only after explicit activation in Settings
 
 ## Docker Stack Containers
 
@@ -51,6 +54,14 @@ For each activated version, the following development URLs are created:
 - `cron{version}.wsdd.dock` — Cron jobs manager
 - `wm{version}.wsdd.dock` — Webmin (server administration)
 
+### Optional Services (disabled by default)
+- **WSDD-Redis-Server** — Redis cache/queues/sessions (`redis:7.4.8-alpine`)
+- **WSDD-Memcached-Server** — Memcached legacy cache (`memcached:1.6.39-alpine`)
+- **WSDD-Mailpit-Server** — Local SMTP capture and web UI (`axllent/mailpit:v1.29.7`)
+
+Optional services use isolated compose files under `Docker-Structure/services/`, separate Compose
+projects, and the shared `wsdd-network`. They are not deployed with the base stack.
+
 ## Disk Environment Structure
 
 The application creates and manages the `C:\WSDD-Environment\` directory:
@@ -58,7 +69,7 @@ The application creates and manages the `C:\WSDD-Environment\` directory:
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — PowerShell automation scripts
-├── Docker-Structure\   — docker-compose, PHP images, and SSL assets
+├── Docker-Structure\   — docker-compose, PHP images, services, and SSL assets
 ├── wsdd-config.json    — Application settings
 └── wsdd-secrets.json   — Managed secrets for containers
 ```
@@ -89,7 +100,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 1.0.0-rc.18 (Rust edition)
+- **Version**: 1.0.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

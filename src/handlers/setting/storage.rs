@@ -9,9 +9,11 @@ use super::credentials::{normalize_webmin_credentials, PrereqCredentials, Webmin
 use super::defaults::{
     default_config_version, default_language, default_log_max_lines, default_php_memory_limit,
     default_php_timezone, default_php_upload_max_filesize, default_webmin_version,
-    CURRENT_CONFIG_VERSION, LEGACY_WEBMIN_PASSWORD, LEGACY_WEBMIN_USER, LEGACY_WEBMIN_VERSION_2021,
+    default_xdebug_enabled, CURRENT_CONFIG_VERSION, LEGACY_WEBMIN_PASSWORD, LEGACY_WEBMIN_USER,
+    LEGACY_WEBMIN_VERSION_2021,
 };
 use super::secrets;
+use super::services::OptionalServicesSettings;
 use super::theme::AppTheme;
 
 /// User-editable application settings loaded from `wsdd-config.json`.
@@ -43,12 +45,18 @@ pub struct AppSettings {
     /// PHP timezone used by generated containers.
     #[serde(default = "default_php_timezone")]
     pub php_timezone: String,
+    /// Whether Xdebug is installed and enabled in generated PHP containers.
+    #[serde(default = "default_xdebug_enabled")]
+    pub xdebug_enabled: bool,
     /// Webmin package version installed in PHP containers.
     #[serde(default = "default_webmin_version")]
     pub webmin_version: String,
     /// Whether WSDD containers should start automatically on app startup.
     #[serde(default)]
     pub auto_start_containers: bool,
+    /// Optional developer services that are deployed only after explicit activation.
+    #[serde(default)]
+    pub optional_services: OptionalServicesSettings,
     /// Credentials for prerequisite containers.
     #[serde(default)]
     pub prereq_credentials: PrereqCredentials,
@@ -71,8 +79,10 @@ struct AppSettingsDisk<'a> {
     php_memory_limit: &'a String,
     php_upload_max_filesize: &'a String,
     php_timezone: &'a String,
+    xdebug_enabled: bool,
     webmin_version: &'a String,
     auto_start_containers: bool,
+    optional_services: &'a OptionalServicesSettings,
 }
 
 impl Default for AppSettings {
@@ -90,8 +100,10 @@ impl Default for AppSettings {
             php_memory_limit: default_php_memory_limit(),
             php_upload_max_filesize: default_php_upload_max_filesize(),
             php_timezone: default_php_timezone(),
+            xdebug_enabled: default_xdebug_enabled(),
             webmin_version: default_webmin_version(),
             auto_start_containers: false,
+            optional_services: OptionalServicesSettings::default(),
             prereq_credentials: PrereqCredentials::default(),
             webmin_credentials: Vec::new(),
         }
@@ -113,8 +125,10 @@ impl<'a> From<&'a AppSettings> for AppSettingsDisk<'a> {
             php_memory_limit: &settings.php_memory_limit,
             php_upload_max_filesize: &settings.php_upload_max_filesize,
             php_timezone: &settings.php_timezone,
+            xdebug_enabled: settings.xdebug_enabled,
             webmin_version: &settings.webmin_version,
             auto_start_containers: settings.auto_start_containers,
+            optional_services: &settings.optional_services,
         }
     }
 }
@@ -192,6 +206,17 @@ impl AppSettings {
         }
 
         self.webmin_version = normalize_webmin_version(&self.webmin_version);
+        self.optional_services.mailpit.virtual_host = self
+            .optional_services
+            .mailpit
+            .virtual_host
+            .trim()
+            .to_string();
+        if self.optional_services.mailpit.virtual_host.is_empty() {
+            self.optional_services.mailpit.virtual_host =
+                OptionalServicesSettings::default().mailpit.virtual_host;
+        }
+        self.optional_services.validate()?;
         self.prereq_credentials = self.prereq_credentials.normalize_loaded();
         normalize_webmin_credentials(&mut self.webmin_credentials);
 
@@ -218,6 +243,14 @@ impl AppSettings {
             credentials.validate_for_save()?;
         }
         Ok(())
+    }
+
+    /// Validates optional developer service configuration.
+    ///
+    /// # Errors
+    /// Returns [`InfraError`] when service ports are invalid or conflicting.
+    pub fn validate_optional_services(&self) -> Result<(), InfraError> {
+        self.optional_services.validate()
     }
 
     /// Returns complete Webmin credentials for a PHP version.
@@ -319,6 +352,7 @@ mod tests {
     fn default_settings_use_current_config_version() {
         let settings = AppSettings::default();
         assert_eq!(settings.config_version, CURRENT_CONFIG_VERSION);
+        assert!(settings.xdebug_enabled);
     }
 
     #[test]
@@ -330,6 +364,7 @@ mod tests {
             php_memory_limit: String::new(),
             php_upload_max_filesize: String::new(),
             php_timezone: String::new(),
+            xdebug_enabled: false,
             webmin_version: String::new(),
             ..AppSettings::default()
         };
@@ -343,6 +378,10 @@ mod tests {
         assert_eq!(normalized.php_memory_limit, "512M");
         assert_eq!(normalized.php_upload_max_filesize, "256M");
         assert_eq!(normalized.php_timezone, "UTC");
+        assert!(!normalized.xdebug_enabled);
+        assert!(!normalized.optional_services.redis.enabled);
+        assert!(!normalized.optional_services.mailpit.enabled);
+        assert!(!normalized.optional_services.memcached.enabled);
         assert_eq!(normalized.webmin_version, "2.630");
         assert_eq!(
             normalized.prereq_credentials.mysql_database,

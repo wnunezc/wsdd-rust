@@ -21,6 +21,22 @@ pub(super) struct SettingsCopy {
     php_memory_label: String,
     php_upload_label: String,
     php_timezone_label: String,
+    xdebug_enabled_label: String,
+    xdebug_note: String,
+    optional_services_title: String,
+    optional_services_note: String,
+    redis_enabled_label: String,
+    redis_auto_start_label: String,
+    redis_port_label: String,
+    memcached_enabled_label: String,
+    memcached_auto_start_label: String,
+    memcached_port_label: String,
+    memcached_memory_label: String,
+    mailpit_enabled_label: String,
+    mailpit_auto_start_label: String,
+    mailpit_smtp_port_label: String,
+    mailpit_ui_port_label: String,
+    mailpit_virtual_host_label: String,
     prereq_title: String,
     prereq_note: String,
     prereq_runtime_note: String,
@@ -56,6 +72,22 @@ impl SettingsCopy {
             php_memory_label: format!("{}:", tr("settings_php_memory")),
             php_upload_label: format!("{}:", tr("settings_php_upload")),
             php_timezone_label: format!("{}:", tr("settings_php_timezone")),
+            xdebug_enabled_label: format!("{}:", tr("settings_xdebug_enabled")),
+            xdebug_note: tr("settings_xdebug_note"),
+            optional_services_title: tr("settings_optional_services_section"),
+            optional_services_note: tr("settings_optional_services_note"),
+            redis_enabled_label: format!("{}:", tr("settings_redis_enabled")),
+            redis_auto_start_label: format!("{}:", tr("settings_redis_auto_start")),
+            redis_port_label: format!("{}:", tr("settings_redis_port")),
+            memcached_enabled_label: format!("{}:", tr("settings_memcached_enabled")),
+            memcached_auto_start_label: format!("{}:", tr("settings_memcached_auto_start")),
+            memcached_port_label: format!("{}:", tr("settings_memcached_port")),
+            memcached_memory_label: format!("{}:", tr("settings_memcached_memory")),
+            mailpit_enabled_label: format!("{}:", tr("settings_mailpit_enabled")),
+            mailpit_auto_start_label: format!("{}:", tr("settings_mailpit_auto_start")),
+            mailpit_smtp_port_label: format!("{}:", tr("settings_mailpit_smtp_port")),
+            mailpit_ui_port_label: format!("{}:", tr("settings_mailpit_ui_port")),
+            mailpit_virtual_host_label: format!("{}:", tr("settings_mailpit_virtual_host")),
             prereq_title: tr("settings_prereq_section"),
             prereq_note: tr("settings_prereq_note"),
             prereq_runtime_note: tr("settings_prereq_runtime_note"),
@@ -107,6 +139,8 @@ pub(super) fn render_body(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Set
         render_general_section(ui, draft, copy);
         ui.add_space(8.0);
         render_php_section(ui, draft, copy);
+        ui.add_space(8.0);
+        render_optional_services_section(ui, draft, copy);
         ui.add_space(8.0);
         render_prereq_section(ui, draft, copy);
         ui.add_space(8.0);
@@ -221,6 +255,124 @@ fn render_php_section(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Setting
                             .hint_text("UTC"),
                     );
                     ui.end_row();
+
+                    ui.label(&copy.xdebug_enabled_label);
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut draft.xdebug_enabled, "");
+                        ui.label(
+                            egui::RichText::new(&copy.xdebug_note)
+                                .size(11.0)
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                    });
+                    ui.end_row();
+                });
+        });
+}
+
+fn render_optional_services_section(
+    ui: &mut egui::Ui,
+    draft: &mut AppSettings,
+    copy: &SettingsCopy,
+) {
+    egui::CollapsingHeader::new(egui::RichText::new(&copy.optional_services_title).strong())
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(
+                egui::RichText::new(&copy.optional_services_note)
+                    .size(11.0)
+                    .color(ui.visuals().weak_text_color()),
+            );
+            ui.add_space(6.0);
+
+            egui::Grid::new("settings_optional_services")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .min_col_width(180.0)
+                .show(ui, |ui| {
+                    ui.label(&copy.redis_enabled_label);
+                    ui.checkbox(&mut draft.optional_services.redis.enabled, "");
+                    ui.end_row();
+
+                    if draft.optional_services.redis.enabled {
+                        ui.label(&copy.redis_auto_start_label);
+                        ui.checkbox(&mut draft.optional_services.redis.auto_start, "");
+                        ui.end_row();
+
+                        ui.label(&copy.redis_port_label);
+                        ui.add(
+                            egui::DragValue::new(&mut draft.optional_services.redis.host_port)
+                                .range(1..=65535)
+                                .speed(1.0),
+                        );
+                        ui.end_row();
+                    }
+
+                    ui.label(&copy.memcached_enabled_label);
+                    ui.checkbox(&mut draft.optional_services.memcached.enabled, "");
+                    ui.end_row();
+
+                    if draft.optional_services.memcached.enabled {
+                        ui.label(&copy.memcached_auto_start_label);
+                        ui.checkbox(&mut draft.optional_services.memcached.auto_start, "");
+                        ui.end_row();
+
+                        ui.label(&copy.memcached_port_label);
+                        ui.add(
+                            egui::DragValue::new(&mut draft.optional_services.memcached.host_port)
+                                .range(1..=65535)
+                                .speed(1.0),
+                        );
+                        ui.end_row();
+
+                        ui.label(&copy.memcached_memory_label);
+                        ui.add(
+                            egui::DragValue::new(
+                                &mut draft.optional_services.memcached.memory_limit_mb,
+                            )
+                            .range(16..=4096)
+                            .speed(16.0),
+                        );
+                        ui.end_row();
+                    }
+
+                    ui.label(&copy.mailpit_enabled_label);
+                    ui.checkbox(&mut draft.optional_services.mailpit.enabled, "");
+                    ui.end_row();
+
+                    if draft.optional_services.mailpit.enabled {
+                        ui.label(&copy.mailpit_auto_start_label);
+                        ui.checkbox(&mut draft.optional_services.mailpit.auto_start, "");
+                        ui.end_row();
+
+                        ui.label(&copy.mailpit_smtp_port_label);
+                        ui.add(
+                            egui::DragValue::new(
+                                &mut draft.optional_services.mailpit.smtp_host_port,
+                            )
+                            .range(1..=65535)
+                            .speed(1.0),
+                        );
+                        ui.end_row();
+
+                        ui.label(&copy.mailpit_ui_port_label);
+                        ui.add(
+                            egui::DragValue::new(&mut draft.optional_services.mailpit.ui_host_port)
+                                .range(1..=65535)
+                                .speed(1.0),
+                        );
+                        ui.end_row();
+
+                        ui.label(&copy.mailpit_virtual_host_label);
+                        ui.add(
+                            egui::TextEdit::singleline(
+                                &mut draft.optional_services.mailpit.virtual_host,
+                            )
+                            .desired_width(220.0)
+                            .hint_text("mailpit.wsdd.dock"),
+                        );
+                        ui.end_row();
+                    }
                 });
         });
 }

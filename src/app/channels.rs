@@ -5,6 +5,8 @@ use super::{BackgroundJobEvent, BackgroundJobStatus, WsddApp};
 impl WsddApp {
     /// Drains pending log, polling, and background job channels.
     pub fn drain_channels(&mut self) {
+        self.drain_container_log_channels();
+
         while let Ok(event) = self.job_event_rx.try_recv() {
             let BackgroundJobEvent::Finished { key, error } = event;
             if let Some(job) = self.jobs.get_mut(&key) {

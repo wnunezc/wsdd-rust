@@ -8,6 +8,7 @@ ENV CFLAGS="$CFLAGS -DLDAP_DEPRECATED=1"
 # ====== ARG ======
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
+ARG XDEBUG_ENABLED="1"
 ARG WEBMIN_VERSION="2.630"
 ARG WEBMIN_USER
 ARG WEBMIN_PASS
@@ -53,18 +54,20 @@ RUN docker-php-ext-install -j"$(nproc)" bz2 curl fileinfo gd gettext gmp intl ld
 
 RUN docker-php-ext-install ftp
 
-# ====== PECL: Xdebug (manteniendo tu ARG XDEBUG_VERSION) ======
-RUN pecl install ${XDEBUG_VERSION}
-RUN docker-php-ext-enable xdebug
-
-# ====== Xdebug: configuración por defecto (ajústala a tu flujo) ======
-RUN printf "%s\n" \
-  "zend_extension=xdebug.so" \
-  "xdebug.mode=debug" \
-  "xdebug.start_with_request=yes" \
-  "xdebug.client_host=host.docker.internal" \
-  "xdebug.client_port=9003" \
-  > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+# ====== PECL: Xdebug ======
+RUN if [ "$XDEBUG_ENABLED" = "1" ]; then \
+        pecl install ${XDEBUG_VERSION} \
+        && docker-php-ext-enable xdebug \
+        && printf "%s\n" \
+            "zend_extension=xdebug.so" \
+            "xdebug.mode=debug,develop" \
+            "xdebug.start_with_request=trigger" \
+            "xdebug.client_host=host.docker.internal" \
+            "xdebug.client_port=9003" \
+            "xdebug.discover_client_host=0" \
+            "xdebug.idekey=WSDD" \
+            > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini; \
+    fi
 
 RUN echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf && a2enconf servername
 

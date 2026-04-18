@@ -29,6 +29,7 @@ use crate::models::project::Project;
 use crate::ui::{ActiveView, UiState};
 
 mod channels;
+mod container_logs;
 mod fonts;
 mod jobs;
 mod runtime;
@@ -56,6 +57,18 @@ pub struct BackgroundJob {
     pub last_error: Option<String>,
 }
 
+/// One live log line emitted by a Docker container.
+#[derive(Debug, Clone)]
+pub struct ContainerLogEntry {
+    pub container_name: String,
+    pub text: String,
+}
+
+#[derive(Debug)]
+struct ContainerLogWatcher {
+    stop_tx: mpsc::Sender<()>,
+}
+
 #[derive(Debug)]
 enum BackgroundJobEvent {
     Finished { key: String, error: Option<String> },
@@ -79,6 +92,13 @@ pub struct WsddApp {
     pub main_log: Vec<LogLine>,
     pub main_log_tx: mpsc::Sender<LogLine>,
     main_log_rx: mpsc::Receiver<LogLine>,
+    pub container_logs: Vec<ContainerLogEntry>,
+    container_log_tx: mpsc::Sender<ContainerLogEntry>,
+    container_log_rx: mpsc::Receiver<ContainerLogEntry>,
+    container_log_done_tx: mpsc::Sender<String>,
+    container_log_done_rx: mpsc::Receiver<String>,
+    container_log_watchers: HashMap<String, ContainerLogWatcher>,
+    container_log_retry_after: HashMap<String, Instant>,
     pub container_poll_rx: Option<mpsc::Receiver<ContainerPollSnapshot>>,
     pub container_poll_active: bool,
     pub last_container_poll: Instant,
@@ -106,6 +126,8 @@ impl WsddApp {
         };
 
         let (main_log_tx, main_log_rx) = mpsc::channel::<LogLine>();
+        let (container_log_tx, container_log_rx) = mpsc::channel::<ContainerLogEntry>();
+        let (container_log_done_tx, container_log_done_rx) = mpsc::channel::<String>();
         let (job_event_tx, job_event_rx) = mpsc::channel::<BackgroundJobEvent>();
 
         Self {
@@ -125,6 +147,13 @@ impl WsddApp {
             main_log: Vec::new(),
             main_log_tx,
             main_log_rx,
+            container_logs: Vec::new(),
+            container_log_tx,
+            container_log_rx,
+            container_log_done_tx,
+            container_log_done_rx,
+            container_log_watchers: HashMap::new(),
+            container_log_retry_after: HashMap::new(),
             container_poll_rx: None,
             container_poll_active: false,
             last_container_poll: Instant::now()
@@ -142,6 +171,7 @@ impl eframe::App for WsddApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         crate::ui::theme::apply(ctx, self.settings.theme);
         self.drain_channels();
+        self.sync_container_log_watchers(ctx);
         crate::ui::render(ctx, self);
     }
 }

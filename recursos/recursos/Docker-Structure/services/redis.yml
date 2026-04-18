@@ -1,0 +1,24 @@
+services:
+  redis:
+    container_name: WSDD-Redis-Server
+    image: redis:7.4.8-alpine
+    restart: __WSDD_REDIS_RESTART__
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:__WSDD_REDIS_HOST_PORT__:6379"
+    volumes:
+      - wsdd-redis-data:/data
+    networks:
+      - wsdd-network
+    labels:
+      - "wsdd.optional-service.description=Redis"
+      - "wsdd.optional-service.role=redis"
+      - "wsdd.optional-service.managed=true"
+
+volumes:
+  wsdd-redis-data:
+    name: wsdd-redis-data
+
+networks:
+  wsdd-network:
+    external: true

@@ -1,3 +1,4 @@
+use std::io::Read;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -92,8 +93,6 @@ fn exec_direct_streaming(
     work_dir: Option<&Path>,
     tx: &OutputSender,
 ) -> Result<ProcOutput, InfraError> {
-    use std::io::{BufRead, BufReader};
-
     let mut cmd = Command::new(program);
     cmd.args(args).stdout(Stdio::piped()).stderr(Stdio::piped());
 
@@ -119,45 +118,12 @@ fn exec_direct_streaming(
 
     let tx_err = tx.clone();
     let stderr_handle = std::thread::spawn(move || {
-        let mut text = String::new();
-        let mut reader = BufReader::new(stderr_pipe);
-        let mut buf = Vec::new();
-        loop {
-            buf.clear();
-            match reader.read_until(b'\n', &mut buf) {
-                Ok(0) | Err(_) => break,
-                Ok(_) => {
-                    let raw = String::from_utf8_lossy(&buf);
-                    let clean = strip_ansi(raw.trim_end_matches(['\n', '\r']));
-                    if !clean.trim().is_empty() {
-                        let _ = tx_err.send(clean.clone());
-                        text.push_str(&clean);
-                        text.push('\n');
-                    }
-                }
-            }
-        }
-        text
+        let mut reader = stderr_pipe;
+        read_stream_to_sender(&mut reader, &tx_err)
     });
 
-    let mut stdout_text = String::new();
-    let mut reader = BufReader::new(stdout_pipe);
-    let mut buf = Vec::new();
-    loop {
-        buf.clear();
-        match reader.read_until(b'\n', &mut buf) {
-            Ok(0) | Err(_) => break,
-            Ok(_) => {
-                let raw = String::from_utf8_lossy(&buf);
-                let clean = strip_ansi(raw.trim_end_matches(['\n', '\r']));
-                if !clean.trim().is_empty() {
-                    let _ = tx.send(clean.to_string());
-                    stdout_text.push_str(&clean);
-                    stdout_text.push('\n');
-                }
-            }
-        }
-    }
+    let mut reader = stdout_pipe;
+    let stdout_text = read_stream_to_sender(&mut reader, tx);
 
     let stderr_text = stderr_handle.join().unwrap_or_default();
     let status = child.wait().map_err(InfraError::Io)?;
@@ -172,6 +138,48 @@ fn exec_direct_streaming(
         text: merge_streams(stdout_text, stderr_text),
         success: status.success(),
     })
+}
+
+fn read_stream_to_sender(reader: &mut impl Read, tx: &OutputSender) -> String {
+    let mut text = String::new();
+    let mut pending = Vec::new();
+    let mut buf = [0_u8; 4096];
+
+    loop {
+        match reader.read(&mut buf) {
+            Ok(0) | Err(_) => break,
+            Ok(bytes_read) => {
+                for byte in &buf[..bytes_read] {
+                    if *byte == b'\n' || *byte == b'\r' {
+                        flush_stream_segment(&mut pending, tx, &mut text);
+                    } else {
+                        pending.push(*byte);
+                    }
+                }
+            }
+        }
+    }
+
+    flush_stream_segment(&mut pending, tx, &mut text);
+    text
+}
+
+fn flush_stream_segment(pending: &mut Vec<u8>, tx: &OutputSender, text: &mut String) {
+    if pending.is_empty() {
+        return;
+    }
+
+    let raw = String::from_utf8_lossy(pending);
+    let clean = strip_ansi(raw.trim_end_matches(['\n', '\r']));
+    pending.clear();
+
+    if clean.trim().is_empty() {
+        return;
+    }
+
+    let _ = tx.send(clean.clone());
+    text.push_str(&clean);
+    text.push('\n');
 }
 
 /// Removes ANSI escape sequences from process output.
@@ -226,6 +234,28 @@ mod tests {
     #[test]
     fn strip_ansi_handles_empty() {
         assert_eq!(strip_ansi(""), "");
+    }
+
+    #[test]
+    fn read_stream_to_sender_splits_on_carriage_returns() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut input = std::io::Cursor::new(b"Downloading 10%\rDownloading 20%\rDone\n");
+
+        let text = read_stream_to_sender(&mut input, &tx);
+        drop(tx);
+
+        let lines: Vec<_> = rx.try_iter().collect();
+        assert_eq!(
+            lines,
+            vec![
+                "Downloading 10%".to_string(),
+                "Downloading 20%".to_string(),
+                "Done".to_string()
+            ]
+        );
+        assert!(text.contains("Downloading 10%"));
+        assert!(text.contains("Downloading 20%"));
+        assert!(text.contains("Done"));
     }
 
     #[test]

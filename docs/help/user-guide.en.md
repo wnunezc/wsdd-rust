@@ -240,6 +240,31 @@ PHP (Docker containers):
   - memory_limit              — PHP RAM limit (e.g., 512M)
   - upload_max_filesize       — Max upload file size (e.g., 256M)
   - Timezone                  — PHP timezone (e.g., America/Mexico_City, UTC)
+  - Xdebug                    — Enabled by default for new/rebuilt PHP containers.
+    PHP 8.x uses Xdebug 3 with mode debug,develop, host.docker.internal,
+    port 9003 and trigger-based start. PHP 5.6/7.x uses the Xdebug 2 trigger
+    equivalent on the same host/port.
+
+IDE / agent debugging:
+  - Configure VS Code, PHPStorm, or another DBGp listener on port 9003.
+  - Map the Windows project path to /var/www/html/{project-domain}.
+  - AI agents can listen too if they run a DBGp/Xdebug-compatible listener on
+    the Windows host; WSDD only configures the PHP container to connect back.
+
+OPTIONAL SERVICES:
+  Redis, Memcached and Mailpit are disabled by default and are not deployed with the base
+  stack. Enable a service in Settings, review its ports/auto-start option, then
+  save to deploy it.
+  - Redis: container host redis / WSDD-Redis-Server, internal port 6379,
+    default host port 6379, persistent volume wsdd-redis-data.
+  - Memcached: container host memcached / WSDD-Memcached-Server, internal port
+    11211, default host port 11211, volatile cache.
+  - Mailpit: SMTP host mailpit / WSDD-Mailpit-Server, internal SMTP port 1025,
+    UI port 8025, default local UI http://mailpit.wsdd.dock.
+  - Framework examples:
+    Redis: REDIS_HOST=redis, REDIS_PORT=6379.
+    Memcached: MEMCACHED_HOST=memcached, MEMCACHED_PORT=11211.
+    Mailpit: MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_MAILER=smtp.
 
 PREREQUISITES:
   - MySQL/phpMyAdmin credentials — requested before the first base-environment
@@ -323,6 +348,13 @@ CERTIFICATE LOCATION:
   C:\WSDD-Environment\Docker-Structure\ssl\
   ├── {domain}.crt  — Certificate
   └── {domain}.key  — Private key
+
+phpMyAdmin and MySQL SSL:
+  HTTPS to phpMyAdmin secures browser → phpMyAdmin traffic. It does not mean
+  the internal phpMyAdmin → MySQL connection uses MySQL TLS.
+  WSDD does not force MySQL TLS by default because existing PHP frameworks and
+  ORMs may need CA paths, ssl-mode settings and certificates. Treat MySQL TLS
+  as an optional project-level hardening choice, not the default local stack.
 
 ## Troubleshooting
 

@@ -27,6 +27,7 @@ use std::sync::mpsc;
 /// Nivel de importancia de una línea de log.
 #[derive(Debug, Clone, PartialEq)]
 pub enum LogLevel {
+    Raw,
     Info,
     Success,
     Warn,
@@ -36,7 +37,8 @@ pub enum LogLevel {
 impl LogLevel {
     fn icon(&self) -> &'static str {
         match self {
-            Self::Info => "ℹ",
+            Self::Raw => "",
+            Self::Info => "",
             Self::Success => "✓",
             Self::Warn => "⚠",
             Self::Error => "✗",
@@ -64,6 +66,14 @@ pub struct LogLine {
 }
 
 impl LogLine {
+    pub fn raw(text: impl Into<String>) -> Self {
+        Self {
+            text: normalize_text(LogLevel::Raw, text.into()),
+            level: LogLevel::Raw,
+            key: None,
+        }
+    }
+
     pub fn info(text: impl Into<String>) -> Self {
         Self {
             text: normalize_text(LogLevel::Info, text.into()),
@@ -111,18 +121,53 @@ fn normalize_text(level: LogLevel, text: String) -> String {
         return text;
     }
 
+    if level == LogLevel::Raw {
+        return text;
+    }
+
     if has_leading_level_icon(&text) {
         return text;
     }
 
-    format!("{} {}", level.icon(), text)
+    let icon = level.icon();
+    if icon.is_empty() {
+        text
+    } else {
+        format!("{icon} {text}")
+    }
 }
 
 fn has_leading_level_icon(text: &str) -> bool {
     let trimmed = text.trim_start();
-    ["ℹ", "✓", "⚠", "✗"]
-        .iter()
-        .any(|icon| trimmed.starts_with(icon))
+    ["✓", "⚠", "✗"].iter().any(|icon| trimmed.starts_with(icon))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn raw_log_line_keeps_process_output_without_info_prefix() {
+        let line = LogLine::raw("Downloading layer...");
+
+        assert_eq!(line.level, LogLevel::Raw);
+        assert_eq!(line.text, "Downloading layer...");
+    }
+
+    #[test]
+    fn info_log_line_keeps_text_without_icon() {
+        let line = LogLine::info("Checking Docker...");
+
+        assert_eq!(line.level, LogLevel::Info);
+        assert_eq!(line.text, "Checking Docker...");
+    }
+
+    #[test]
+    fn status_log_lines_keep_existing_prefixes() {
+        let line = LogLine::success("✓ Already prefixed");
+
+        assert_eq!(line.text, "✓ Already prefixed");
+    }
 }
 
 // ─── Tipos de canal ───────────────────────────────────────────────────────────

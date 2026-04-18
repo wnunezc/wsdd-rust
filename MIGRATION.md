@@ -5,7 +5,7 @@
 | Version | Path | Status |
 |---|---|---|
 | C# reference | `Finished\WSDD-CSharp\WebStack Deployer for Docker\` | Archived reference implementation |
-| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0-rc.18`) |
+| Rust active app | `Projects\Desktop\WSDD\` | Current desktop application (`1.0.0`, prepared locally pending final manual validation) |
 
 The Rust codebase is now the active implementation of WSDD. The original C# WinForms project
 remains as a reference for historical behavior and edge cases.
@@ -19,7 +19,7 @@ The initial desktop migration is functionally in place:
 - Main panel implemented: containers, projects, logs, toolbar, menu actions
 - Project management implemented: add project, deploy, remove, toolbox flows
 - Settings, WSL settings, About, and Helps views implemented
-- Multilingual UI available in `en`, `es`, `fr`, `hi`, and `zh`
+- Multilingual UI available in `en`, `es`, `fr`, `hi`, and `zh`; English is the fallback for missing localized UI/help content
 - MSI installer flow implemented with WiX / `cargo-wix`
 
 ## Major component map

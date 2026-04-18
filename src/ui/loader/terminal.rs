@@ -142,14 +142,14 @@ fn render_action_buttons(ui: &mut egui::Ui, app: &mut WsddApp) {
 fn level_color(level: &LogLevel, dark: bool) -> Color32 {
     if dark {
         match level {
-            LogLevel::Info => Color32::from_rgb(200, 200, 200),
+            LogLevel::Raw | LogLevel::Info => Color32::from_rgb(200, 200, 200),
             LogLevel::Success => Color32::from_rgb(100, 220, 100),
             LogLevel::Warn => Color32::from_rgb(255, 200, 0),
             LogLevel::Error => Color32::from_rgb(255, 80, 80),
         }
     } else {
         match level {
-            LogLevel::Info => Color32::from_rgb(50, 50, 50),
+            LogLevel::Raw | LogLevel::Info => Color32::from_rgb(50, 50, 50),
             LogLevel::Success => Color32::from_rgb(0, 130, 0),
             LogLevel::Warn => Color32::from_rgb(160, 80, 0),
             LogLevel::Error => Color32::from_rgb(180, 0, 0),

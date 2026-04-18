@@ -77,6 +77,18 @@ const PHP84_WEBSERVER_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/bin/php8.4/webserver.php84.yml"
 ));
+const REDIS_SERVICE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/services/redis.yml"
+));
+const MAILPIT_SERVICE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/services/mailpit.yml"
+));
+const MEMCACHED_SERVICE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/services/memcached.yml"
+));
 
 /// Renders the base `init.yml` with installation-specific credentials.
 pub(super) fn render_init_yml(credentials: &PrereqCredentials) -> String {
@@ -118,6 +130,73 @@ pub(super) fn render_webserver_yml(
             "__WSDD_WEBMIN_PASS__",
             &yaml_single_quoted(&credentials.password),
         )
+        .replace(
+            "__WSDD_XDEBUG_ENABLED__",
+            &yaml_single_quoted(if settings.xdebug_enabled { "1" } else { "0" }),
+        )
+}
+
+/// Renders the optional Redis compose file from saved settings.
+pub(super) fn render_redis_yml(settings: &AppSettings) -> String {
+    REDIS_SERVICE_TEMPLATE
+        .replace(
+            "__WSDD_REDIS_RESTART__",
+            &yaml_single_quoted(restart_policy(settings.optional_services.redis.auto_start)),
+        )
+        .replace(
+            "__WSDD_REDIS_HOST_PORT__",
+            &settings.optional_services.redis.host_port.to_string(),
+        )
+}
+
+/// Renders the optional Mailpit compose file from saved settings.
+pub(super) fn render_mailpit_yml(settings: &AppSettings) -> String {
+    MAILPIT_SERVICE_TEMPLATE
+        .replace(
+            "__WSDD_MAILPIT_RESTART__",
+            &yaml_single_quoted(restart_policy(
+                settings.optional_services.mailpit.auto_start,
+            )),
+        )
+        .replace(
+            "__WSDD_MAILPIT_SMTP_PORT__",
+            &settings
+                .optional_services
+                .mailpit
+                .smtp_host_port
+                .to_string(),
+        )
+        .replace(
+            "__WSDD_MAILPIT_UI_PORT__",
+            &settings.optional_services.mailpit.ui_host_port.to_string(),
+        )
+        .replace(
+            "__WSDD_MAILPIT_VIRTUAL_HOST__",
+            &yaml_single_quoted(&settings.optional_services.mailpit.virtual_host),
+        )
+}
+
+/// Renders the optional Memcached compose file from saved settings.
+pub(super) fn render_memcached_yml(settings: &AppSettings) -> String {
+    MEMCACHED_SERVICE_TEMPLATE
+        .replace(
+            "__WSDD_MEMCACHED_RESTART__",
+            &yaml_single_quoted(restart_policy(
+                settings.optional_services.memcached.auto_start,
+            )),
+        )
+        .replace(
+            "__WSDD_MEMCACHED_HOST_PORT__",
+            &settings.optional_services.memcached.host_port.to_string(),
+        )
+        .replace(
+            "__WSDD_MEMCACHED_MEMORY_MB__",
+            &settings
+                .optional_services
+                .memcached
+                .memory_limit_mb
+                .to_string(),
+        )
 }
 
 /// Returns the managed Dockerfile template for a PHP version.
@@ -153,6 +232,14 @@ fn webserver_template(php_version: &PhpVersion) -> &'static str {
 fn yaml_single_quoted(value: &str) -> String {
     let sanitized = value.replace(['\r', '\n'], "");
     format!("'{}'", sanitized.replace('\'', "''"))
+}
+
+fn restart_policy(auto_start: bool) -> &'static str {
+    if auto_start {
+        "unless-stopped"
+    } else {
+        "no"
+    }
 }
 
 #[cfg(test)]
@@ -205,6 +292,52 @@ mod tests {
         assert!(rendered.contains("WEBMIN_VERSION: '2.630'"));
         assert!(rendered.contains("WEBMIN_USER: 'walter'"));
         assert!(rendered.contains("WEBMIN_PASS: 'secret'"));
+        assert!(rendered.contains("XDEBUG_ENABLED: '1'"));
         assert!(!rendered.contains("__WSDD_"));
+    }
+
+    #[test]
+    fn rendered_webserver_yml_can_disable_xdebug() {
+        let settings = AppSettings {
+            xdebug_enabled: false,
+            webmin_credentials: vec![WebminCredentials {
+                php_version: PhpVersion::Php83,
+                username: "walter".to_string(),
+                password: "secret".to_string(),
+            }],
+            ..AppSettings::default()
+        };
+
+        let rendered = render_webserver_yml(
+            &settings,
+            &PhpVersion::Php83,
+            settings
+                .webmin_credentials_for(&PhpVersion::Php83)
+                .expect("missing credentials"),
+        );
+
+        assert!(rendered.contains("XDEBUG_ENABLED: '0'"));
+        assert!(!rendered.contains("__WSDD_"));
+    }
+
+    #[test]
+    fn rendered_optional_services_are_disabled_from_autostart_by_default() {
+        let settings = AppSettings::default();
+
+        let redis = render_redis_yml(&settings);
+        let mailpit = render_mailpit_yml(&settings);
+        let memcached = render_memcached_yml(&settings);
+
+        assert!(redis.contains("restart: 'no'"));
+        assert!(redis.contains("127.0.0.1:6379:6379"));
+        assert!(mailpit.contains("restart: 'no'"));
+        assert!(mailpit.contains("127.0.0.1:1025:1025"));
+        assert!(mailpit.contains("127.0.0.1:8025:8025"));
+        assert!(memcached.contains("restart: 'no'"));
+        assert!(memcached.contains("127.0.0.1:11211:11211"));
+        assert!(memcached.contains("\"-m\", \"64\""));
+        assert!(!redis.contains("__WSDD_"));
+        assert!(!mailpit.contains("__WSDD_"));
+        assert!(!memcached.contains("__WSDD_"));
     }
 }

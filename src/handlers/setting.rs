@@ -20,9 +20,12 @@
 mod credentials;
 mod defaults;
 mod secrets;
+mod services;
 mod storage;
 mod theme;
 
 pub use credentials::{PrereqCredentials, WebminCredentials};
+#[allow(unused_imports)]
+pub use services::{MailpitServiceSettings, OptionalServicesSettings, RedisServiceSettings};
 pub use storage::AppSettings;
 pub use theme::AppTheme;

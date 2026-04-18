@@ -1,0 +1,25 @@
+services:
+  mailpit:
+    container_name: WSDD-Mailpit-Server
+    image: axllent/mailpit:v1.29.7
+    restart: __WSDD_MAILPIT_RESTART__
+    expose:
+      - "8025"
+    ports:
+      - "127.0.0.1:__WSDD_MAILPIT_SMTP_PORT__:1025"
+      - "127.0.0.1:__WSDD_MAILPIT_UI_PORT__:8025"
+    environment:
+      VIRTUAL_HOST: __WSDD_MAILPIT_VIRTUAL_HOST__
+      VIRTUAL_PORT: 8025
+      MP_SMTP_BIND_ADDR: 0.0.0.0:1025
+      MP_UI_BIND_ADDR: 0.0.0.0:8025
+    networks:
+      - wsdd-network
+    labels:
+      - "wsdd.optional-service.description=Mailpit"
+      - "wsdd.optional-service.role=mailpit"
+      - "wsdd.optional-service.managed=true"
+
+networks:
+  wsdd-network:
+    external: true

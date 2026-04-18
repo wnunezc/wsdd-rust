@@ -2,6 +2,7 @@ FROM php:8.1-apache
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
+ARG XDEBUG_ENABLED="1"
 ARG WEBMIN_VERSION="2.630"
 ARG WEBMIN_USER
 ARG WEBMIN_PASS
@@ -29,15 +30,20 @@ RUN a2enmod ssl
 RUN a2enmod headers 
 RUN a2enmod proxy_wstunnel
 
-RUN pecl channel-update pecl.php.net \
-    && pecl install ${XDEBUG_VERSION} \
-    && docker-php-ext-enable xdebug
-
-RUN echo "zend_extension=xdebug.so" > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.mode=debug" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.start_with_request=yes" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.client_host=host.docker.internal" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini \
-    && echo "xdebug.client_port=9003" >> /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini
+RUN if [ "$XDEBUG_ENABLED" = "1" ]; then \
+        pecl channel-update pecl.php.net \
+        && pecl install ${XDEBUG_VERSION} \
+        && docker-php-ext-enable xdebug \
+        && printf "%s\n" \
+            "zend_extension=xdebug.so" \
+            "xdebug.mode=debug,develop" \
+            "xdebug.start_with_request=trigger" \
+            "xdebug.client_host=host.docker.internal" \
+            "xdebug.client_port=9003" \
+            "xdebug.discover_client_host=0" \
+            "xdebug.idekey=WSDD" \
+            > /usr/local/etc/php/conf.d/docker-php-ext-xdebug.ini; \
+    fi
 
 RUN service apache2 restart
 

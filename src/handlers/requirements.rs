@@ -86,6 +86,11 @@ pub fn run_requirements(
         return;
     }
 
+    if !mkcert::ensure_internal_endpoint_certs(&log_tx) {
+        let _ = outcome_tx.send(LoaderOutcome::BlockingError);
+        return;
+    }
+
     let _ = tx_log_separator(&log_tx);
     let docker_outcome = docker_deploy::process_requirements_sync(&runner, &log_tx);
     if docker_outcome != docker_deploy::DockerRequirementOutcome::Ready {

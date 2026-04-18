@@ -27,6 +27,7 @@ const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::handlers::log_types::{LogLine, LogSender};
+use crate::models::project::PhpVersion;
 
 // ─── Sondas ───────────────────────────────────────────────────────────────────
 
@@ -60,7 +61,13 @@ pub fn generate_ca() -> Result<()> {
     cmd.arg("-install");
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.status()?;
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "mkcert -install devolvio exit code {}",
+            status.code().unwrap_or(-1)
+        ));
+    }
     Ok(())
 }
 
@@ -80,8 +87,65 @@ pub fn generate(domain: &str) -> Result<()> {
         .arg(domain);
     #[cfg(windows)]
     cmd.creation_flags(CREATE_NO_WINDOW);
-    cmd.status()?;
+    let status = cmd.status()?;
+    if !status.success() {
+        return Err(anyhow::anyhow!(
+            "mkcert devolvio exit code {} al generar {domain}",
+            status.code().unwrap_or(-1)
+        ));
+    }
     Ok(())
+}
+
+/// Ensures mkcert certificates exist for WSDD internal HTTP endpoints.
+pub fn ensure_internal_endpoint_certs(tx: &LogSender) -> bool {
+    let _ = tx.send(LogLine::info(
+        "Verificando certificados SSL internos de WSDD...",
+    ));
+
+    for domain in internal_endpoint_domains() {
+        if internal_cert_exists(&domain) {
+            let _ = tx.send(LogLine::success(format!(
+                "✓ Certificado SSL interno listo: {domain}"
+            )));
+            continue;
+        }
+
+        let _ = tx.send(LogLine::info(format!(
+            "Generando certificado SSL interno: {domain}"
+        )));
+        if let Err(e) = generate(&domain) {
+            let _ = tx.send(LogLine::error(format!(
+                "✗ No se pudo generar certificado SSL para {domain}: {e}"
+            )));
+            return false;
+        }
+        let _ = tx.send(LogLine::success(format!(
+            "✓ Certificado SSL interno generado: {domain}"
+        )));
+    }
+
+    true
+}
+
+/// Domains exposed through the internal reverse proxy with optional HTTPS.
+pub fn internal_endpoint_domains() -> Vec<String> {
+    let mut domains = vec!["pma.wsdd.dock".to_string()];
+    for php_version in PhpVersion::all() {
+        domains.extend(php_version.base_container_domains());
+    }
+    domains
+}
+
+pub fn is_internal_endpoint_domain(domain: &str) -> bool {
+    internal_endpoint_domains()
+        .iter()
+        .any(|candidate| candidate == domain)
+}
+
+fn internal_cert_exists(domain: &str) -> bool {
+    let paths = path_config();
+    paths.ssl_cert_file(domain).is_file() && paths.ssl_key_file(domain).is_file()
 }
 
 // ─── Requirements (Fase 3) ────────────────────────────────────────────────────
@@ -153,4 +217,29 @@ fn resolve_mkcert_exe() -> Option<std::path::PathBuf> {
         .map(str::trim)
         .find(|line| !line.is_empty())
         .map(std::path::PathBuf::from)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn internal_endpoint_domains_include_pma_and_php_base_hosts() {
+        let domains = internal_endpoint_domains();
+
+        assert!(domains.contains(&"pma.wsdd.dock".to_string()));
+        assert!(domains.contains(&"php84.wsdd.dock".to_string()));
+        assert!(domains.contains(&"cron84.wsdd.dock".to_string()));
+        assert!(domains.contains(&"wm84.wsdd.dock".to_string()));
+        assert!(!domains.contains(&"mysql.wsdd.dock".to_string()));
+        assert!(is_internal_endpoint_domain("pma.wsdd.dock"));
+        assert!(!is_internal_endpoint_domain("mysql.wsdd.dock"));
+    }
+
+    #[test]
+    fn internal_endpoint_domains_cover_all_php_versions() {
+        let domains = internal_endpoint_domains();
+
+        assert_eq!(domains.len(), 1 + PhpVersion::all().len() * 3);
+    }
 }

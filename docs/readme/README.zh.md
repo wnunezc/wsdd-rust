@@ -1,11 +1,13 @@
 # WebStack Deployer for Docker (WSDD)
 
 这是一个 Windows 桌面应用程序，用于自动化基于 Docker 的本地 Web 开发环境配置。
-它包含多版本 PHP、本地 SSL、MySQL、phpMyAdmin 以及 hosts 管理功能。
+它包含多版本 PHP、本地 SSL、MySQL、phpMyAdmin、hosts 管理、Xdebug，以及可选 Redis/Memcached/Mailpit 服务。
 
 *语言: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
 *快速链接: [用户指南](../help/user-guide.zh.md) | [迁移地图](../../MIGRATION.md) | [许可](../legal/LICENSE.zh.md) | [主仓库](../../README.md) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
+
+*Language fallback: English for any missing localized UI/help content.*
 
 ## 系统要求
 
@@ -23,6 +25,7 @@
 3. **管理 Web 项目**: 为每个 PHP 版本创建带 Apache + Xdebug 的容器
 4. **自动本地 SSL**: 为每个域名生成 MKCert 证书，无浏览器警告
 5. **自动 hosts**: 自动修改 `C:\Windows\System32\drivers\etc\hosts`
+6. **可选服务**: Redis、Memcached 和 Mailpit 默认关闭，只在 Settings 中启用并保存后部署
 
 ## Docker 栈容器
 
@@ -39,6 +42,14 @@
 - `cron{version}.wsdd.dock` — Cron 作业管理器
 - `wm{version}.wsdd.dock` — Webmin（服务器管理）
 
+### 可选服务（默认关闭）
+- **WSDD-Redis-Server** — Redis cache/queues/sessions (`redis:7.4.8-alpine`)
+- **WSDD-Memcached-Server** — Memcached legacy cache (`memcached:1.6.39-alpine`)
+- **WSDD-Mailpit-Server** — local SMTP capture and web UI (`axllent/mailpit:v1.29.7`)
+
+可选服务使用 `Docker-Structure/services/` 下的独立 compose 文件、独立 Compose project，以及共享
+`wsdd-network`。它们不会随基础 stack 一起部署。
+
 ## 磁盘环境结构
 
 应用程序会创建并管理 `C:\WSDD-Environment\` 目录:
@@ -46,7 +57,7 @@
 ```
 C:\WSDD-Environment\
 ├── PS-Script\          — PowerShell 自动化脚本
-├── Docker-Structure\   — docker-compose、PHP 镜像和 SSL 资源
+├── Docker-Structure\   — docker-compose、PHP 镜像、services 和 SSL 资源
 ├── wsdd-config.json    — 应用程序配置
 └── wsdd-secrets.json   — 容器托管 secrets
 ```
@@ -77,7 +88,7 @@ C:\WSDD-Environment\
 
 ## 技术信息
 
-- **Version**: 1.0.0-rc.18 (Rust edition)
+- **Version**: 1.0.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` 中的 JSON

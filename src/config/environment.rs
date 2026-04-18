@@ -98,6 +98,22 @@ impl PathConfig {
         self.docker_structure_dir().join("init.yml")
     }
 
+    pub fn optional_services_dir(&self) -> PathBuf {
+        self.docker_structure_dir().join("services")
+    }
+
+    pub fn redis_yml(&self) -> PathBuf {
+        self.optional_services_dir().join("redis.yml")
+    }
+
+    pub fn mailpit_yml(&self) -> PathBuf {
+        self.optional_services_dir().join("mailpit.yml")
+    }
+
+    pub fn memcached_yml(&self) -> PathBuf {
+        self.optional_services_dir().join("memcached.yml")
+    }
+
     pub fn mysql_dockerfile(&self) -> PathBuf {
         self.docker_structure_dir()
             .join("bin")
@@ -304,6 +320,18 @@ mod tests {
         assert_eq!(
             paths.webserver_yml("php8.3", "php83"),
             PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\bin\php8.3\webserver.php83.yml")
+        );
+        assert_eq!(
+            paths.redis_yml(),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\redis.yml")
+        );
+        assert_eq!(
+            paths.mailpit_yml(),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\mailpit.yml")
+        );
+        assert_eq!(
+            paths.memcached_yml(),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\memcached.yml")
         );
     }
 
