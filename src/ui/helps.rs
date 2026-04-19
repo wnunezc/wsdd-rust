@@ -24,6 +24,7 @@ use crate::ui::ActiveView;
 const HELP_EN: &str = include_str!("../../docs/help/user-guide.en.md");
 const HELP_ES: &str = include_str!("../../docs/help/user-guide.es.md");
 const HELP_FR: &str = include_str!("../../docs/help/user-guide.fr.md");
+const HELP_HI: &str = include_str!("../../docs/help/user-guide.hi.md");
 const HELP_ZH: &str = include_str!("../../docs/help/user-guide.zh.md");
 
 struct HelpSection<'a> {
@@ -35,7 +36,7 @@ fn help_markdown(language: Language) -> &'static str {
     match language {
         Language::Es => HELP_ES,
         Language::Fr => HELP_FR,
-        Language::Hi => HELP_EN,
+        Language::Hi => HELP_HI,
         Language::Zh => HELP_ZH,
         _ => HELP_EN,
     }
@@ -178,7 +179,7 @@ mod tests {
 
     #[test]
     fn embedded_guides_have_parseable_sections() {
-        for guide in [HELP_EN, HELP_ES, HELP_FR, HELP_ZH] {
+        for guide in [HELP_EN, HELP_ES, HELP_FR, HELP_HI, HELP_ZH] {
             let sections = parse_sections(guide);
             assert_eq!(sections.len(), 13);
             assert!(sections.iter().all(|section| {

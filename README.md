@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Stable `1.0.0` prepared locally, pending final manual validation
+- **Current stage**: Stable `1.0.0` release
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content

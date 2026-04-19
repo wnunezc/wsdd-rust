@@ -8,7 +8,7 @@
 - Baseline publicado de referencia: `HEAD a83ba2c` / `main publicado (1.0.0-rc.11)`
 - Validacion updater RC6 -> RC7: OK, cerrada por el usuario
 - Decision global del usuario: el gate del plan fue satisfecho al cerrar `WP-01` a `WP-10`
-- Estrategia de releases actual: `RC18` publicada; `1.0.0` estable requiere nueva instruccion explicita del usuario
+- Estrategia de releases actual: `1.0.0` estable autorizado por instruccion explicita del usuario el 2026-04-18; `RC18` queda como referencia historica
 
 ## Alcance
 
@@ -32,7 +32,7 @@ Este plan ya no es una cola activa de trabajo. Antes de interpretar o reabrir cu
 2. Confirmar que `WP-01` a `WP-10` estan cerrados por confirmacion explicita del usuario
 3. No reabrir ningun paquete salvo instruccion explicita del usuario
 4. Si el usuario pide un cambio nuevo, tratarlo como nuevo alcance fuera de este plan
-5. No publicar `1.0.0` estable sin nueva instruccion explicita del usuario
+5. No reabrir ni republicar `1.0.0` estable sin nueva instruccion explicita del usuario
 
 Reglas adicionales:
 
@@ -43,7 +43,7 @@ Reglas adicionales:
 ## Gate confirmado para `1.0.0` estable
 
 El gate de este plan quedo satisfecho al cerrar `WP-01` a `WP-10`.
-No publicar `1.0.0` estable sin nueva instruccion explicita del usuario.
+La instruccion explicita para preparar y publicar `1.0.0` estable fue recibida el 2026-04-18.
 
 ## Estado de paquetes
 
@@ -367,8 +367,8 @@ Decision ya tomada:
 
 - `1.0.0` estable quedo gated por el plan completo
 - El plan completo quedo cerrado tras `WP-10`
-- `RC18` quedo publicada como release actual
-- `1.0.0` estable queda pendiente de nueva instruccion explicita del usuario
+- `RC18` queda como release historica de referencia
+- `1.0.0` estable fue autorizado para preparacion/publicacion final por instruccion explicita del usuario
 
 ## Protocolo historico de sesion
 

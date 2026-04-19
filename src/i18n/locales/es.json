@@ -86,6 +86,7 @@
   "toolbar_reload_projects_hint": "Recargar proyectos desde disco",
 
   "log_title": "Log",
+  "container_log_title": "Logs de contenedores",
   "status_bar_containers": "Contenedores",
   "status_bar_running": "Activos",
   "status_bar_projects": "Proyectos",

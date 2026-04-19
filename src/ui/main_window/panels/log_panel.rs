@@ -67,11 +67,7 @@ fn render_main_log(ui: &mut egui::Ui, app: &mut WsddApp) {
     });
     render_log_frame(ui, "main_log_scroll", |ui, dark| {
         for line in &app.main_log {
-            ui.label(
-                egui::RichText::new(&line.text)
-                    .font(egui::FontId::monospace(LOG_FONT_SIZE))
-                    .color(log_color(&line.level, dark)),
-            );
+            render_log_line(ui, &line.text, log_color(&line.level, dark));
         }
     });
 }
@@ -91,20 +87,7 @@ fn render_container_log(ui: &mut egui::Ui, app: &mut WsddApp) {
     });
     render_log_frame(ui, "container_log_scroll", |ui, dark| {
         for line in &app.container_logs {
-            let color = container_color(&line.container_name, dark);
-            ui.horizontal_wrapped(|ui| {
-                ui.label(
-                    egui::RichText::new(format!("[{}]", line.container_name))
-                        .font(egui::FontId::monospace(LOG_FONT_SIZE))
-                        .color(color)
-                        .strong(),
-                );
-                ui.label(
-                    egui::RichText::new(&line.text)
-                        .font(egui::FontId::monospace(LOG_FONT_SIZE))
-                        .color(log_color(&LogLevel::Raw, dark)),
-                );
-            });
+            render_container_log_line(ui, line, dark);
         }
     });
 }
@@ -146,10 +129,50 @@ fn render_log_frame(
                 .stick_to_bottom(true)
                 .auto_shrink([false; 2])
                 .show(ui, |ui| {
-                    let dark = ui.visuals().dark_mode;
-                    add_lines(ui, dark);
+                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                        let dark = ui.visuals().dark_mode;
+                        add_lines(ui, dark);
+                    });
                 });
         });
+}
+
+fn render_log_line(ui: &mut egui::Ui, text: &str, color: egui::Color32) {
+    let mut job = base_log_layout_job(ui.available_width());
+    job.append(text, 0.0, log_text_format(color));
+    ui.add(egui::Label::new(job).wrap());
+}
+
+fn render_container_log_line(ui: &mut egui::Ui, line: &ContainerLogEntry, dark: bool) {
+    let mut job = base_log_layout_job(ui.available_width());
+    job.append(
+        &format!("[{}] ", line.container_name),
+        0.0,
+        log_text_format(container_color(&line.container_name, dark)),
+    );
+    job.append(
+        &line.text,
+        0.0,
+        log_text_format(log_color(&LogLevel::Raw, dark)),
+    );
+    ui.add(egui::Label::new(job).wrap());
+}
+
+fn base_log_layout_job(wrap_width: f32) -> egui::text::LayoutJob {
+    let mut job = egui::text::LayoutJob::default();
+    job.wrap.max_width = wrap_width.max(1.0);
+    job.wrap.break_anywhere = true;
+    job.halign = egui::Align::LEFT;
+    job.justify = false;
+    job
+}
+
+fn log_text_format(color: egui::Color32) -> egui::text::TextFormat {
+    egui::text::TextFormat {
+        font_id: egui::FontId::monospace(LOG_FONT_SIZE),
+        color,
+        ..Default::default()
+    }
 }
 
 fn container_log_text(lines: &[ContainerLogEntry]) -> String {

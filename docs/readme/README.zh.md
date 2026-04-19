@@ -5,9 +5,21 @@
 
 *语言: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*快速链接: [用户指南](../help/user-guide.zh.md) | [迁移地图](../../MIGRATION.md) | [许可](../legal/LICENSE.zh.md) | [主仓库](../../README.md) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*快速链接: [用户指南](../help/user-guide.zh.md) | [迁移地图](../../MIGRATION.md) | [许可](../legal/LICENSE.zh.md) | [Notice](../../NOTICE.md) | [第三方许可](../../THIRD_PARTY_LICENSES.md) | [贡献](../../CONTRIBUTING.md) | [安全](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 *Language fallback: English for any missing localized UI/help content.*
+
+## 关于 WSDD
+
+WSDD 是面向 Windows 的本地 PHP + Docker 开发 stack 管理器。
+它会自动完成首次环境准备，为每个项目 provision PHP 容器，使用 MKCert 配置本地 SSL，
+更新 Windows `hosts` 文件，并在一个桌面应用中集中管理容器和项目操作。
+
+- **当前阶段**: 稳定版 `1.0.0`
+- **主要分发包**: Windows MSI 安装器
+- **当前 UI 语言**: English, Spanish, French, Hindi, Chinese
+- **语言 fallback**: 缺失的 UI/help 本地化内容回退到 English
+- **问题反馈**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
 
 ## 系统要求
 

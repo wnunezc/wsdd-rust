@@ -6,9 +6,22 @@ Xdebug y servicios opcionales Redis/Memcached/Mailpit.
 
 *Idiomas: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*Enlaces rapidos: [Guia de usuario](../help/user-guide.es.md) | [Mapa de migracion](../../MIGRATION.md) | [Licencia](../legal/LICENSE.es.md) | [Repositorio principal](../../README.md) | [Reportar bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Enlaces rapidos: [Guia de usuario](../help/user-guide.es.md) | [Mapa de migracion](../../MIGRATION.md) | [Licencia](../legal/LICENSE.es.md) | [Aviso](../../NOTICE.md) | [Licencias de terceros](../../THIRD_PARTY_LICENSES.md) | [Contribuir](../../CONTRIBUTING.md) | [Seguridad](../../SECURITY.md) | [Discusiones](https://github.com/wnunezc/wsdd-rust/discussions) | [Reportar bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 *Fallback de idioma: ingles para cualquier contenido de UI/ayuda no localizado.*
+
+## Acerca de WSDD
+
+WSDD es un administrador de stack local, enfocado en Windows, para desarrollo PHP + Docker.
+Automatiza la preparacion inicial del entorno, aprovisiona contenedores PHP por proyecto,
+configura SSL local con MKCert, actualiza el archivo `hosts` de Windows y centraliza
+operaciones de contenedores/proyectos en una sola app de escritorio.
+
+- **Etapa actual**: Release estable `1.0.0`
+- **Paquete principal de distribucion**: instalador MSI para Windows
+- **Idiomas UI actuales**: ingles, espanol, frances, hindi, chino
+- **Fallback de idioma**: ingles para contenido localizado faltante de UI/ayuda
+- **Reporte de issues**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
 
 ## Requisitos del sistema
 

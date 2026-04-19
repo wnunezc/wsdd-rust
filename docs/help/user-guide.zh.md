@@ -195,27 +195,54 @@ REMOVE 流程:
 访问方式: 工具 → 设置
 
 常规:
-  - 项目路径    — 新项目的基础目录
-  - Docker Desktop 路径  — Docker Desktop 可执行文件路径
-  - WSL 发行版           — 活动的 WSL2 发行版
-  - 最大日志行数    — 日志面板保留的行数限制
+  - 项目路径    — 新项目的基础目录（默认: C:\WSDD-Projects）
+  - Docker Desktop 路径  — Docker Desktop 可执行文件路径（可选，用于重新启动）
+  - WSL 发行版           — 当前 WSL2 发行版（例如 Ubuntu-22.04）
+  - 最大日志行数    — 日志面板保留的行数限制（100-10000）
   - 自动启动容器 — 应用启动时启动 WSDD 容器
 
 PHP (Docker 容器):
   这些值在生成新容器时应用。
+  它们不会影响已经存在的容器（需要 redeploy）。
   - memory_limit              — PHP RAM 限制
   - upload_max_filesize       — 最大上传文件大小
   - Timezone                  — PHP 时区
+  - Xdebug                    — 对新的或重建的 PHP 容器默认启用。
+    PHP 8.x 使用 Xdebug 3，模式为 debug,develop，host.docker.internal，
+    端口 9003，并使用 trigger 启动。PHP 5.6/7.x 使用 Xdebug 2 的等效
+    trigger 配置，host/port 相同。
+
+IDE / agent 调试:
+  - 在 VS Code、PHPStorm 或其他 DBGp listener 中监听端口 9003。
+  - 将 Windows 项目路径映射到 /var/www/html/{project-domain}。
+  - AI agents 也可以监听，只要它们在 Windows host 上运行兼容 DBGp/Xdebug
+    的 listener；WSDD 只负责配置 PHP 容器回连。
+
+可选服务:
+  Redis、Memcached 和 Mailpit 默认关闭，不会随基础 stack 部署。
+  在 Settings 中启用服务，检查端口/auto-start 选项，然后保存以部署。
+  - Redis: 容器 host redis / WSDD-Redis-Server，内部端口 6379，
+    默认 host 端口 6379，持久卷 wsdd-redis-data。
+  - Memcached: 容器 host memcached / WSDD-Memcached-Server，内部端口
+    11211，默认 host 端口 11211，易失缓存。
+  - Mailpit: SMTP host mailpit / WSDD-Mailpit-Server，内部 SMTP 端口 1025，
+    UI 端口 8025，默认本地 UI http://mailpit.wsdd.dock。
+  - Framework 示例:
+    Redis: REDIS_HOST=redis, REDIS_PORT=6379.
+    Memcached: MEMCACHED_HOST=memcached, MEMCACHED_PORT=11211.
+    Mailpit: MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_MAILER=smtp.
 
 先决条件:
   - MySQL/phpMyAdmin 凭据 — 当配置中还不存在时，会在首次部署基础环境前请求。
-  - 这些凭据会保存在 wsdd-config.json 中，并在后续启动时重复使用。
+  - 这些凭据会保存在 wsdd-secrets.json 中，并在后续启动时重复使用。
 
 工具:
-  - Webmin 版本 — PHP 容器中安装的版本
+  - Webmin 版本 — PHP 容器中安装的版本（例如 2.630）
   - 按 PHP 版本保存的 Webmin 凭据 — 仅在该版本首次部署且容器尚不存在时请求一次。
+  - 之后修改这些凭据不会自动轮换现有容器中的用户；它们会在下一次由 WSDD 管理的 rebuild 中生效。
 
 更改保存到: C:\WSDD-Environment\wsdd-config.json
+Secrets 保存到: C:\WSDD-Environment\wsdd-secrets.json
 
 ## WSL2 设置
 
@@ -264,6 +291,13 @@ WSDD 使用 mkcert 生成本地受信任的 SSL 证书。
   C:\WSDD-Environment\Docker-Structure\ssl\
   ├── {domain}.crt  — 证书
   └── {domain}.key  — 私钥
+
+phpMyAdmin 和 MySQL SSL:
+  通过 HTTPS 访问 phpMyAdmin 只保护浏览器 → phpMyAdmin 的流量。
+  这不代表内部 phpMyAdmin → MySQL 连接使用 MySQL TLS。
+  WSDD 默认不强制 MySQL TLS，因为现有 PHP frameworks 和 ORMs 可能需要
+  CA 路径、ssl-mode 设置和证书。请把 MySQL TLS 视为按项目启用的可选加固，
+  而不是本地 stack 的默认行为。
 
 ## 故障排除
 
