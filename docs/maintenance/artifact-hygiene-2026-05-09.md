@@ -60,4 +60,21 @@ Se eliminan despues del checkpoint:
 
 ## Checkpoint post-limpieza
 
-Pendiente de completar tras la purga efectiva.
+### Resultado
+
+- `target/` despues de la purga: `20.61 MB`
+- artefactos retenidos fisicamente:
+  - `target/wix/wsdd-1.0.0-x86_64.msi`
+  - `target/wix/wsdd-1.0.0-x86_64.msi.sha256.txt`
+- artefactos purgados:
+  - `target/validation/stable-1.0.0-final-test`
+  - `target/validation/stable-1.0.0-final-test-2`
+  - `target/debug`
+  - `target/x86_64-pc-windows-msvc`
+  - `target/release`
+  - `target/winget*`
+  - `target/.rustc_info.json`
+
+### Delta
+
+- reduccion aproximada: `8138.56 MB`
