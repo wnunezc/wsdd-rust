@@ -30,7 +30,7 @@ serde_json = "1"
 serde_yaml = "0.9"
 quick-xml = { version = "0.36", features = ["serialize"] }
 
-# Compresión ZIP (para recursos.zip)
+# Compresión ZIP para los recursos embebidos del runtime
 zip = "2"
 
 # Observabilidad — reemplaza env_logger

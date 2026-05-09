@@ -6,7 +6,7 @@ Xdebug, and optional Redis/Memcached/Mailpit services.
 
 *Languages: [English](README.md) | [Español](docs/readme/README.es.md) | [Français](docs/readme/README.fr.md) | [हिन्दी](docs/readme/README.hi.md) | [中文](docs/readme/README.zh.md)*
 
-*Quick links: [User Guide](docs/help/user-guide.en.md) | [Migration Map](MIGRATION.md) | [License](LICENSE.md) | [Notice](NOTICE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Report a Bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Quick links: [User Guide](docs/help/user-guide.en.md) | [Harness Context Map](docs/harness-context-map.md) | [Migration Map](MIGRATION.md) | [License](LICENSE.md) | [Notice](NOTICE.md) | [Third-Party Licenses](THIRD_PARTY_LICENSES.md) | [Contributing](CONTRIBUTING.md) | [Security](SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Report a Bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 ## About WSDD
 

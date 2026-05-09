@@ -9,9 +9,6 @@ Cargo.lock
 # Recursos generados
 /src/resources/generated/
 
-# Credenciales — no subir a GitHub
-recursos/recursos.zip
-
 # Instaladores generados
 /target/wix/
 
