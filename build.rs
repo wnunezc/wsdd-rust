@@ -19,7 +19,7 @@
 
 use std::fs;
 use std::path::Path;
-use std::time::SystemTime;
+use std::process::Command;
 
 fn main() {
     println!("cargo:rerun-if-changed=Cargo.toml");
@@ -85,49 +85,59 @@ fn emit_rerun_if_changed_tree(root: &Path) {
 }
 
 fn validate_embedded_zip_sync(source_dir: &Path, zip_path: &Path, label: &str) -> Result<(), String> {
-    let latest_source = latest_tree_modified(source_dir).ok_or_else(|| {
-        format!(
-            "build.rs: no se encontraron timestamps auditables en {} ({})",
-            label,
-            source_dir.display()
-        )
-    })?;
+    fs::metadata(zip_path)
+        .map_err(|err| format!("build.rs: no se pudo leer {}: {err}", zip_path.display()))?;
 
-    let zip_modified = fs::metadata(zip_path)
-        .map_err(|err| format!("build.rs: no se pudo leer {}: {err}", zip_path.display()))?
-        .modified()
-        .map_err(|err| format!("build.rs: no se pudo leer fecha de {}: {err}", zip_path.display()))?;
+    let source_prefix = source_dir.to_string_lossy().replace('\\', "/");
+    let zip_name = zip_path.to_string_lossy().replace('\\', "/");
+    let output = match Command::new("git")
+        .arg("status")
+        .arg("--porcelain")
+        .arg("--")
+        .arg(source_dir)
+        .arg(zip_path)
+        .output()
+    {
+        Ok(output) if output.status.success() => output,
+        Ok(output) => {
+            println!(
+                "cargo:warning=build.rs no pudo validar sincronizacion Git para {}: {}",
+                label,
+                String::from_utf8_lossy(&output.stderr).trim()
+            );
+            return Ok(());
+        }
+        Err(err) => {
+            println!(
+                "cargo:warning=build.rs omitio validacion Git para {}: {}",
+                label, err
+            );
+            return Ok(());
+        }
+    };
 
-    if latest_source > zip_modified {
+    let mut source_dirty = false;
+    let mut zip_dirty = false;
+
+    for line in String::from_utf8_lossy(&output.stdout).lines() {
+        let Some(path) = line.get(3..) else {
+            continue;
+        };
+        let normalized = path.trim().replace('\\', "/");
+        if normalized == zip_name {
+            zip_dirty = true;
+        } else if normalized == source_prefix || normalized.starts_with(&(source_prefix.clone() + "/")) {
+            source_dirty = true;
+        }
+    }
+
+    if source_dirty && !zip_dirty {
         return Err(format!(
-            "build.rs: {} esta desincronizado con {}. Regenera el ZIP embebido antes de compilar.",
+            "build.rs: {} tiene cambios locales sin reflejar en {}. Regenera el ZIP funcional y commita ambos cambios juntos.",
             label,
             zip_path.display()
         ));
     }
 
     Ok(())
-}
-
-fn latest_tree_modified(path: &Path) -> Option<SystemTime> {
-    let mut latest = fs::metadata(path).ok()?.modified().ok();
-    let entries = fs::read_dir(path).ok()?;
-
-    for entry in entries.flatten() {
-        let child = entry.path();
-        let child_time = if child.is_dir() {
-            latest_tree_modified(&child)
-        } else {
-            fs::metadata(&child).ok().and_then(|meta| meta.modified().ok())
-        };
-
-        if let Some(child_time) = child_time {
-            latest = Some(match latest {
-                Some(current) if current >= child_time => current,
-                _ => child_time,
-            });
-        }
-    }
-
-    latest
 }

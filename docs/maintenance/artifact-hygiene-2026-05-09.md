@@ -51,8 +51,9 @@ Se eliminan despues del checkpoint:
 ### Validacion previa del guardrail
 
 - `cargo check --workspace` -> OK con ZIPs sincronizados
-- `cargo check --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-desync-should-fail` -> falla esperada al dejar `Docker-Structure` mas nuevo que `docker-structure.zip`
-- `cargo check --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-final-sync-pass` -> OK tras regenerar el ZIP y normalizar el timestamp de prueba
+- guardrail final basado en Git:
+  - `cargo check --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-git-guard-dirty-should-fail` -> falla esperada con un archivo local no trackeado bajo `Docker-Structure/`
+  - `cargo check --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-git-guard-clean-final` -> OK con worktree limpio
 
 ### Nota operativa
 
