@@ -79,3 +79,11 @@ Se eliminan despues del checkpoint:
 ### Delta
 
 - reduccion aproximada: `8138.56 MB`
+
+## Validacion final post-saneamiento
+
+- `cargo fmt --all -- --check` -> OK
+- `cargo check --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-final-suite-3` -> OK
+- `cargo clippy --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-final-suite-3 -- -D warnings` -> OK
+- `cargo test --workspace --target-dir D:\OpsZone\DevWorkspace\tmp-rust-checks\wsdd-final-suite-3` -> OK
+- observacion operativa: los checks finales se ejecutaron fuera de `target/` del repo para no rehidratar la cache purgada

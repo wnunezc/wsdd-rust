@@ -84,7 +84,11 @@ fn emit_rerun_if_changed_tree(root: &Path) {
     }
 }
 
-fn validate_embedded_zip_sync(source_dir: &Path, zip_path: &Path, label: &str) -> Result<(), String> {
+fn validate_embedded_zip_sync(
+    source_dir: &Path,
+    zip_path: &Path,
+    label: &str,
+) -> Result<(), String> {
     fs::metadata(zip_path)
         .map_err(|err| format!("build.rs: no se pudo leer {}: {err}", zip_path.display()))?;
 
@@ -126,7 +130,9 @@ fn validate_embedded_zip_sync(source_dir: &Path, zip_path: &Path, label: &str) -
         let normalized = path.trim().replace('\\', "/");
         if normalized == zip_name {
             zip_dirty = true;
-        } else if normalized == source_prefix || normalized.starts_with(&(source_prefix.clone() + "/")) {
+        } else if normalized == source_prefix
+            || normalized.starts_with(&(source_prefix.clone() + "/"))
+        {
             source_dirty = true;
         }
     }
