@@ -17,7 +17,7 @@ Automatiza la preparacion inicial del entorno, aprovisiona contenedores PHP por 
 configura SSL local con MKCert, actualiza el archivo `hosts` de Windows y centraliza
 operaciones de contenedores/proyectos en una sola app de escritorio.
 
-- **Etapa actual**: Release estable `1.0.0`
+- **Etapa actual**: Release estable `1.0.1`
 - **Paquete principal de distribucion**: instalador MSI para Windows
 - **Idiomas UI actuales**: ingles, espanol, frances, hindi, chino
 - **Fallback de idioma**: ingles para contenido localizado faltante de UI/ayuda
@@ -27,10 +27,12 @@ operaciones de contenedores/proyectos en una sola app de escritorio.
 
 - **Sistema operativo**: Windows 10 / Windows 11
 - **Privilegios**: Administrador (obligatorio)
+- **Graficos**: Driver grafico compatible con OpenGL 2.0 requerido por la UI de escritorio
 - **Docker Desktop**: Debe estar instalado por el usuario antes del primer arranque
 - **WSL 2**: Requerido por Docker Desktop
 - **Chocolatey**: Se instala automaticamente si no esta presente
 - **PowerShell**: 7.5+ (se instala/actualiza automaticamente si falta)
+- **Microsoft Visual C++ Runtime**: El MSI distribuido no requiere instalar por separado el VC++ redistributable porque los binarios de Windows usan runtime MSVC estatico
 
 ## Que hace esta aplicacion
 
@@ -55,6 +57,8 @@ Por cada version activada se crean las URLs de desarrollo:
 - `php{version}.wsdd.dock` — Entorno PHP principal
 - `cron{version}.wsdd.dock` — Gestor de cron jobs
 - `wm{version}.wsdd.dock` — Webmin (administracion del servidor)
+
+Webmin se instala dentro de los contenedores PHP desde el repositorio APT oficial de Webmin durante el build de la imagen, por lo que WSDD ya no fija una version manual en la configuracion de la aplicacion.
 
 ### Servicios opcionales (desactivados por defecto)
 - **WSDD-Redis-Server** — Redis para cache, colas y sesiones (`redis:7.4.8-alpine`)
@@ -102,7 +106,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 1.0.0 (Rust edition)
+- **Version**: 1.0.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

@@ -28,8 +28,8 @@ fn workspace_package_versions_stay_aligned() {
 
     assert_eq!(app_version, launcher_version);
     assert!(
-        app_version == "1.0.0" || app_version.starts_with("1.0.0-rc."),
-        "release versions must be stable 1.0.0 or a 1.0.0-rc.N candidate"
+        app_version == "1.0.1" || app_version.starts_with("1.0.1-rc."),
+        "release versions must be stable 1.0.1 or a 1.0.1-rc.N candidate"
     );
 }
 

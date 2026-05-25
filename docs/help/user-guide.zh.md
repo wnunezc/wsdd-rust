@@ -237,7 +237,7 @@ IDE / agent 调试:
   - 这些凭据会保存在 wsdd-secrets.json 中，并在后续启动时重复使用。
 
 工具:
-  - Webmin 版本 — PHP 容器中安装的版本（例如 2.630）
+  - Webmin 软件包来源 — PHP 容器会在镜像构建期间从 Webmin 官方 APT 仓库安装 Webmin
   - 按 PHP 版本保存的 Webmin 凭据 — 仅在该版本首次部署且容器尚不存在时请求一次。
   - 之后修改这些凭据不会自动轮换现有容器中的用户；它们会在下一次由 WSDD 管理的 rebuild 中生效。
 

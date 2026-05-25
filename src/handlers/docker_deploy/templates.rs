@@ -119,10 +119,6 @@ pub(super) fn render_webserver_yml(
 ) -> String {
     webserver_template(php_version)
         .replace(
-            "__WSDD_WEBMIN_VERSION__",
-            &yaml_single_quoted(&settings.webmin_version),
-        )
-        .replace(
             "__WSDD_WEBMIN_USER__",
             &yaml_single_quoted(&credentials.username),
         )
@@ -272,7 +268,6 @@ mod tests {
     #[test]
     fn rendered_webserver_yml_replaces_all_placeholders() {
         let settings = AppSettings {
-            webmin_version: "2.630".to_string(),
             webmin_credentials: vec![WebminCredentials {
                 php_version: PhpVersion::Php83,
                 username: "walter".to_string(),
@@ -289,7 +284,6 @@ mod tests {
                 .expect("missing credentials"),
         );
 
-        assert!(rendered.contains("WEBMIN_VERSION: '2.630'"));
         assert!(rendered.contains("WEBMIN_USER: 'walter'"));
         assert!(rendered.contains("WEBMIN_PASS: 'secret'"));
         assert!(rendered.contains("XDEBUG_ENABLED: '1'"));

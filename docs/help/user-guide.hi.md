@@ -231,7 +231,7 @@ Prerequisites:
   - Secrets `C:\WSDD-Environment\wsdd-secrets.json` में save होते हैं।
 
 Tools:
-  - Webmin version.
+  - Webmin package source — PHP containers image build ke dauran official Webmin APT repository se Webmin install karte hain.
   - Webmin credentials per PHP version.
   - Existing container के अंदर credentials automatic rotate नहीं होते; next WSDD-managed rebuild पर apply होते हैं।
 

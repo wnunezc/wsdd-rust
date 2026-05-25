@@ -243,7 +243,7 @@ PREREQUIS:
   - Ils sont enregistres dans wsdd-secrets.json et reutilises ensuite.
 
 OUTILS:
-  - Version Webmin — Version installee dans les conteneurs PHP (ex: 2.630)
+  - Source du paquet Webmin — Les conteneurs PHP installent Webmin depuis le depot APT officiel de Webmin pendant le build de l'image
   - Identifiants Webmin par version PHP — demandes une seule fois lors du
     premier deploy d'une version dont le conteneur n'existe pas encore.
   - Les modifier plus tard ne fait pas tourner automatiquement l'utilisateur

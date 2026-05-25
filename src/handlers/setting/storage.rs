@@ -8,9 +8,8 @@ use crate::models::project::PhpVersion;
 use super::credentials::{normalize_webmin_credentials, PrereqCredentials, WebminCredentials};
 use super::defaults::{
     default_config_version, default_language, default_log_max_lines, default_php_memory_limit,
-    default_php_timezone, default_php_upload_max_filesize, default_webmin_version,
-    default_xdebug_enabled, CURRENT_CONFIG_VERSION, LEGACY_WEBMIN_PASSWORD, LEGACY_WEBMIN_USER,
-    LEGACY_WEBMIN_VERSION_2021,
+    default_php_timezone, default_php_upload_max_filesize, default_xdebug_enabled,
+    CURRENT_CONFIG_VERSION, LEGACY_WEBMIN_PASSWORD, LEGACY_WEBMIN_USER,
 };
 use super::secrets;
 use super::services::OptionalServicesSettings;
@@ -48,9 +47,6 @@ pub struct AppSettings {
     /// Whether Xdebug is installed and enabled in generated PHP containers.
     #[serde(default = "default_xdebug_enabled")]
     pub xdebug_enabled: bool,
-    /// Webmin package version installed in PHP containers.
-    #[serde(default = "default_webmin_version")]
-    pub webmin_version: String,
     /// Whether WSDD containers should start automatically on app startup.
     #[serde(default)]
     pub auto_start_containers: bool,
@@ -80,7 +76,6 @@ struct AppSettingsDisk<'a> {
     php_upload_max_filesize: &'a String,
     php_timezone: &'a String,
     xdebug_enabled: bool,
-    webmin_version: &'a String,
     auto_start_containers: bool,
     optional_services: &'a OptionalServicesSettings,
 }
@@ -101,7 +96,6 @@ impl Default for AppSettings {
             php_upload_max_filesize: default_php_upload_max_filesize(),
             php_timezone: default_php_timezone(),
             xdebug_enabled: default_xdebug_enabled(),
-            webmin_version: default_webmin_version(),
             auto_start_containers: false,
             optional_services: OptionalServicesSettings::default(),
             prereq_credentials: PrereqCredentials::default(),
@@ -126,7 +120,6 @@ impl<'a> From<&'a AppSettings> for AppSettingsDisk<'a> {
             php_upload_max_filesize: &settings.php_upload_max_filesize,
             php_timezone: &settings.php_timezone,
             xdebug_enabled: settings.xdebug_enabled,
-            webmin_version: &settings.webmin_version,
             auto_start_containers: settings.auto_start_containers,
             optional_services: &settings.optional_services,
         }
@@ -205,7 +198,6 @@ impl AppSettings {
             self.php_timezone = default_php_timezone();
         }
 
-        self.webmin_version = normalize_webmin_version(&self.webmin_version);
         self.optional_services.mailpit.virtual_host = self
             .optional_services
             .mailpit
@@ -333,17 +325,6 @@ impl AppSettings {
         true
     }
 }
-
-fn normalize_webmin_version(value: &str) -> String {
-    let trimmed = value.trim();
-
-    if trimmed.is_empty() || trimmed == LEGACY_WEBMIN_VERSION_2021 {
-        return default_webmin_version();
-    }
-
-    trimmed.to_string()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -365,7 +346,6 @@ mod tests {
             php_upload_max_filesize: String::new(),
             php_timezone: String::new(),
             xdebug_enabled: false,
-            webmin_version: String::new(),
             ..AppSettings::default()
         };
 
@@ -382,7 +362,6 @@ mod tests {
         assert!(!normalized.optional_services.redis.enabled);
         assert!(!normalized.optional_services.mailpit.enabled);
         assert!(!normalized.optional_services.memcached.enabled);
-        assert_eq!(normalized.webmin_version, "2.630");
         assert_eq!(
             normalized.prereq_credentials.mysql_database,
             "wsdd-database"
@@ -440,19 +419,5 @@ mod tests {
             .expect("legacy credentials should be inserted");
         assert_eq!(credentials.username, "admin");
         assert_eq!(credentials.password, "admin");
-    }
-
-    #[test]
-    fn legacy_webmin_version_is_upgraded_to_current_value() {
-        let settings = AppSettings {
-            webmin_version: "2.021".to_string(),
-            ..AppSettings::default()
-        };
-
-        let normalized = settings
-            .validate_loaded()
-            .expect("legacy webmin version should normalize");
-
-        assert_eq!(normalized.webmin_version, "2.630");
     }
 }

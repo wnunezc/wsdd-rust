@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: Stable `1.0.0` release
+- **Current stage**: Stable `1.0.1` release
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content
@@ -25,10 +25,12 @@ single desktop app.
 
 - **Operating System**: Windows 10 / Windows 11
 - **Privileges**: Administrator (required)
+- **Graphics**: OpenGL 2.0-compatible graphics driver required by the desktop UI
 - **Docker Desktop**: Must be installed by the user before first run
 - **WSL 2**: Required by Docker Desktop
 - **Chocolatey**: Automatically installed if not present
 - **PowerShell**: 7.5+ (automatically installed/upgraded if missing)
+- **Microsoft Visual C++ Runtime**: No separate VC++ redistributable is required for the shipped MSI because the Windows binaries are built with a static MSVC runtime
 
 ## What This Application Does
 
@@ -53,6 +55,8 @@ For each activated version, the following development URLs are created:
 - `php{version}.wsdd.dock` — Main PHP environment
 - `cron{version}.wsdd.dock` — Cron jobs manager
 - `wm{version}.wsdd.dock` — Webmin (server administration)
+
+Webmin is installed inside PHP containers from the official Webmin APT repository during image build, so WSDD no longer pins a package version in application settings.
 
 ### Optional Services (disabled by default)
 - **WSDD-Redis-Server** — Redis cache/queues/sessions (`redis:7.4.8-alpine`)
@@ -100,7 +104,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 1.0.0 (Rust edition)
+- **Version**: 1.0.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

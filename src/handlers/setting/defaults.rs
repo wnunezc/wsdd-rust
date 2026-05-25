@@ -1,10 +1,8 @@
 use crate::i18n::Language;
 
 pub(super) const CURRENT_CONFIG_VERSION: u32 = 7;
-pub(super) const CURRENT_WEBMIN_VERSION: &str = "2.630";
 pub(super) const LEGACY_WEBMIN_USER: &str = "admin";
 pub(super) const LEGACY_WEBMIN_PASSWORD: &str = "admin";
-pub(super) const LEGACY_WEBMIN_VERSION_2021: &str = "2.021";
 
 pub(super) fn default_log_max_lines() -> usize {
     500
@@ -24,10 +22,6 @@ pub(super) fn default_php_timezone() -> String {
 
 pub(super) fn default_xdebug_enabled() -> bool {
     true
-}
-
-pub(super) fn default_webmin_version() -> String {
-    CURRENT_WEBMIN_VERSION.to_string()
 }
 
 pub(super) fn default_mysql_database() -> String {

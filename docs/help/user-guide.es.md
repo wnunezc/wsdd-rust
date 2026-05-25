@@ -22,6 +22,8 @@ Software instalado automaticamente por WSDD:
 Software que debe estar instalado previamente:
   - Docker Desktop — motor de contenedores principal
   - WSL 2 — subsistema Linux requerido por Docker Desktop
+  - Driver grafico compatible con OpenGL 2.0 — requerido por el renderer actual de la UI de escritorio
+  - No hace falta un Microsoft Visual C++ Redistributable aparte para el MSI distribuido porque los binarios de Windows usan runtime MSVC estatico
 
 ## Instalacion y primer arranque
 
@@ -273,7 +275,7 @@ PREREQUISITOS:
   - Se guardan en wsdd-secrets.json y se reutilizan en siguientes arranques.
 
 HERRAMIENTAS:
-  - Version de Webmin — Version instalada en los contenedores PHP (ej: 2.630)
+  - Origen del paquete Webmin — Los contenedores PHP instalan Webmin desde el repositorio APT oficial de Webmin durante el build de la imagen
   - Credenciales de Webmin por version PHP — se solicitan solo la primera vez
     que se despliega una version cuyo contenedor aun no existe.
   - Cambiarlas despues no rota automaticamente el usuario ya existente dentro

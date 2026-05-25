@@ -19,7 +19,7 @@ RUN apt-get update &&  \
 RUN apt-get install -y --no-install-recommends --fix-missing \
     tzdata sed build-essential dialog \
 	nano apt-utils cron wget git \
-	curl zip openssl gettext-base libnss3-tools \
+	curl zip openssl gettext-base libnss3-tools ca-certificates \
     gnupg perl net-tools iproute2 cups
 
 RUN docker-php-ext-install pdo pdo_mysql
@@ -61,10 +61,13 @@ RUN mkdir -p /var/www/html/log && \
 
 EXPOSE 10000
 
-RUN wget --no-check-certificate -qO - http://www.webmin.com/jcameron-key.asc | apt-key add - && \
-    sh -c 'echo "deb http://download.webmin.com/download/repository sarge contrib" > /etc/apt/sources.list.d/webmin.list' && \
-    apt-get update && \
-    apt-get install -y webmin --no-install-recommends --fix-missing
+RUN set -eux; \
+    rm -f /etc/apt/sources.list.d/webmin.list /etc/apt/sources.list.d/jcameron.list /usr/share/keyrings/webmin.gpg; \
+    curl -fsSL -o /tmp/webmin-setup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh; \
+    printf 'y\n' | sh /tmp/webmin-setup-repo.sh; \
+    apt-get update; \
+    apt-get install -y --install-recommends --fix-missing webmin; \
+    rm -f /tmp/webmin-setup-repo.sh
 
 RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
     echo "redirect_port=80" >> /etc/webmin/miniserv.conf && \

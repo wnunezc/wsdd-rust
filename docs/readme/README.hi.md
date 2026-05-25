@@ -16,7 +16,7 @@ WSDD Windows-first local stack manager है, PHP + Docker development के �
 MKCert के साथ local SSL configure करता है, Windows `hosts` file update करता है और
 container/project operations को एक desktop app में centralize करता है।
 
-- **Current stage**: Stable `1.0.0` release
+- **Current stage**: Stable `1.0.1` release
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English for missing localized UI/help content
@@ -101,7 +101,7 @@ C:\WSDD-Environment\
 
 ## तकनीकी जानकारी
 
-- **Version**: 1.0.0 (Rust edition)
+- **Version**: 1.0.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` में JSON

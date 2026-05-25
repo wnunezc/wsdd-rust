@@ -10,7 +10,6 @@ pub(super) struct SettingsCopy {
     save_label: String,
     general_title: String,
     php_title: String,
-    tools_title: String,
     projects_path_label: String,
     language_label: String,
     docker_path_label: String,
@@ -49,7 +48,6 @@ pub(super) struct SettingsCopy {
     webmin_runtime_note: String,
     webmin_user_label: String,
     webmin_password_label: String,
-    webmin_version_label: String,
 }
 
 impl SettingsCopy {
@@ -61,7 +59,6 @@ impl SettingsCopy {
             save_label: format!("  {}  ", tr("btn_save")),
             general_title: tr("settings_general"),
             php_title: tr("settings_php"),
-            tools_title: tr("settings_tools_section"),
             projects_path_label: format!("{}:", tr("settings_projects_path")),
             language_label: format!("{}:", tr("settings_language")),
             docker_path_label: format!("{}:", tr("settings_docker_path")),
@@ -100,7 +97,6 @@ impl SettingsCopy {
             webmin_runtime_note: tr("settings_webmin_credentials_runtime_note"),
             webmin_user_label: tr("settings_webmin_user"),
             webmin_password_label: tr("settings_webmin_password"),
-            webmin_version_label: format!("{}:", tr("settings_webmin_version")),
         }
     }
 }
@@ -145,8 +141,6 @@ pub(super) fn render_body(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Set
         render_prereq_section(ui, draft, copy);
         ui.add_space(8.0);
         render_webmin_credentials_section(ui, draft, copy);
-        ui.add_space(8.0);
-        render_tools_section(ui, draft, copy);
         ui.add_space(16.0);
     });
 }
@@ -502,33 +496,6 @@ fn render_webmin_credentials_section(
                             draft.set_webmin_credentials_draft(php_version, username, password);
                         }
                     }
-                });
-        });
-}
-
-fn render_tools_section(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &SettingsCopy) {
-    egui::CollapsingHeader::new(egui::RichText::new(&copy.tools_title).strong())
-        .default_open(true)
-        .show(ui, |ui| {
-            egui::Grid::new("settings_tools")
-                .num_columns(2)
-                .spacing([12.0, 8.0])
-                .min_col_width(180.0)
-                .show(ui, |ui| {
-                    ui.label(&copy.webmin_version_label);
-                    ui.horizontal(|ui| {
-                        ui.add(
-                            egui::TextEdit::singleline(&mut draft.webmin_version)
-                                .desired_width(100.0)
-                                .hint_text("2.630"),
-                        );
-                        ui.label(
-                            egui::RichText::new("(PHP Dockerfiles)")
-                                .size(11.0)
-                                .color(ui.visuals().weak_text_color()),
-                        );
-                    });
-                    ui.end_row();
                 });
         });
 }

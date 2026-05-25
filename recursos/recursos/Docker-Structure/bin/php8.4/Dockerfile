@@ -9,10 +9,8 @@ ENV CFLAGS="$CFLAGS -DLDAP_DEPRECATED=1"
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
 ARG XDEBUG_ENABLED="1"
-ARG WEBMIN_VERSION="2.630"
 ARG WEBMIN_USER
 ARG WEBMIN_PASS
-ARG WEBMIN_SHA256="0e119b65093442f4ae59a479bf8099fae053000658efea95169710343b4c85c9"
 
 # ====== APT: update/upgrade ======
 RUN apt-get update
@@ -71,18 +69,15 @@ RUN if [ "$XDEBUG_ENABLED" = "1" ]; then \
 
 RUN echo "ServerName localhost" > /etc/apache2/conf-available/servername.conf && a2enconf servername
 
-# ====== WEBMIN (2.630): repo seguro + instalación ======
-# ====== Webmin por .deb verificado (sin repo inseguro) ======
+# ====== Webmin: repo oficial + instalación ======
 RUN rm -f /etc/apt/sources.list.d/webmin.list
 RUN rm -f /usr/share/keyrings/webmin.gpg
-RUN apt-get update
-RUN curl -fsSL -o /tmp/webmin_${WEBMIN_VERSION}_all.deb \
-    https://www.webmin.com/download/deb/webmin_${WEBMIN_VERSION}_all.deb
-RUN echo "${WEBMIN_SHA256}  /tmp/webmin_${WEBMIN_VERSION}_all.deb" > /tmp/webmin.sha256
-RUN sha256sum -c /tmp/webmin.sha256
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends /tmp/webmin_${WEBMIN_VERSION}_all.deb
-RUN rm -f /tmp/webmin_${WEBMIN_VERSION}_all.deb /tmp/webmin.sha256
+RUN set -eux; \
+    curl -fsSL -o /tmp/webmin-setup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh; \
+    printf 'y\n' | sh /tmp/webmin-setup-repo.sh; \
+    apt-get update; \
+    apt-get install -y --install-recommends webmin; \
+    rm -f /tmp/webmin-setup-repo.sh
 
 # Crear o actualizar usuario/clave Webmin
 RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \

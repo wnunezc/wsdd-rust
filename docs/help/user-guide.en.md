@@ -22,6 +22,8 @@ Software installed automatically by WSDD:
 Software that must be pre-installed:
   - Docker Desktop — main container engine
   - WSL 2 — Linux subsystem required by Docker Desktop
+  - OpenGL 2.0-compatible graphics driver — required by the current desktop renderer
+  - No separate Microsoft Visual C++ Redistributable is required for the shipped MSI because the Windows binaries use a static MSVC runtime
 
 ## Installation and first launch
 
@@ -272,7 +274,7 @@ PREREQUISITES:
   - They are stored in wsdd-secrets.json and reused on later launches.
 
 TOOLS:
-  - Webmin version — Version installed in PHP containers (e.g., 2.630)
+  - Webmin package source — PHP containers install Webmin from the official Webmin APT repository during image build
   - Webmin credentials by PHP version — requested only the first time a
     version is deployed and its container does not already exist.
   - Changing them later does not automatically rotate the existing user inside

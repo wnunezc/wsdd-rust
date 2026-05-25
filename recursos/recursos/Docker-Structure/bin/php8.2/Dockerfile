@@ -3,10 +3,8 @@ FROM php:8.2-apache
 ARG DEBIAN_FRONTEND=noninteractive
 ARG XDEBUG_VERSION="xdebug"
 ARG XDEBUG_ENABLED="1"
-ARG WEBMIN_VERSION="2.630"
 ARG WEBMIN_USER
 ARG WEBMIN_PASS
-ARG WEBMIN_SHA256="0e119b65093442f4ae59a479bf8099fae053000658efea95169710343b4c85c9"
 
 RUN apt-get update &&  \
     apt-get upgrade -y --no-install-recommends --fix-missing
@@ -14,7 +12,7 @@ RUN apt-get update &&  \
 RUN apt-get install -y --no-install-recommends --fix-missing \
     tzdata sed build-essential dialog \
 	nano apt-utils cron wget git \
-	curl zip openssl gettext-base libnss3-tools \
+	curl zip openssl gettext-base libnss3-tools ca-certificates \
     gnupg perl net-tools iproute2 cups
 
 RUN docker-php-ext-install pdo pdo_mysql
@@ -57,14 +55,12 @@ EXPOSE 10000
 
 RUN rm -f /etc/apt/sources.list.d/webmin.list
 RUN rm -f /usr/share/keyrings/webmin.gpg
-RUN apt-get update
-RUN curl -fsSL -o /tmp/webmin_${WEBMIN_VERSION}_all.deb \
-    https://www.webmin.com/download/deb/webmin_${WEBMIN_VERSION}_all.deb
-RUN echo "${WEBMIN_SHA256}  /tmp/webmin_${WEBMIN_VERSION}_all.deb" > /tmp/webmin.sha256
-RUN sha256sum -c /tmp/webmin.sha256
-RUN apt-get update
-RUN apt-get install -y --no-install-recommends /tmp/webmin_${WEBMIN_VERSION}_all.deb
-RUN rm -f /tmp/webmin_${WEBMIN_VERSION}_all.deb /tmp/webmin.sha256
+RUN set -eux; \
+    curl -fsSL -o /tmp/webmin-setup-repo.sh https://raw.githubusercontent.com/webmin/webmin/master/webmin-setup-repo.sh; \
+    printf 'y\n' | sh /tmp/webmin-setup-repo.sh; \
+    apt-get update; \
+    apt-get install -y --install-recommends webmin; \
+    rm -f /tmp/webmin-setup-repo.sh
 
 RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
     if ! grep -q '^redirect_port=' /etc/webmin/miniserv.conf; then echo "redirect_port=80" >> /etc/webmin/miniserv.conf; fi && \
