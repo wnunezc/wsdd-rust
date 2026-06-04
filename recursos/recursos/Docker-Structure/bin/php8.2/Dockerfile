@@ -15,6 +15,24 @@ RUN apt-get install -y --no-install-recommends --fix-missing \
 	curl zip openssl gettext-base libnss3-tools ca-certificates \
     gnupg perl net-tools iproute2 cups
 
+RUN set -eux; \
+    EXPECTED_SIGNATURE="$(curl -fsSL https://composer.github.io/installer.sig)"; \
+    curl -fsSL -o /tmp/composer-setup.php https://getcomposer.org/installer; \
+    ACTUAL_SIGNATURE="$(php -r "echo hash_file('sha384', '/tmp/composer-setup.php');")"; \
+    if [ "$EXPECTED_SIGNATURE" != "$ACTUAL_SIGNATURE" ]; then \
+        echo 'ERROR: Invalid Composer installer signature' >&2; \
+        rm -f /tmp/composer-setup.php; \
+        exit 1; \
+    fi; \
+    if php -r 'exit(PHP_VERSION_ID < 70205 ? 0 : 1);'; then \
+        COMPOSER_CHANNEL="--2.2"; \
+    else \
+        COMPOSER_CHANNEL="--2"; \
+    fi; \
+    php /tmp/composer-setup.php "$COMPOSER_CHANNEL" --install-dir=/usr/local/bin --filename=composer --quiet; \
+    rm -f /tmp/composer-setup.php; \
+    composer --version
+
 RUN docker-php-ext-install pdo pdo_mysql
 
 RUN apt-get -y autoremove && \

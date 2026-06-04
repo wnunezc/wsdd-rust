@@ -17,7 +17,7 @@ Il automatise la preparation initiale de l'environnement, provisionne des conten
 projet, configure le SSL local avec MKCert, met a jour le fichier Windows `hosts` et centralise
 les operations de conteneurs/projets dans une seule application de bureau.
 
-- **Etape actuelle**: release stable `1.0.1`
+- **Etape actuelle**: release stable `1.0.2`
 - **Paquet principal de distribution**: installateur MSI Windows
 - **Langues UI actuelles**: anglais, espagnol, francais, hindi, chinois
 - **Fallback de langue**: anglais pour tout contenu UI/aide localise manquant
@@ -102,7 +102,7 @@ C:\WSDD-Environment\
 
 ## Informations techniques
 
-- **Version**: 1.0.1 (edition Rust)
+- **Version**: 1.0.2 (edition Rust)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: JSON dans `C:\WSDD-Environment\wsdd-config.json`

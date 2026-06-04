@@ -28,8 +28,8 @@ fn workspace_package_versions_stay_aligned() {
 
     assert_eq!(app_version, launcher_version);
     assert!(
-        app_version == "1.0.1" || app_version.starts_with("1.0.1-rc."),
-        "release versions must be stable 1.0.1 or a 1.0.1-rc.N candidate"
+        app_version == "1.0.2" || app_version.starts_with("1.0.2-rc."),
+        "release versions must be stable 1.0.2 or a 1.0.2-rc.N candidate"
     );
 }
 
@@ -64,6 +64,48 @@ fn release_workflow_keeps_msi_and_checksum_artifacts() {
         assert!(
             workflow.contains(required),
             "release workflow must preserve {required}"
+        );
+    }
+}
+
+#[test]
+fn php_dockerfiles_provide_composer_in_path() {
+    for version in ["5.6", "7.2", "7.4", "8.1", "8.2", "8.3", "8.4"] {
+        let dockerfile = workspace_file(format!(
+            "recursos/recursos/Docker-Structure/bin/php{version}/Dockerfile"
+        ));
+
+        assert!(
+            dockerfile.contains("https://getcomposer.org/installer"),
+            "php{version} Dockerfile must install Composer from the official installer"
+        );
+        assert!(
+            dockerfile.contains("--install-dir=/usr/local/bin --filename=composer --quiet"),
+            "php{version} Dockerfile must install composer into /usr/local/bin"
+        );
+        assert!(
+            dockerfile.contains("composer --version"),
+            "php{version} Dockerfile must verify composer is available in PATH"
+        );
+    }
+}
+
+#[test]
+fn legacy_php_dockerfiles_use_composer_22_channel_only() {
+    let php56 = workspace_file("recursos/recursos/Docker-Structure/bin/php5.6/Dockerfile");
+    assert!(
+        php56.contains("COMPOSER_CHANNEL=\"--2.2\""),
+        "php5.6 must use Composer 2.2 LTS"
+    );
+
+    for version in ["7.2", "7.4", "8.1", "8.2", "8.3", "8.4"] {
+        let dockerfile = workspace_file(format!(
+            "recursos/recursos/Docker-Structure/bin/php{version}/Dockerfile"
+        ));
+
+        assert!(
+            dockerfile.contains("COMPOSER_CHANNEL=\"--2\""),
+            "php{version} must stay on the Composer 2 channel"
         );
     }
 }
