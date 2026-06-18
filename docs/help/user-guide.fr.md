@@ -366,6 +366,16 @@ R: Les scripts PS1 sont embarques dans le binaire WSDD.
 Q: WSDD fonctionne-t-il avec WSL 1?
 R: Non. Docker Desktop necessite WSL 2. WSDD suppose WSL 2.
 
+Q: ngrok fonctionne-t-il uniquement avec le login navigateur?
+R: Non. Le login navigateur ouvre le compte ngrok, mais l'agent Docker a besoin
+   d'un authtoken. Dans Parametres, activez ngrok, ouvrez le dashboard, copiez
+   l'authtoken et enregistrez-le dans WSDD. WSDD le garde dans wsdd-secrets.json.
+
+Q: Quel mode de stockage de projet choisir?
+R: Bind classique conserve le workflow Windows actuel. Workspace rapide
+   synchronise garde Windows comme source et execute depuis un volume Docker
+   natif. Projet Linux natif cible les chemins Linux/WSL existants.
+
 ## Reference des fichiers et chemins
 
 ```text

@@ -10,6 +10,7 @@ use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use crate::models::project::Project;
 
 use super::paths;
+use super::runtime_storage;
 
 pub(super) fn project_volume_exists(
     project: &Project,
@@ -42,14 +43,17 @@ pub(super) fn create_volume(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<bool, InfraError> {
-    let volume_name = paths::volume_name(project);
-    let device_opt = format!("device={}", project.work_path);
+    let strategy = runtime_storage::resolve(project)?;
+    let volume_name = strategy.volume_name.clone();
 
     if project_volume_exists(project, runner)? {
         let _ = tx.send(LogLine::success(format!(
             "[Deploy] Volumen '{}' ya existe; se reutiliza ✓",
             volume_name
         )));
+        if strategy.requires_initial_sync {
+            runtime_storage::sync_fast_workspace(&strategy, runner, tx)?;
+        }
         return Ok(false);
     }
 
@@ -58,25 +62,14 @@ pub(super) fn create_volume(
         volume_name
     )));
 
+    let args = strategy.volume_create_args();
+    let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let bridge = make_log_bridge(tx);
-    runner.run_direct_sync(
-        env_config().docker_exe(),
-        &[
-            "volume",
-            "create",
-            "--driver",
-            "local",
-            "--opt",
-            "type=none",
-            "--opt",
-            &device_opt,
-            "--opt",
-            "o=bind",
-            &volume_name,
-        ],
-        None,
-        Some(&bridge),
-    )?;
+    runner.run_direct_sync(env_config().docker_exe(), &arg_refs, None, Some(&bridge))?;
+
+    if strategy.requires_initial_sync {
+        runtime_storage::sync_fast_workspace(&strategy, runner, tx)?;
+    }
 
     let _ = tx.send(LogLine::success(format!(
         "[Deploy] Volumen '{}' creado ✓",

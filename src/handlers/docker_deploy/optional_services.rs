@@ -22,6 +22,7 @@ pub enum OptionalServiceKind {
     Redis,
     Mailpit,
     Memcached,
+    Ngrok,
 }
 
 impl OptionalServiceKind {
@@ -30,6 +31,7 @@ impl OptionalServiceKind {
             Self::Redis => "redis",
             Self::Mailpit => "mailpit",
             Self::Memcached => "memcached",
+            Self::Ngrok => "ngrok",
         }
     }
 
@@ -38,6 +40,7 @@ impl OptionalServiceKind {
             Self::Redis => "WSDD-Redis-Server",
             Self::Mailpit => "WSDD-Mailpit-Server",
             Self::Memcached => "WSDD-Memcached-Server",
+            Self::Ngrok => "WSDD-Ngrok-Server",
         }
     }
 
@@ -46,6 +49,7 @@ impl OptionalServiceKind {
             Self::Redis => "wsdd-redis",
             Self::Mailpit => "wsdd-mailpit",
             Self::Memcached => "wsdd-memcached",
+            Self::Ngrok => "wsdd-ngrok",
         }
     }
 
@@ -54,6 +58,7 @@ impl OptionalServiceKind {
             Self::Redis => "Redis",
             Self::Mailpit => "Mailpit",
             Self::Memcached => "Memcached",
+            Self::Ngrok => "ngrok",
         }
     }
 
@@ -62,6 +67,7 @@ impl OptionalServiceKind {
             Self::Redis => path_config().redis_yml(),
             Self::Mailpit => path_config().mailpit_yml(),
             Self::Memcached => path_config().memcached_yml(),
+            Self::Ngrok => path_config().ngrok_yml(),
         }
     }
 }
@@ -83,6 +89,10 @@ pub(super) fn sync_resources_sync(settings: &AppSettings) -> Result<(), InfraErr
     std::fs::write(
         path_config().memcached_yml(),
         templates::render_memcached_yml(settings),
+    )?;
+    std::fs::write(
+        path_config().ngrok_yml(),
+        templates::render_ngrok_yml(settings),
     )?;
     Ok(())
 }

@@ -26,6 +26,8 @@ mod theme;
 
 pub use credentials::{PrereqCredentials, WebminCredentials};
 #[allow(unused_imports)]
-pub use services::{MailpitServiceSettings, OptionalServicesSettings, RedisServiceSettings};
+pub use services::{
+    MailpitServiceSettings, NgrokServiceSettings, OptionalServicesSettings, RedisServiceSettings,
+};
 pub use storage::AppSettings;
 pub use theme::AppTheme;

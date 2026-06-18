@@ -105,7 +105,7 @@ impl From<&Project> for ProjectRef {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::project::{EntryPoint, PhpVersion, ProjectStatus};
+    use crate::models::project::{EntryPoint, PhpVersion, ProjectStatus, StorageMode};
 
     fn test_project() -> Project {
         Project {
@@ -115,6 +115,8 @@ mod tests {
             work_path: r"C:\projects\demo".to_string(),
             entry_point: EntryPoint::Root,
             ssl: true,
+            metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
+            storage_mode: StorageMode::ClassicBind,
             status: ProjectStatus::default(),
         }
     }

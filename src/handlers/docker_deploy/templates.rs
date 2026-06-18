@@ -89,6 +89,10 @@ const MEMCACHED_SERVICE_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/services/memcached.yml"
 ));
+const NGROK_SERVICE_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/services/ngrok.yml"
+));
 
 /// Renders the base `init.yml` with installation-specific credentials.
 pub(super) fn render_init_yml(credentials: &PrereqCredentials) -> String {
@@ -192,6 +196,23 @@ pub(super) fn render_memcached_yml(settings: &AppSettings) -> String {
                 .memcached
                 .memory_limit_mb
                 .to_string(),
+        )
+}
+
+/// Renders the optional ngrok compose file from saved settings and secrets.
+pub(super) fn render_ngrok_yml(settings: &AppSettings) -> String {
+    NGROK_SERVICE_TEMPLATE
+        .replace(
+            "__WSDD_NGROK_RESTART__",
+            &yaml_single_quoted(restart_policy(settings.optional_services.ngrok.auto_start)),
+        )
+        .replace(
+            "__WSDD_NGROK_API_PORT__",
+            &settings.optional_services.ngrok.api_host_port.to_string(),
+        )
+        .replace(
+            "__WSDD_NGROK_AUTHTOKEN__",
+            &yaml_single_quoted(&settings.ngrok_authtoken),
         )
 }
 
@@ -321,6 +342,7 @@ mod tests {
         let redis = render_redis_yml(&settings);
         let mailpit = render_mailpit_yml(&settings);
         let memcached = render_memcached_yml(&settings);
+        let ngrok = render_ngrok_yml(&settings);
 
         assert!(redis.contains("restart: 'no'"));
         assert!(redis.contains("127.0.0.1:6379:6379"));
@@ -330,8 +352,24 @@ mod tests {
         assert!(memcached.contains("restart: 'no'"));
         assert!(memcached.contains("127.0.0.1:11211:11211"));
         assert!(memcached.contains("\"-m\", \"64\""));
+        assert!(ngrok.contains("restart: 'no'"));
+        assert!(ngrok.contains("127.0.0.1:4040:4040"));
         assert!(!redis.contains("__WSDD_"));
         assert!(!mailpit.contains("__WSDD_"));
         assert!(!memcached.contains("__WSDD_"));
+        assert!(!ngrok.contains("__WSDD_"));
+    }
+
+    #[test]
+    fn rendered_ngrok_yml_quotes_token_without_logging_plain_config_placeholders() {
+        let settings = AppSettings {
+            ngrok_authtoken: "token'with\r\nbreaks".to_string(),
+            ..AppSettings::default()
+        };
+
+        let rendered = render_ngrok_yml(&settings);
+
+        assert!(rendered.contains("NGROK_AUTHTOKEN: 'token''withbreaks'"));
+        assert!(!rendered.contains("__WSDD_"));
     }
 }

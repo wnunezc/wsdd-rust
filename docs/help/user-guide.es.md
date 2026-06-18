@@ -451,6 +451,16 @@ R: Respaldar el directorio completo de tu codigo fuente (la ruta de trabajo)
    y el archivo JSON de C:\WSDD-Environment\Docker-Structure\projects\
    El JSON contiene la configuracion del proyecto (dominio, PHP, SSL, etc.)
 
+P: ¿ngrok funciona solo con login en navegador?
+R: No. El login del navegador abre tu cuenta de ngrok, pero el agente Docker
+   necesita un authtoken. En Configuracion, habilita ngrok, abre el dashboard,
+   copia el authtoken y guardalo en WSDD. WSDD lo guarda en wsdd-secrets.json.
+
+P: ¿Que modo de almacenamiento de proyecto debo elegir?
+R: Bind clasico mantiene el flujo actual con bind mount de Windows. Workspace
+   rapido sincronizado mantiene Windows como fuente y ejecuta desde un volumen
+   Docker-native. Proyecto Linux nativo es para rutas Linux/WSL existentes.
+
 ## Referencia de archivos y rutas
 
 ```text

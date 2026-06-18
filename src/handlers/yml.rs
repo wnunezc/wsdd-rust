@@ -53,6 +53,8 @@ pub fn add_project_to_options_yml(
     project_ref: &str,
     php_compose_tag: &str,
 ) -> Result<(), InfraError> {
+    ensure_client_max_body_size(path)?;
+
     let volume_name = format!("{php_compose_tag}-{project_ref}");
     let mut lines: Vec<String> = read_lines(path)?;
     let mount_line = format!("- {volume_name}:/var/www/html/{project_ref}");
@@ -155,6 +157,39 @@ pub fn add_project_to_options_yml(
     }
 
     Ok(())
+}
+
+/// Ensures existing PHP options files expose nginx-proxy upload limit metadata.
+///
+/// The migration is line-based so existing `VIRTUAL_HOST` entries for already
+/// registered projects remain untouched.
+pub fn ensure_client_max_body_size(path: &str) -> Result<(), InfraError> {
+    let mut lines: Vec<String> = read_lines(path)?;
+    if lines
+        .iter()
+        .any(|line| line.trim_start().starts_with("CLIENT_MAX_BODY_SIZE:"))
+    {
+        return Ok(());
+    }
+
+    let virtual_port_idx = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with("VIRTUAL_PORT:"))
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                path.to_string(),
+                "no se encontró la línea VIRTUAL_PORT:".to_string(),
+            )
+        })?;
+    let indent: String = lines[virtual_port_idx]
+        .chars()
+        .take_while(|c| c.is_whitespace())
+        .collect();
+    lines.insert(
+        virtual_port_idx + 1,
+        format!("{indent}CLIENT_MAX_BODY_SIZE: 16m"),
+    );
+    write_lines(path, &lines)
 }
 
 // ─── Eliminar proyecto de options.yml ────────────────────────────────────────
@@ -383,6 +418,33 @@ volumes:
         assert!(content.contains("php83-myapp.dock:/var/www/html/myapp.dock"));
         assert!(content.contains("  php83-myapp.dock:"));
         assert!(content.contains("    external: true"));
+    }
+
+    #[test]
+    fn ensure_client_max_body_size_preserves_existing_virtual_hosts() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_client_size.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock,cron83.wsdd.dock,wm83.wsdd.dock,existing.dock
+      VIRTUAL_PORT: 80
+    volumes:
+      - ./dev:/var/www/html/dev
+",
+        )
+        .unwrap();
+
+        ensure_client_max_body_size(path.to_str().unwrap()).unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains(
+            "VIRTUAL_HOST: php83.wsdd.dock,cron83.wsdd.dock,wm83.wsdd.dock,existing.dock"
+        ));
+        assert!(content.contains("      CLIENT_MAX_BODY_SIZE: 16m"));
     }
 
     #[test]

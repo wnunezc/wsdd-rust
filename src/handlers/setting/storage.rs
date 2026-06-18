@@ -53,6 +53,9 @@ pub struct AppSettings {
     /// Optional developer services that are deployed only after explicit activation.
     #[serde(default)]
     pub optional_services: OptionalServicesSettings,
+    /// ngrok authtoken loaded from `wsdd-secrets.json`; never saved to public config.
+    #[serde(skip)]
+    pub ngrok_authtoken: String,
     /// Credentials for prerequisite containers.
     #[serde(default)]
     pub prereq_credentials: PrereqCredentials,
@@ -98,6 +101,7 @@ impl Default for AppSettings {
             xdebug_enabled: default_xdebug_enabled(),
             auto_start_containers: false,
             optional_services: OptionalServicesSettings::default(),
+            ngrok_authtoken: String::new(),
             prereq_credentials: PrereqCredentials::default(),
             webmin_credentials: Vec::new(),
         }
@@ -144,6 +148,7 @@ impl AppSettings {
         if let Some(secrets) = secrets::load()? {
             settings.prereq_credentials = secrets.prereq_credentials.normalize_loaded();
             settings.webmin_credentials = secrets.webmin_credentials;
+            settings.ngrok_authtoken = secrets.ngrok_authtoken;
             normalize_webmin_credentials(&mut settings.webmin_credentials);
         }
 
@@ -162,7 +167,11 @@ impl AppSettings {
         let content = serde_json::to_string_pretty(&AppSettingsDisk::from(self))?;
         std::fs::write(&path, content)?;
 
-        secrets::save(&self.prereq_credentials, &self.webmin_credentials)?;
+        secrets::save(
+            &self.prereq_credentials,
+            &self.webmin_credentials,
+            &self.ngrok_authtoken,
+        )?;
         Ok(())
     }
 
@@ -209,6 +218,7 @@ impl AppSettings {
                 OptionalServicesSettings::default().mailpit.virtual_host;
         }
         self.optional_services.validate()?;
+        self.ngrok_authtoken = self.ngrok_authtoken.trim().to_string();
         self.prereq_credentials = self.prereq_credentials.normalize_loaded();
         normalize_webmin_credentials(&mut self.webmin_credentials);
 
@@ -242,7 +252,13 @@ impl AppSettings {
     /// # Errors
     /// Returns [`InfraError`] when service ports are invalid or conflicting.
     pub fn validate_optional_services(&self) -> Result<(), InfraError> {
-        self.optional_services.validate()
+        self.optional_services.validate()?;
+        if self.optional_services.ngrok.enabled && self.ngrok_authtoken.trim().is_empty() {
+            return Err(InfraError::PrerequisiteNotMet(
+                "ngrok authtoken is required when ngrok is enabled".to_string(),
+            ));
+        }
+        Ok(())
     }
 
     /// Returns complete Webmin credentials for a PHP version.

@@ -346,6 +346,16 @@ A: नहीं. phpMyAdmin HTTPS browser traffic secure करता है, �
 Q: Logs कहाँ हैं?
 A: App UI में general log और container live log panels हैं. Detailed Rust logs के लिए `RUST_LOG=wsdd=debug` use करें।
 
+Q: Kya ngrok sirf browser login se chalega?
+A: Nahin. Browser login aapka ngrok account kholta hai, lekin Docker agent ko
+   authtoken chahiye. Settings me ngrok enable karein, dashboard kholein,
+   authtoken copy karein aur WSDD me save karein. WSDD ise wsdd-secrets.json me rakhta hai.
+
+Q: Kaunsa project storage mode chunna chahiye?
+A: Classic Bind current Windows bind-mount workflow rakhta hai. Fast Sync
+   Windows ko source rakhta hai aur Docker-native volume se run karta hai.
+   Native Linux Project existing Linux/WSL paths ke liye hai.
+
 ## File and path reference
 
 Main environment:

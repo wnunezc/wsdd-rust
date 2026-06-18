@@ -134,7 +134,7 @@ fn cleanup_legacy_vhost_file(php_dir_name: &str, tx: &LogSender) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::project::{EntryPoint, ProjectStatus};
+    use crate::models::project::{EntryPoint, ProjectStatus, StorageMode};
 
     fn test_project(name: &str, php_version: PhpVersion, entry_point: EntryPoint) -> Project {
         Project {
@@ -144,6 +144,8 @@ mod tests {
             work_path: format!(r"D:\Projects\{name}"),
             entry_point,
             ssl: true,
+            metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
+            storage_mode: StorageMode::ClassicBind,
             status: ProjectStatus::Unknown,
         }
     }

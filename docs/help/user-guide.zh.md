@@ -357,6 +357,16 @@ phpMyAdmin 和 MySQL SSL:
 问: WSDD 可以与 WSL 1 一起使用吗?
 答: 不可以。Docker Desktop 需要 WSL 2。WSDD 假设使用 WSL 2。
 
+问: ngrok 只用浏览器登录可以吗？
+答: 不可以。浏览器登录只会打开你的 ngrok 账号；Docker agent 仍然需要
+   authtoken。在 Settings 中启用 ngrok，打开 dashboard，复制 authtoken
+   并保存到 WSDD。WSDD 会把它保存到 wsdd-secrets.json。
+
+问: 应该选择哪个项目存储模式？
+答: Classic Bind 保持当前 Windows bind-mount 流程。Fast Sync 以 Windows
+   为源，但从 Docker-native volume 运行。Native Linux Project 用于已有
+   Linux/WSL 路径中的项目。
+
 ## 文件和路径参考
 
 ```text

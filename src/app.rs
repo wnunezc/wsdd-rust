@@ -22,6 +22,7 @@ use tokio::runtime::Runtime;
 
 use crate::handlers::docker::{ContainerInfo, ContainerPollSnapshot, DockerDesktopStatus};
 use crate::handlers::log_types::LogLine;
+use crate::handlers::ngrok::NgrokPublication;
 use crate::handlers::ps_script::PsRunner;
 use crate::handlers::requirements::LoaderOutcome;
 use crate::handlers::setting::AppSettings;
@@ -70,6 +71,12 @@ struct ContainerLogWatcher {
 }
 
 #[derive(Debug)]
+pub enum NgrokPublicationEvent {
+    Published(NgrokPublication),
+    Stopped { project_name: String },
+}
+
+#[derive(Debug)]
 enum BackgroundJobEvent {
     Finished { key: String, error: Option<String> },
 }
@@ -97,6 +104,9 @@ pub struct WsddApp {
     container_log_rx: mpsc::Receiver<ContainerLogEntry>,
     container_log_done_tx: mpsc::Sender<String>,
     container_log_done_rx: mpsc::Receiver<String>,
+    pub ngrok_publications: HashMap<String, NgrokPublication>,
+    pub ngrok_publication_tx: mpsc::Sender<NgrokPublicationEvent>,
+    ngrok_publication_rx: mpsc::Receiver<NgrokPublicationEvent>,
     container_log_watchers: HashMap<String, ContainerLogWatcher>,
     container_log_retry_after: HashMap<String, Instant>,
     pub container_poll_rx: Option<mpsc::Receiver<ContainerPollSnapshot>>,
@@ -128,6 +138,7 @@ impl WsddApp {
         let (main_log_tx, main_log_rx) = mpsc::channel::<LogLine>();
         let (container_log_tx, container_log_rx) = mpsc::channel::<ContainerLogEntry>();
         let (container_log_done_tx, container_log_done_rx) = mpsc::channel::<String>();
+        let (ngrok_publication_tx, ngrok_publication_rx) = mpsc::channel::<NgrokPublicationEvent>();
         let (job_event_tx, job_event_rx) = mpsc::channel::<BackgroundJobEvent>();
 
         Self {
@@ -152,6 +163,9 @@ impl WsddApp {
             container_log_rx,
             container_log_done_tx,
             container_log_done_rx,
+            ngrok_publications: HashMap::new(),
+            ngrok_publication_tx,
+            ngrok_publication_rx,
             container_log_watchers: HashMap::new(),
             container_log_retry_after: HashMap::new(),
             container_poll_rx: None,

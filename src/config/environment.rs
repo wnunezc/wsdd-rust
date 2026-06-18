@@ -114,6 +114,10 @@ impl PathConfig {
         self.optional_services_dir().join("memcached.yml")
     }
 
+    pub fn ngrok_yml(&self) -> PathBuf {
+        self.optional_services_dir().join("ngrok.yml")
+    }
+
     pub fn mysql_dockerfile(&self) -> PathBuf {
         self.docker_structure_dir()
             .join("bin")
@@ -332,6 +336,10 @@ mod tests {
         assert_eq!(
             paths.memcached_yml(),
             PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\memcached.yml")
+        );
+        assert_eq!(
+            paths.ngrok_yml(),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\ngrok.yml")
         );
     }
 

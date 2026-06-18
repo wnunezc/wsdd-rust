@@ -28,8 +28,8 @@ fn workspace_package_versions_stay_aligned() {
 
     assert_eq!(app_version, launcher_version);
     assert!(
-        app_version == "1.0.2" || app_version.starts_with("1.0.2-rc."),
-        "release versions must be stable 1.0.2 or a 1.0.2-rc.N candidate"
+        app_version == "2.0.0" || app_version.starts_with("2.0.0-rc."),
+        "release versions must be stable 2.0.0 or a 2.0.0-rc.N candidate"
     );
 }
 
@@ -108,4 +108,79 @@ fn legacy_php_dockerfiles_use_composer_22_channel_only() {
             "php{version} must stay on the Composer 2 channel"
         );
     }
+}
+
+#[test]
+fn php_options_define_client_max_body_size() {
+    for (version, compose_tag) in [
+        ("5.6", "php56"),
+        ("7.2", "php72"),
+        ("7.4", "php74"),
+        ("8.1", "php81"),
+        ("8.2", "php82"),
+        ("8.3", "php83"),
+        ("8.4", "php84"),
+    ] {
+        let options = workspace_file(format!(
+            "recursos/recursos/Docker-Structure/bin/php{version}/options.{compose_tag}.yml"
+        ));
+
+        assert!(
+            options.contains("CLIENT_MAX_BODY_SIZE: 16m"),
+            "php{version} options must define CLIENT_MAX_BODY_SIZE: 16m"
+        );
+    }
+}
+
+#[test]
+fn docker_structure_zip_contains_client_max_body_size_options() {
+    let zip_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recursos/docker-structure.zip");
+    let zip_file = fs::File::open(&zip_path)
+        .unwrap_or_else(|err| panic!("could not open {}: {err}", zip_path.display()));
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .unwrap_or_else(|err| panic!("could not read {}: {err}", zip_path.display()));
+
+    for (version, compose_tag) in [
+        ("5.6", "php56"),
+        ("7.2", "php72"),
+        ("7.4", "php74"),
+        ("8.1", "php81"),
+        ("8.2", "php82"),
+        ("8.3", "php83"),
+        ("8.4", "php84"),
+    ] {
+        let entry = format!("bin/php{version}/options.{compose_tag}.yml");
+        let mut file = archive
+            .by_name(&entry)
+            .unwrap_or_else(|err| panic!("zip missing {entry}: {err}"));
+        let mut contents = String::new();
+        use std::io::Read;
+        file.read_to_string(&mut contents)
+            .unwrap_or_else(|err| panic!("could not read {entry}: {err}"));
+
+        assert!(
+            contents.contains("CLIENT_MAX_BODY_SIZE: 16m"),
+            "zip {entry} must define CLIENT_MAX_BODY_SIZE: 16m"
+        );
+    }
+}
+
+#[test]
+fn docker_structure_zip_contains_ngrok_service_template() {
+    let zip_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recursos/docker-structure.zip");
+    let zip_file = fs::File::open(&zip_path)
+        .unwrap_or_else(|err| panic!("could not open {}: {err}", zip_path.display()));
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .unwrap_or_else(|err| panic!("could not read {}: {err}", zip_path.display()));
+
+    let mut file = archive
+        .by_name("services/ngrok.yml")
+        .unwrap_or_else(|err| panic!("zip missing services/ngrok.yml: {err}"));
+    let mut contents = String::new();
+    use std::io::Read;
+    file.read_to_string(&mut contents)
+        .unwrap_or_else(|err| panic!("could not read services/ngrok.yml: {err}"));
+
+    assert!(contents.contains("WSDD-Ngrok-Server"));
+    assert!(contents.contains("127.0.0.1:__WSDD_NGROK_API_PORT__:4040"));
 }

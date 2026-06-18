@@ -24,6 +24,7 @@ pub mod hosts;
 pub mod log_types;
 pub mod log_viewer;
 pub mod mkcert;
+pub mod ngrok;
 pub mod output;
 pub mod powershell;
 pub mod project;

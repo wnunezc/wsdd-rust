@@ -1,6 +1,6 @@
 use std::time::Instant;
 
-use super::{BackgroundJobEvent, BackgroundJobStatus, WsddApp};
+use super::{BackgroundJobEvent, BackgroundJobStatus, NgrokPublicationEvent, WsddApp};
 
 impl WsddApp {
     /// Drains pending log, polling, and background job channels.
@@ -43,6 +43,18 @@ impl WsddApp {
                     .is_some_and(|last| last.text == line.text);
                 if !is_dup {
                     self.main_log.push(line);
+                }
+            }
+        }
+
+        while let Ok(event) = self.ngrok_publication_rx.try_recv() {
+            match event {
+                NgrokPublicationEvent::Published(publication) => {
+                    self.ngrok_publications
+                        .insert(publication.project_name.clone(), publication);
+                }
+                NgrokPublicationEvent::Stopped { project_name } => {
+                    self.ngrok_publications.remove(&project_name);
                 }
             }
         }

@@ -1,0 +1,24 @@
+services:
+  ngrok:
+    container_name: WSDD-Ngrok-Server
+    image: ngrok/ngrok:latest
+    restart: __WSDD_NGROK_RESTART__
+    command:
+      - start
+      - --none
+      - --log
+      - stdout
+    environment:
+      NGROK_AUTHTOKEN: __WSDD_NGROK_AUTHTOKEN__
+    ports:
+      - "127.0.0.1:__WSDD_NGROK_API_PORT__:4040"
+    networks:
+      - wsdd-network
+    labels:
+      - "wsdd.optional-service.description=ngrok"
+      - "wsdd.optional-service.role=ngrok"
+      - "wsdd.optional-service.managed=true"
+
+networks:
+  wsdd-network:
+    external: true

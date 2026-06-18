@@ -3,7 +3,7 @@ use std::sync::mpsc;
 use crate::handlers::log_types::LogLine;
 use crate::handlers::setting::{AppSettings, PrereqCredentials};
 use crate::handlers::wsl::WslConfig;
-use crate::models::project::{EntryPoint, PhpVersion, Project};
+use crate::models::project::{EntryPoint, PhpVersion, Project, StorageMode};
 
 /// Active application view.
 #[derive(Debug, Clone, PartialEq)]
@@ -63,6 +63,7 @@ pub struct UiState {
     pub form_entry: EntryPoint,
     pub form_entry_custom: String,
     pub form_ssl: bool,
+    pub form_storage_mode: StorageMode,
     pub form_error: Option<String>,
     pub folder_pick_rx: Option<mpsc::Receiver<Option<String>>>,
     pub settings_draft: Option<AppSettings>,
@@ -93,6 +94,7 @@ impl UiState {
             form_entry: EntryPoint::default(),
             form_entry_custom: String::new(),
             form_ssl: true,
+            form_storage_mode: StorageMode::default(),
             form_error: None,
             folder_pick_rx: None,
             settings_draft: None,
@@ -111,6 +113,7 @@ impl UiState {
         self.form_entry = EntryPoint::default();
         self.form_entry_custom = String::new();
         self.form_ssl = true;
+        self.form_storage_mode = StorageMode::default();
         self.form_error = None;
         self.folder_pick_rx = None;
     }

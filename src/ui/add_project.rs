@@ -22,7 +22,9 @@ use std::sync::mpsc;
 
 use crate::app::WsddApp;
 use crate::i18n::{tr, trf};
-use crate::models::project::{normalize_domain, EntryPoint, PhpVersion, Project, ProjectStatus};
+use crate::models::project::{
+    normalize_domain, EntryPoint, PhpVersion, Project, ProjectStatus, StorageMode,
+};
 use crate::ui::{projects_panel, ActiveView};
 
 /// Renderiza el formulario de nuevo proyecto.
@@ -44,6 +46,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let domain_label = format!("{}:", tr("add_domain"));
     let php_label = format!("{}:", tr("add_php_version"));
     let work_path_label = format!("{}:", tr("add_work_path"));
+    let storage_mode_label = format!("{}:", tr("add_storage_mode"));
     let entry_point_label = format!("{}:", tr("add_entry_point"));
     let ssl_label = format!("{}:", tr("add_enable_ssl"));
     let browse_label = tr("add_browse");
@@ -56,6 +59,9 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let domain_hint = tr("add_domain_hint");
     let work_path_hint = tr("add_work_path_hint");
     let pick_folder_title = tr("add_select_dir");
+    let classic_bind_label = tr("storage_classic_bind");
+    let fast_sync_label = tr("storage_fast_sync_workspace");
+    let native_linux_label = tr("storage_native_linux_project");
 
     let mut open = true;
     crate::ui::render_modal_backdrop(ctx, "add_project_backdrop");
@@ -123,6 +129,28 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                             });
                         }
                     });
+                    ui.end_row();
+
+                    ui.label(&storage_mode_label);
+                    egui::ComboBox::from_id_salt("storage_mode_combo")
+                        .selected_text(storage_mode_label_for(app.ui.form_storage_mode))
+                        .show_ui(ui, |ui| {
+                            ui.selectable_value(
+                                &mut app.ui.form_storage_mode,
+                                StorageMode::ClassicBind,
+                                &classic_bind_label,
+                            );
+                            ui.selectable_value(
+                                &mut app.ui.form_storage_mode,
+                                StorageMode::FastSyncWorkspace,
+                                &fast_sync_label,
+                            );
+                            ui.selectable_value(
+                                &mut app.ui.form_storage_mode,
+                                StorageMode::NativeLinuxProject,
+                                &native_linux_label,
+                            );
+                        });
                     ui.end_row();
 
                     // ── Entry Point ───────────────────────────────────────────
@@ -243,6 +271,8 @@ fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
         work_path,
         entry_point,
         ssl: app.ui.form_ssl,
+        metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
+        storage_mode: app.ui.form_storage_mode,
         status: ProjectStatus::default(),
     };
 
@@ -254,5 +284,13 @@ fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
         }
         projects_panel::DeployFlowOutcome::WaitingForCredentials => {}
         projects_panel::DeployFlowOutcome::Failed => {}
+    }
+}
+
+fn storage_mode_label_for(mode: StorageMode) -> String {
+    match mode {
+        StorageMode::ClassicBind => tr("storage_classic_bind"),
+        StorageMode::FastSyncWorkspace => tr("storage_fast_sync_workspace"),
+        StorageMode::NativeLinuxProject => tr("storage_native_linux_project"),
     }
 }

@@ -450,6 +450,16 @@ A: Back up the complete directory of your source code (working path)
    and the JSON file from C:\WSDD-Environment\Docker-Structure\projects\
    The JSON contains project configuration (domain, PHP, SSL, etc.)
 
+Q: Does ngrok work with browser login only?
+A: No. Browser login opens your ngrok account, but the Docker agent needs an
+   authtoken. In Settings, enable ngrok, open the ngrok dashboard, copy your
+   authtoken, and save it in WSDD. WSDD stores it in wsdd-secrets.json.
+
+Q: Which project storage mode should I choose?
+A: Classic Bind preserves the current Windows bind-mount workflow. Fast Sync
+   keeps Windows as source and runs from a Docker-native runtime volume. Native
+   Linux Project is for projects already stored in Linux/WSL paths.
+
 ## File and path reference
 
 ```text

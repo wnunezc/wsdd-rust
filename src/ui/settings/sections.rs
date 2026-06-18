@@ -1,4 +1,5 @@
 use crate::config::environment::{path_config, path_to_string, DEFAULT_DOCKER_DESKTOP_EXE};
+use crate::handlers::ps_script::launch_url;
 use crate::handlers::setting::{AppSettings, WebminCredentials};
 use crate::i18n::{tr, Language};
 use crate::models::project::PhpVersion;
@@ -36,6 +37,12 @@ pub(super) struct SettingsCopy {
     mailpit_smtp_port_label: String,
     mailpit_ui_port_label: String,
     mailpit_virtual_host_label: String,
+    ngrok_enabled_label: String,
+    ngrok_auto_start_label: String,
+    ngrok_api_port_label: String,
+    ngrok_inspect_label: String,
+    ngrok_authtoken_label: String,
+    ngrok_open_dashboard_label: String,
     prereq_title: String,
     prereq_note: String,
     prereq_runtime_note: String,
@@ -85,6 +92,12 @@ impl SettingsCopy {
             mailpit_smtp_port_label: format!("{}:", tr("settings_mailpit_smtp_port")),
             mailpit_ui_port_label: format!("{}:", tr("settings_mailpit_ui_port")),
             mailpit_virtual_host_label: format!("{}:", tr("settings_mailpit_virtual_host")),
+            ngrok_enabled_label: format!("{}:", tr("settings_ngrok_enabled")),
+            ngrok_auto_start_label: format!("{}:", tr("settings_ngrok_auto_start")),
+            ngrok_api_port_label: format!("{}:", tr("settings_ngrok_api_port")),
+            ngrok_inspect_label: format!("{}:", tr("settings_ngrok_inspect")),
+            ngrok_authtoken_label: format!("{}:", tr("settings_ngrok_authtoken")),
+            ngrok_open_dashboard_label: tr("settings_ngrok_open_dashboard"),
             prereq_title: tr("settings_prereq_section"),
             prereq_note: tr("settings_prereq_note"),
             prereq_runtime_note: tr("settings_prereq_runtime_note"),
@@ -365,6 +378,44 @@ fn render_optional_services_section(
                             .desired_width(220.0)
                             .hint_text("mailpit.wsdd.dock"),
                         );
+                        ui.end_row();
+                    }
+
+                    ui.label(&copy.ngrok_enabled_label);
+                    ui.checkbox(&mut draft.optional_services.ngrok.enabled, "");
+                    ui.end_row();
+
+                    if draft.optional_services.ngrok.enabled {
+                        ui.label(&copy.ngrok_auto_start_label);
+                        ui.checkbox(&mut draft.optional_services.ngrok.auto_start, "");
+                        ui.end_row();
+
+                        ui.label(&copy.ngrok_api_port_label);
+                        ui.add(
+                            egui::DragValue::new(&mut draft.optional_services.ngrok.api_host_port)
+                                .range(1..=65535)
+                                .speed(1.0),
+                        );
+                        ui.end_row();
+
+                        ui.label(&copy.ngrok_inspect_label);
+                        ui.checkbox(&mut draft.optional_services.ngrok.inspect, "");
+                        ui.end_row();
+
+                        ui.label(&copy.ngrok_authtoken_label);
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                egui::TextEdit::singleline(&mut draft.ngrok_authtoken)
+                                    .desired_width(260.0)
+                                    .password(true)
+                                    .hint_text("ngrok authtoken"),
+                            );
+                            if ui.button(&copy.ngrok_open_dashboard_label).clicked() {
+                                launch_url(
+                                    "https://dashboard.ngrok.com/get-started/your-authtoken",
+                                );
+                            }
+                        });
                         ui.end_row();
                     }
                 });

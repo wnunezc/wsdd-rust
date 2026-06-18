@@ -123,6 +123,17 @@ fn optional_service_changes(
         changes.push(OptionalServiceChange::Stop(OptionalServiceKind::Memcached));
     }
 
+    if next.optional_services.ngrok.enabled {
+        if !previous.optional_services.ngrok.enabled
+            || previous.optional_services.ngrok != next.optional_services.ngrok
+            || previous.ngrok_authtoken != next.ngrok_authtoken
+        {
+            changes.push(OptionalServiceChange::Deploy(OptionalServiceKind::Ngrok));
+        }
+    } else if previous.optional_services.ngrok.enabled {
+        changes.push(OptionalServiceChange::Stop(OptionalServiceKind::Ngrok));
+    }
+
     changes
 }
 

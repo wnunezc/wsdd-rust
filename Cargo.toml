@@ -1,6 +1,6 @@
 [package]
 name = "wsdd"
-version = "1.0.2"
+version = "2.0.0"
 edition = "2021"
 description = "WebStack Deployer for Docker - Rust edition"
 authors = ["Walter Nunez / Icaros Net S.A"]
@@ -29,6 +29,7 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 serde_yaml = "0.9"
 quick-xml = { version = "0.36", features = ["serialize"] }
+reqwest = { version = "0.12", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 
 # Compresión ZIP para los recursos embebidos del runtime
 zip = "2"

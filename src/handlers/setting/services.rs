@@ -9,6 +9,7 @@ pub struct OptionalServicesSettings {
     pub redis: RedisServiceSettings,
     pub mailpit: MailpitServiceSettings,
     pub memcached: MemcachedServiceSettings,
+    pub ngrok: NgrokServiceSettings,
 }
 
 impl OptionalServicesSettings {
@@ -21,6 +22,7 @@ impl OptionalServicesSettings {
         validate_port("Mailpit SMTP host port", self.mailpit.smtp_host_port)?;
         validate_port("Mailpit UI host port", self.mailpit.ui_host_port)?;
         validate_port("Memcached host port", self.memcached.host_port)?;
+        validate_port("ngrok Agent API host port", self.ngrok.api_host_port)?;
 
         if self.mailpit.enabled && self.mailpit.smtp_host_port == self.mailpit.ui_host_port {
             return Err(InfraError::PrerequisiteNotMet(
@@ -49,6 +51,9 @@ impl OptionalServicesSettings {
         if self.memcached.enabled {
             enabled_ports.push(("Memcached", self.memcached.host_port));
         }
+        if self.ngrok.enabled {
+            enabled_ports.push(("ngrok Agent API", self.ngrok.api_host_port));
+        }
 
         for (index, (left_label, left_port)) in enabled_ports.iter().enumerate() {
             for (right_label, right_port) in enabled_ports.iter().skip(index + 1) {
@@ -61,6 +66,27 @@ impl OptionalServicesSettings {
         }
 
         Ok(())
+    }
+}
+
+/// ngrok service settings. Disabled by default and configured with secrets separately.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct NgrokServiceSettings {
+    pub enabled: bool,
+    pub auto_start: bool,
+    pub api_host_port: u16,
+    pub inspect: bool,
+}
+
+impl Default for NgrokServiceSettings {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            auto_start: false,
+            api_host_port: 4040,
+            inspect: true,
+        }
     }
 }
 
@@ -160,6 +186,10 @@ mod tests {
         assert!(!settings.mailpit.auto_start);
         assert!(!settings.memcached.enabled);
         assert!(!settings.memcached.auto_start);
+        assert!(!settings.ngrok.enabled);
+        assert!(!settings.ngrok.auto_start);
+        assert_eq!(settings.ngrok.api_host_port, 4040);
+        assert!(settings.ngrok.inspect);
     }
 
     #[test]
@@ -203,6 +233,25 @@ mod tests {
                 enabled: true,
                 host_port: 11211,
                 ..MemcachedServiceSettings::default()
+            },
+            ..OptionalServicesSettings::default()
+        };
+
+        assert!(settings.validate().is_err());
+    }
+
+    #[test]
+    fn enabled_ngrok_api_port_must_not_conflict_with_other_services() {
+        let settings = OptionalServicesSettings {
+            mailpit: MailpitServiceSettings {
+                enabled: true,
+                ui_host_port: 4040,
+                ..MailpitServiceSettings::default()
+            },
+            ngrok: NgrokServiceSettings {
+                enabled: true,
+                api_host_port: 4040,
+                ..NgrokServiceSettings::default()
             },
             ..OptionalServicesSettings::default()
         };

@@ -11,6 +11,8 @@ pub(super) struct AppSecrets {
     pub prereq_credentials: PrereqCredentials,
     #[serde(default)]
     pub webmin_credentials: Vec<WebminCredentials>,
+    #[serde(default)]
+    pub ngrok_authtoken: String,
 }
 
 /// Loads credentials from `wsdd-secrets.json` when the file exists.
@@ -24,6 +26,7 @@ pub(super) fn load() -> Result<Option<AppSecrets>, InfraError> {
     let mut secrets: AppSecrets = serde_json::from_str(&content)?;
     secrets.prereq_credentials = secrets.prereq_credentials.normalize_loaded();
     normalize_webmin_credentials(&mut secrets.webmin_credentials);
+    secrets.ngrok_authtoken = secrets.ngrok_authtoken.trim().to_string();
     Ok(Some(secrets))
 }
 
@@ -31,6 +34,7 @@ pub(super) fn load() -> Result<Option<AppSecrets>, InfraError> {
 pub(super) fn save(
     prereq_credentials: &PrereqCredentials,
     webmin_credentials: &[WebminCredentials],
+    ngrok_authtoken: &str,
 ) -> Result<(), InfraError> {
     let secrets_path = path_config().secrets_file();
     if let Some(parent) = secrets_path.parent() {
@@ -40,6 +44,7 @@ pub(super) fn save(
     let secrets = AppSecrets {
         prereq_credentials: prereq_credentials.clone(),
         webmin_credentials: webmin_credentials.to_vec(),
+        ngrok_authtoken: ngrok_authtoken.trim().to_string(),
     };
     let secrets_content = serde_json::to_string_pretty(&secrets)?;
     std::fs::write(&secrets_path, secrets_content)?;

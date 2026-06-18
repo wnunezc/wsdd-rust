@@ -121,7 +121,7 @@ fn load_from_file(path: &Path) -> Result<Project, InfraError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::models::project::{EntryPoint, PhpVersion, Project};
+    use crate::models::project::{EntryPoint, PhpVersion, Project, StorageMode};
 
     fn test_project(name: &str) -> Project {
         Project {
@@ -131,6 +131,8 @@ mod tests {
             work_path: format!(r"C:\projects\{name}"),
             entry_point: EntryPoint::Root,
             ssl: true,
+            metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
+            storage_mode: StorageMode::ClassicBind,
             status: Default::default(),
         }
     }

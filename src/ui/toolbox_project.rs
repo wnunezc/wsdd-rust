@@ -18,7 +18,7 @@
 //! Muestra acciones rápidas sobre un proyecto: abrir carpeta, abrir en navegador,
 //! info del proyecto.
 
-use crate::app::WsddApp;
+use crate::app::{NgrokPublicationEvent, WsddApp};
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::{launch, launch_url};
 use crate::i18n::tr;
@@ -69,11 +69,13 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let open_folder = tr("main_open_folder");
             let open_browser = tr("main_open_browser");
             let backup_project = tr("toolbox_backup_project");
+            let ngrok_copy = NgrokToolboxCopy::new();
             let close_label = tr("btn_close");
             let info_name = format!("{}:", tr("col_name"));
             let info_domain = format!("{}:", tr("col_domain"));
             let info_php = format!("{}:", tr("col_php"));
             let info_work_path = format!("{}:", tr("info_work_path"));
+            let info_storage_mode = format!("{}:", tr("info_storage_mode"));
             let info_entry_point = format!("{}:", tr("info_entry_point"));
             let info_ssl = format!("{}:", tr("col_ssl"));
 
@@ -128,6 +130,14 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 }
             }
 
+            ui.add_space(8.0);
+            ui.separator();
+            ui.add_space(6.0);
+
+            ui.strong(&ngrok_copy.title);
+            ui.add_space(4.0);
+            render_ngrok_controls(ui, ctx, app, &project, &ngrok_copy);
+
             ui.add_space(12.0);
             ui.separator();
 
@@ -155,6 +165,10 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     ui.label(&project.work_path);
                     ui.end_row();
 
+                    ui.label(&info_storage_mode);
+                    ui.label(storage_mode_display(project.storage_mode));
+                    ui.end_row();
+
                     ui.label(&info_entry_point);
                     ui.label(&entry_point);
                     ui.end_row();
@@ -180,4 +194,149 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         app.ui.toolbox_project_name = None;
         app.ui.active = ActiveView::Main;
     }
+}
+
+fn storage_mode_display(mode: crate::models::project::StorageMode) -> String {
+    match mode {
+        crate::models::project::StorageMode::ClassicBind => tr("storage_classic_bind"),
+        crate::models::project::StorageMode::FastSyncWorkspace => tr("storage_fast_sync_workspace"),
+        crate::models::project::StorageMode::NativeLinuxProject => {
+            tr("storage_native_linux_project")
+        }
+    }
+}
+
+struct NgrokToolboxCopy {
+    title: String,
+    publish: String,
+    stop: String,
+    open: String,
+    copy: String,
+    unavailable: String,
+}
+
+impl NgrokToolboxCopy {
+    fn new() -> Self {
+        Self {
+            title: tr("toolbox_ngrok_title"),
+            publish: tr("toolbox_ngrok_publish"),
+            stop: tr("toolbox_ngrok_stop"),
+            open: tr("toolbox_ngrok_open"),
+            copy: tr("toolbox_ngrok_copy"),
+            unavailable: tr("toolbox_ngrok_unavailable"),
+        }
+    }
+}
+
+fn render_ngrok_controls(
+    ui: &mut egui::Ui,
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    project: &crate::models::project::Project,
+    copy: &NgrokToolboxCopy,
+) {
+    let ngrok_running = app
+        .containers
+        .iter()
+        .any(|container| container.name == "WSDD-Ngrok-Server" && container.is_running());
+    let ngrok_ready = app.settings.optional_services.ngrok.enabled
+        && !app.settings.ngrok_authtoken.trim().is_empty()
+        && ngrok_running;
+    let publish_key = format!("ngrok:publish:{}", project.name);
+    let stop_key = format!("ngrok:stop:{}", project.name);
+    let busy = app.is_job_running(&publish_key) || app.is_job_running(&stop_key);
+
+    if let Some(publication) = app.ngrok_publications.get(&project.name).cloned() {
+        ui.horizontal(|ui| {
+            ui.label(&publication.public_url);
+            if ui.button(&copy.open).clicked() {
+                launch_url(&publication.public_url);
+            }
+            if ui.button(&copy.copy).clicked() {
+                ui.output_mut(|o| o.copied_text = publication.public_url.clone());
+            }
+            if ui
+                .add_enabled(!busy, egui::Button::new(&copy.stop))
+                .clicked()
+            {
+                spawn_stop_publication(ctx, app, project.clone());
+            }
+        });
+        return;
+    }
+
+    if !ngrok_ready {
+        ui.add_enabled(false, egui::Button::new(&copy.publish))
+            .on_hover_text(&copy.unavailable);
+        return;
+    }
+
+    if ui
+        .add_enabled(!busy, egui::Button::new(&copy.publish))
+        .clicked()
+    {
+        spawn_publish_project(ctx, app, project.clone());
+    }
+}
+
+fn spawn_publish_project(
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    project: crate::models::project::Project,
+) {
+    let settings = app.settings.clone();
+    let runner = app.runner.clone();
+    let tx = app.main_log_tx.clone();
+    let event_tx = app.ngrok_publication_tx.clone();
+    let project_name = project.name.clone();
+    let job_key = format!("ngrok:publish:{project_name}");
+    let label = format!("ngrok publish {project_name}");
+
+    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+        match crate::handlers::ngrok::publish_project(&project, &settings, &runner) {
+            Ok(publication) => {
+                let _ = tx.send(LogLine::success(format!(
+                    "[ngrok] {} publicado en {}",
+                    publication.project_name, publication.public_url
+                )));
+                let _ = event_tx.send(NgrokPublicationEvent::Published(publication));
+                Ok(())
+            }
+            Err(e) => {
+                let message = format!("[ngrok] Error publicando {project_name}: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                Err(message)
+            }
+        }
+    });
+}
+
+fn spawn_stop_publication(
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    project: crate::models::project::Project,
+) {
+    let settings = app.settings.clone();
+    let tx = app.main_log_tx.clone();
+    let event_tx = app.ngrok_publication_tx.clone();
+    let project_name = project.name.clone();
+    let job_key = format!("ngrok:stop:{project_name}");
+    let label = format!("ngrok stop {project_name}");
+
+    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+        match crate::handlers::ngrok::stop_project_publication(&project, &settings) {
+            Ok(()) => {
+                let _ = tx.send(LogLine::success(format!(
+                    "[ngrok] Publicacion detenida para {project_name}"
+                )));
+                let _ = event_tx.send(NgrokPublicationEvent::Stopped { project_name });
+                Ok(())
+            }
+            Err(e) => {
+                let message = format!("[ngrok] Error deteniendo publicacion: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                Err(message)
+            }
+        }
+    });
 }

@@ -24,6 +24,7 @@ use crate::models::project::Project;
 mod docker_ops;
 mod paths;
 mod rollback;
+mod runtime_storage;
 mod steps;
 mod vhost;
 

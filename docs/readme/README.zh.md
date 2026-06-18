@@ -15,7 +15,7 @@ WSDD 是面向 Windows 的本地 PHP + Docker 开发 stack 管理器。
 它会自动完成首次环境准备，为每个项目 provision PHP 容器，使用 MKCert 配置本地 SSL，
 更新 Windows `hosts` 文件，并在一个桌面应用中集中管理容器和项目操作。
 
-- **当前阶段**: 本地验证构建 `1.0.2`
+- **当前阶段**: 本地验证构建 `2.0.0`
 - **主要分发包**: Windows MSI 安装器
 - **当前 UI 语言**: English, Spanish, French, Hindi, Chinese
 - **语言 fallback**: 缺失的 UI/help 本地化内容回退到 English
@@ -100,7 +100,7 @@ C:\WSDD-Environment\
 
 ## 技术信息
 
-- **Version**: 1.0.2 (Rust edition)
+- **Version**: 2.0.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` 中的 JSON
