@@ -169,6 +169,21 @@ pub fn publish_project(
     })
 }
 
+/// Finds an active ngrok tunnel for one project without creating a new tunnel.
+///
+/// # Errors
+/// Returns [`InfraError`] when the Agent API cannot be queried.
+pub fn publication_for_project(
+    project: &Project,
+    settings: &AppSettings,
+) -> Result<Option<NgrokPublication>, InfraError> {
+    let tunnel_name = tunnel_name_for_project(project);
+    Ok(list_publications(settings)?
+        .into_iter()
+        .find(|publication| publication.tunnel_name == tunnel_name)
+        .map(|publication| hydrate_project_publication(project, publication)))
+}
+
 /// Stops the temporary ngrok tunnel for one WSDD project.
 ///
 /// # Errors
@@ -260,6 +275,18 @@ fn agent_api_client(_settings: &AppSettings) -> reqwest::blocking::Client {
         .unwrap_or_else(|_| reqwest::blocking::Client::new())
 }
 
+fn hydrate_project_publication(
+    project: &Project,
+    publication: NgrokPublication,
+) -> NgrokPublication {
+    NgrokPublication {
+        project_name: project.name.clone(),
+        project_domain: project.domain.clone(),
+        tunnel_name: publication.tunnel_name,
+        public_url: publication.public_url,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -286,5 +313,26 @@ mod tests {
         };
 
         assert!(!status.can_publish());
+    }
+
+    #[test]
+    fn hydrate_project_publication_restores_project_identity() {
+        let project = Project {
+            name: "RTM Hub!".to_string(),
+            domain: "rtm-hub.dock".to_string(),
+            ..Project::default()
+        };
+        let listed = NgrokPublication {
+            project_name: "rtm-hub".to_string(),
+            project_domain: String::new(),
+            tunnel_name: "wsdd-rtm-hub".to_string(),
+            public_url: "https://example.ngrok-free.app".to_string(),
+        };
+
+        let restored = hydrate_project_publication(&project, listed);
+
+        assert_eq!(restored.project_name, "RTM Hub!");
+        assert_eq!(restored.project_domain, "rtm-hub.dock");
+        assert_eq!(restored.tunnel_name, tunnel_name_for_project(&project));
     }
 }

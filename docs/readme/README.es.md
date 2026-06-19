@@ -17,7 +17,7 @@ Automatiza la preparacion inicial del entorno, aprovisiona contenedores PHP por 
 configura SSL local con MKCert, actualiza el archivo `hosts` de Windows y centraliza
 operaciones de contenedores/proyectos en una sola app de escritorio.
 
-- **Etapa actual**: Linea de validacion local `2.0.0`
+- **Etapa actual**: Linea de validacion de parche `2.0.1`
 - **Paquete principal de distribucion**: instalador MSI para Windows
 - **Idiomas UI actuales**: ingles, espanol, frances, hindi, chino
 - **Fallback de idioma**: ingles para contenido localizado faltante de UI/ayuda
@@ -106,7 +106,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 2.0.0 (Rust edition)
+- **Version**: 2.0.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

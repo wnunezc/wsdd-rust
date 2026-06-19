@@ -14,7 +14,7 @@
 // Contact: wnunez@lh-2.net
 //! Global application state facade.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
 use std::time::Instant;
 
@@ -105,6 +105,7 @@ pub struct WsddApp {
     container_log_done_tx: mpsc::Sender<String>,
     container_log_done_rx: mpsc::Receiver<String>,
     pub ngrok_publications: HashMap<String, NgrokPublication>,
+    pub ngrok_publication_sync_attempted: HashSet<String>,
     pub ngrok_publication_tx: mpsc::Sender<NgrokPublicationEvent>,
     ngrok_publication_rx: mpsc::Receiver<NgrokPublicationEvent>,
     container_log_watchers: HashMap<String, ContainerLogWatcher>,
@@ -164,6 +165,7 @@ impl WsddApp {
             container_log_done_tx,
             container_log_done_rx,
             ngrok_publications: HashMap::new(),
+            ngrok_publication_sync_attempted: HashSet::new(),
             ngrok_publication_tx,
             ngrok_publication_rx,
             container_log_watchers: HashMap::new(),

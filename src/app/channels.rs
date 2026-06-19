@@ -50,10 +50,13 @@ impl WsddApp {
         while let Ok(event) = self.ngrok_publication_rx.try_recv() {
             match event {
                 NgrokPublicationEvent::Published(publication) => {
+                    self.ngrok_publication_sync_attempted
+                        .insert(publication.project_name.clone());
                     self.ngrok_publications
                         .insert(publication.project_name.clone(), publication);
                 }
                 NgrokPublicationEvent::Stopped { project_name } => {
+                    self.ngrok_publication_sync_attempted.remove(&project_name);
                     self.ngrok_publications.remove(&project_name);
                 }
             }

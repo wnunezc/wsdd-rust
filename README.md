@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: `2.0.0` local validation line
+- **Current stage**: `2.0.1` patch validation line
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content
@@ -104,7 +104,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 2.0.0 (Rust edition)
+- **Version**: 2.0.1 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

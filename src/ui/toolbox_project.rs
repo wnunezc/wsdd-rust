@@ -271,12 +271,54 @@ fn render_ngrok_controls(
         return;
     }
 
+    spawn_sync_publication_if_needed(ctx, app, project);
+
     if ui
         .add_enabled(!busy, egui::Button::new(&copy.publish))
         .clicked()
     {
         spawn_publish_project(ctx, app, project.clone());
     }
+}
+
+fn spawn_sync_publication_if_needed(
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    project: &crate::models::project::Project,
+) {
+    let project_name = project.name.clone();
+    if app.ngrok_publication_sync_attempted.contains(&project_name) {
+        return;
+    }
+
+    let job_key = format!("ngrok:sync:{project_name}");
+    if app.is_job_running(&job_key) {
+        return;
+    }
+
+    app.ngrok_publication_sync_attempted
+        .insert(project_name.clone());
+
+    let settings = app.settings.clone();
+    let tx = app.main_log_tx.clone();
+    let event_tx = app.ngrok_publication_tx.clone();
+    let project = project.clone();
+    let label = format!("ngrok sync {project_name}");
+
+    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+        match crate::handlers::ngrok::publication_for_project(&project, &settings) {
+            Ok(Some(publication)) => {
+                let _ = event_tx.send(NgrokPublicationEvent::Published(publication));
+                Ok(())
+            }
+            Ok(None) => Ok(()),
+            Err(e) => {
+                let message = format!("[ngrok] Error leyendo publicacion activa: {e}");
+                let _ = tx.send(LogLine::error(message.clone()));
+                Err(message)
+            }
+        }
+    });
 }
 
 fn spawn_publish_project(
