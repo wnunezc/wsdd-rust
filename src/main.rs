@@ -31,6 +31,11 @@ fn main() -> Result<()> {
     #[cfg(windows)]
     handlers::requirements::ensure_admin()?;
 
+    #[cfg(windows)]
+    if let Err(error) = handlers::window_state::configure_process_dpi_awareness() {
+        tracing::warn!("No se pudo configurar DPI awareness: {error}");
+    }
+
     resources::init()?;
     let job_runtime = app::create_job_runtime()?;
 
@@ -55,8 +60,9 @@ fn main() -> Result<()> {
         viewport: egui::ViewportBuilder::default()
             .with_title(title)
             .with_min_inner_size([1000.0, 650.0])
-            .with_maximized(true)
+            .with_visible(false)
             .with_icon(load_icon()),
+        persist_window: false,
         ..Default::default()
     };
 

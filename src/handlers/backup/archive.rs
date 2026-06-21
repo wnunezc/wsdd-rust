@@ -25,7 +25,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 use crate::errors::InfraError;
 
 /// Copies a directory tree into `dest`, preserving relative paths.
-pub(super) fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), InfraError> {
+pub(crate) fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), InfraError> {
     if !src.exists() {
         return Ok(());
     }
@@ -52,7 +52,7 @@ pub(super) fn copy_dir_recursive(src: &Path, dest: &Path) -> Result<(), InfraErr
 }
 
 /// Creates a ZIP archive from an already staged directory tree.
-pub(super) fn create_zip_from_dir(
+pub(crate) fn create_zip_from_dir(
     src_dir: &Path,
     destination_zip: &Path,
 ) -> Result<(), InfraError> {

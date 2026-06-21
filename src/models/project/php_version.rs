@@ -58,6 +58,19 @@ impl PhpVersion {
         }
     }
 
+    /// Returns the version tag used by the shared PHP runtime container name.
+    pub fn runtime_container_tag(&self) -> &'static str {
+        match self {
+            Self::Php56 => "PHP5.6",
+            Self::Php72 => "PHP7.2",
+            Self::Php74 => "PHP7.4",
+            Self::Php81 => "PHP8.1",
+            Self::Php82 => "PHP8.2",
+            Self::Php83 => "PHP8.3",
+            Self::Php84 => "PHP8.4",
+        }
+    }
+
     /// Returns the lowercase Docker Compose tag.
     pub fn compose_tag(&self) -> &'static str {
         match self {
@@ -109,9 +122,9 @@ impl PhpVersion {
 
     /// Infers a PHP version from a WSDD container name.
     pub fn from_container_name(name: &str) -> Option<Self> {
-        Self::all()
-            .into_iter()
-            .find(|version| name.contains(version.container_tag()))
+        Self::all().into_iter().find(|version| {
+            name.contains(version.runtime_container_tag()) || name.contains(version.container_tag())
+        })
     }
 }
 
@@ -161,7 +174,13 @@ mod tests {
         let version = PhpVersion::Php83;
         assert_eq!(version.dir_name(), "php8.3");
         assert_eq!(version.container_tag(), "PHP83");
+        assert_eq!(version.runtime_container_tag(), "PHP8.3");
         assert_eq!(version.compose_tag(), "php83");
+    }
+
+    #[test]
+    fn php84_runtime_container_tag_matches_docker_name() {
+        assert_eq!(PhpVersion::Php84.runtime_container_tag(), "PHP8.4");
     }
 
     #[test]

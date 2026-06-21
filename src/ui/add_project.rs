@@ -62,6 +62,13 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let classic_bind_label = tr("storage_classic_bind");
     let fast_sync_label = tr("storage_fast_sync_workspace");
     let native_linux_label = tr("storage_native_linux_project");
+    let managed_native_linux_label = tr("storage_managed_native_linux");
+    let managed_storage_enabled = app.settings.managed_native_linux_storage_enabled;
+    if !managed_storage_enabled
+        && app.ui.form_storage_mode == StorageMode::ManagedNativeLinuxStorage
+    {
+        app.ui.form_storage_mode = StorageMode::ClassicBind;
+    }
 
     let mut open = true;
     crate::ui::render_modal_backdrop(ctx, "add_project_backdrop");
@@ -150,6 +157,19 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                                 StorageMode::NativeLinuxProject,
                                 &native_linux_label,
                             );
+                            if managed_storage_enabled {
+                                ui.selectable_value(
+                                    &mut app.ui.form_storage_mode,
+                                    StorageMode::ManagedNativeLinuxStorage,
+                                    &managed_native_linux_label,
+                                );
+                            } else {
+                                ui.add_enabled(
+                                    false,
+                                    egui::Button::new(&managed_native_linux_label).selected(false),
+                                )
+                                .on_hover_text(tr("managed_storage_disabled_hint"));
+                            }
                         });
                     ui.end_row();
 
@@ -239,11 +259,17 @@ fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
         app.ui.form_error = Some(tr("error_domain_invalid"));
         return;
     }
-    if work_path.is_empty() {
+    if work_path.is_empty() && app.ui.form_storage_mode != StorageMode::ManagedNativeLinuxStorage {
         app.ui.form_error = Some(tr("error_work_path_empty"));
         return;
     }
-    if !std::path::Path::new(&work_path).exists() {
+    if app.ui.form_storage_mode == StorageMode::ManagedNativeLinuxStorage
+        && !app.settings.managed_native_linux_storage_enabled
+    {
+        app.ui.form_error = Some(tr("error_managed_storage_disabled"));
+        return;
+    }
+    if !work_path_is_valid_for_storage(app.ui.form_storage_mode, &work_path) {
         app.ui.form_error = Some(trf("error_work_path_missing", &[("path", &work_path)]));
         return;
     }
@@ -264,6 +290,13 @@ fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
         other => other.clone(),
     };
 
+    let (work_path, managed_storage) = managed_storage_fields(
+        app.ui.form_storage_mode,
+        &name,
+        &work_path,
+        &app.settings.projects_path,
+    );
+
     let project = Project {
         name: name.clone(),
         domain,
@@ -273,6 +306,7 @@ fn try_submit(ctx: &egui::Context, app: &mut WsddApp) {
         ssl: app.ui.form_ssl,
         metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
         storage_mode: app.ui.form_storage_mode,
+        managed_storage,
         status: ProjectStatus::default(),
     };
 
@@ -292,5 +326,92 @@ fn storage_mode_label_for(mode: StorageMode) -> String {
         StorageMode::ClassicBind => tr("storage_classic_bind"),
         StorageMode::FastSyncWorkspace => tr("storage_fast_sync_workspace"),
         StorageMode::NativeLinuxProject => tr("storage_native_linux_project"),
+        StorageMode::ManagedNativeLinuxStorage => tr("storage_managed_native_linux"),
+    }
+}
+
+fn work_path_is_valid_for_storage(mode: StorageMode, work_path: &str) -> bool {
+    match mode {
+        StorageMode::NativeLinuxProject => crate::models::project::is_native_linux_path(work_path),
+        StorageMode::ManagedNativeLinuxStorage => {
+            work_path.trim().is_empty() || !crate::models::project::is_native_linux_path(work_path)
+        }
+        StorageMode::ClassicBind | StorageMode::FastSyncWorkspace => {
+            std::path::Path::new(work_path).exists()
+        }
+    }
+}
+
+fn managed_storage_fields(
+    mode: StorageMode,
+    project_name: &str,
+    work_path: &str,
+    default_projects_root: &str,
+) -> (String, Option<crate::models::project::ManagedNativeStorage>) {
+    if mode != StorageMode::ManagedNativeLinuxStorage {
+        return (work_path.to_string(), None);
+    }
+
+    let alias = if work_path.trim().is_empty() {
+        std::path::Path::new(default_projects_root)
+            .join(crate::handlers::managed_storage::managed_project_slug(
+                project_name,
+            ))
+            .display()
+            .to_string()
+    } else {
+        work_path.trim().to_string()
+    };
+    let plan = crate::handlers::managed_storage::plan_for_project(project_name, Some(&alias));
+
+    (alias, Some(plan.metadata()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn native_linux_project_form_accepts_linux_path_without_windows_exists_check() {
+        assert!(work_path_is_valid_for_storage(
+            StorageMode::NativeLinuxProject,
+            "/home/wsdd/projects/demo"
+        ));
+    }
+
+    #[test]
+    fn native_linux_project_form_rejects_windows_path() {
+        assert!(!work_path_is_valid_for_storage(
+            StorageMode::NativeLinuxProject,
+            r"C:\projects\demo"
+        ));
+    }
+
+    #[test]
+    fn managed_native_linux_form_allows_empty_alias() {
+        assert!(work_path_is_valid_for_storage(
+            StorageMode::ManagedNativeLinuxStorage,
+            ""
+        ));
+    }
+
+    #[test]
+    fn managed_native_linux_fields_default_alias_and_metadata() {
+        let (work_path, metadata) = managed_storage_fields(
+            StorageMode::ManagedNativeLinuxStorage,
+            "Demo App",
+            "",
+            r"C:\WSDD-Projects",
+        );
+
+        let metadata = metadata.expect("managed metadata");
+        assert_eq!(work_path, r"C:\WSDD-Projects\demo-app");
+        assert_eq!(metadata.distro, "WSDD-Storage");
+        assert_eq!(metadata.linux_path, "/home/wsdd/projects/demo-app");
+        assert_eq!(
+            metadata.windows_unc,
+            r"\\wsl.localhost\WSDD-Storage\home\wsdd\projects\demo-app"
+        );
+        assert_eq!(metadata.windows_alias.as_deref(), Some(work_path.as_str()));
     }
 }

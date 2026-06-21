@@ -51,7 +51,7 @@ pub fn init() -> Result<()> {
     // Docker-Structure: extraer en primer arranque y autocorregir layouts dañados.
     let docker_dir = paths.docker_structure_dir();
     if docker_structure_needs_repair(&docker_dir)? {
-        extract_zip(DOCKER_STRUCTURE_ZIP, env_path)
+        extract_docker_structure_zip(DOCKER_STRUCTURE_ZIP, &docker_dir)
             .context("Error extrayendo docker-structure.zip")?;
     }
 
@@ -130,4 +130,51 @@ fn extract_zip(data: &[u8], dest: &Path) -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn extract_docker_structure_zip(data: &[u8], docker_dir: &Path) -> Result<()> {
+    extract_zip(data, docker_dir)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Write;
+    use tempfile::tempdir;
+    use zip::write::SimpleFileOptions;
+
+    #[test]
+    fn docker_structure_zip_extracts_inside_docker_structure_dir() {
+        let zip = make_zip(&[("bin/mysql/Dockerfile", "FROM mysql:8\n")]);
+        let temp = tempdir().expect("tempdir");
+        let docker_dir = temp.path().join("Docker-Structure");
+
+        extract_docker_structure_zip(&zip, &docker_dir).expect("extract docker structure");
+
+        assert!(docker_dir
+            .join("bin")
+            .join("mysql")
+            .join("Dockerfile")
+            .exists());
+        assert!(!temp
+            .path()
+            .join("bin")
+            .join("mysql")
+            .join("Dockerfile")
+            .exists());
+    }
+
+    fn make_zip(entries: &[(&str, &str)]) -> Vec<u8> {
+        let cursor = std::io::Cursor::new(Vec::new());
+        let mut writer = zip::ZipWriter::new(cursor);
+        let options =
+            SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored);
+
+        for (name, contents) in entries {
+            writer.start_file(name, options).expect("start file");
+            writer.write_all(contents.as_bytes()).expect("write file");
+        }
+
+        writer.finish().expect("finish zip").into_inner()
+    }
 }

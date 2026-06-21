@@ -3,6 +3,7 @@ use std::path::PathBuf;
 use crate::errors::InfraError;
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
+use crate::handlers::managed_storage_transfer::ManagedStorageTransition;
 
 #[derive(Debug, Clone)]
 pub(super) struct FileSnapshot {
@@ -50,6 +51,7 @@ pub(super) struct DeployRollback {
     pub volume_existed_before: bool,
     pub container_rebuilt: bool,
     pub container_existed_before: bool,
+    pub storage_transition: ManagedStorageTransition,
 }
 
 pub(super) struct RemoveRollback {

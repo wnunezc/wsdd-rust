@@ -1,6 +1,6 @@
 use crate::i18n::Language;
 
-pub(super) const CURRENT_CONFIG_VERSION: u32 = 7;
+pub(super) const CURRENT_CONFIG_VERSION: u32 = 8;
 pub(super) const LEGACY_WEBMIN_USER: &str = "admin";
 pub(super) const LEGACY_WEBMIN_PASSWORD: &str = "admin";
 

@@ -134,7 +134,7 @@ pub fn prepare_deploy(
 
     match crate::handlers::docker::php_container_exists_sync(
         &app.runner,
-        project.php_version.container_tag(),
+        project.php_version.runtime_container_tag(),
     ) {
         Ok(true) => {
             let adopted = app

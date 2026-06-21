@@ -10,6 +10,7 @@ pub struct OptionalServicesSettings {
     pub mailpit: MailpitServiceSettings,
     pub memcached: MemcachedServiceSettings,
     pub ngrok: NgrokServiceSettings,
+    pub managed_native_linux_storage: ManagedNativeLinuxStorageSettings,
 }
 
 impl OptionalServicesSettings {
@@ -67,6 +68,13 @@ impl OptionalServicesSettings {
 
         Ok(())
     }
+}
+
+/// Managed WSL-backed project storage. Stored here for compatibility with config v8 drafts.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ManagedNativeLinuxStorageSettings {
+    pub enabled: bool,
 }
 
 /// ngrok service settings. Disabled by default and configured with secrets separately.
@@ -188,6 +196,7 @@ mod tests {
         assert!(!settings.memcached.auto_start);
         assert!(!settings.ngrok.enabled);
         assert!(!settings.ngrok.auto_start);
+        assert!(!settings.managed_native_linux_storage.enabled);
         assert_eq!(settings.ngrok.api_host_port, 4040);
         assert!(settings.ngrok.inspect);
     }

@@ -16,7 +16,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use tokio::runtime::Runtime;
 
@@ -117,6 +117,8 @@ pub struct WsddApp {
     job_event_tx: mpsc::Sender<BackgroundJobEvent>,
     job_event_rx: mpsc::Receiver<BackgroundJobEvent>,
     pub jobs: HashMap<String, BackgroundJob>,
+    main_window: Option<crate::handlers::window_state::MainWindowHandle>,
+    last_main_window_save: Instant,
 }
 
 impl WsddApp {
@@ -127,6 +129,18 @@ impl WsddApp {
         job_runtime: JobRuntime,
     ) -> Self {
         fonts::setup_fonts(&cc.egui_ctx);
+        let main_window = match crate::handlers::window_state::capture_main_window(cc) {
+            Ok(window) => {
+                if let Err(error) = crate::handlers::window_state::initialize_main_window(window) {
+                    tracing::warn!("No se pudo restaurar la ventana principal: {error}");
+                }
+                Some(window)
+            }
+            Err(error) => {
+                tracing::warn!("No se pudo capturar la ventana principal: {error}");
+                None
+            }
+        };
 
         crate::i18n::set_language(settings.language);
         let first_run = !settings.setup_completed;
@@ -179,15 +193,39 @@ impl WsddApp {
             job_event_tx,
             job_event_rx,
             jobs: HashMap::new(),
+            main_window,
+            last_main_window_save: Instant::now(),
         }
+    }
+
+    fn save_main_window_state(&mut self) {
+        let Some(main_window) = self.main_window else {
+            return;
+        };
+
+        if let Err(error) = crate::handlers::window_state::save_main_window(main_window) {
+            tracing::warn!("No se pudo guardar el estado de ventana principal: {error}");
+        }
+        self.last_main_window_save = Instant::now();
     }
 }
 
 impl eframe::App for WsddApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         crate::ui::theme::apply(ctx, self.settings.theme);
+        if ctx.input(|input| input.viewport().close_requested()) {
+            self.save_main_window_state();
+        }
+        if self.last_main_window_save.elapsed() >= Duration::from_millis(750) {
+            self.save_main_window_state();
+        }
+        ctx.request_repaint_after(Duration::from_millis(750));
         self.drain_channels();
         self.sync_container_log_watchers(ctx);
         crate::ui::render(ctx, self);
+    }
+
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_main_window_state();
     }
 }

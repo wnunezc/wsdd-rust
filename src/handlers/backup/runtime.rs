@@ -236,11 +236,14 @@ fn rebuild_php_container(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
-    let container_name = format!("WSDD-Web-Server-{}", project.php_version.container_tag());
+    let container_name = format!(
+        "WSDD-Web-Server-{}",
+        project.php_version.runtime_container_tag()
+    );
     let php_dir = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
     let should_build =
-        docker::php_container_exists_sync(runner, project.php_version.container_tag())
+        docker::php_container_exists_sync(runner, project.php_version.runtime_container_tag())
             .map(|exists| !exists)
             .unwrap_or(true);
     let options_yml = yml::options_path(php_dir, compose_tag);

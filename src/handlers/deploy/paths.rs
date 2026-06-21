@@ -41,7 +41,10 @@ pub(super) fn volume_name(project: &Project) -> String {
 }
 
 pub(super) fn php_container_name(project: &Project) -> String {
-    format!("WSDD-Web-Server-{}", project.php_version.container_tag())
+    format!(
+        "WSDD-Web-Server-{}",
+        project.php_version.runtime_container_tag()
+    )
 }
 
 pub(super) fn ssl_file_paths(project: &Project) -> [PathBuf; 2] {

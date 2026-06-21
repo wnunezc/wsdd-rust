@@ -18,7 +18,7 @@
 //! manifest, project filesystem, Docker runtime, and vhost responsibilities
 //! to focused submodules.
 
-mod archive;
+pub(crate) mod archive;
 mod manifest;
 mod project_files;
 mod runtime;

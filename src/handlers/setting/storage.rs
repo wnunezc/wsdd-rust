@@ -50,6 +50,9 @@ pub struct AppSettings {
     /// Whether WSDD containers should start automatically on app startup.
     #[serde(default)]
     pub auto_start_containers: bool,
+    /// Whether managed WSL-backed project storage is available in new project deploys.
+    #[serde(default)]
+    pub managed_native_linux_storage_enabled: bool,
     /// Optional developer services that are deployed only after explicit activation.
     #[serde(default)]
     pub optional_services: OptionalServicesSettings,
@@ -80,6 +83,7 @@ struct AppSettingsDisk<'a> {
     php_timezone: &'a String,
     xdebug_enabled: bool,
     auto_start_containers: bool,
+    managed_native_linux_storage_enabled: bool,
     optional_services: &'a OptionalServicesSettings,
 }
 
@@ -100,6 +104,7 @@ impl Default for AppSettings {
             php_timezone: default_php_timezone(),
             xdebug_enabled: default_xdebug_enabled(),
             auto_start_containers: false,
+            managed_native_linux_storage_enabled: false,
             optional_services: OptionalServicesSettings::default(),
             ngrok_authtoken: String::new(),
             prereq_credentials: PrereqCredentials::default(),
@@ -125,6 +130,7 @@ impl<'a> From<&'a AppSettings> for AppSettingsDisk<'a> {
             php_timezone: &settings.php_timezone,
             xdebug_enabled: settings.xdebug_enabled,
             auto_start_containers: settings.auto_start_containers,
+            managed_native_linux_storage_enabled: settings.managed_native_linux_storage_enabled,
             optional_services: &settings.optional_services,
         }
     }
@@ -164,7 +170,12 @@ impl AppSettings {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
-        let content = serde_json::to_string_pretty(&AppSettingsDisk::from(self))?;
+        let mut normalized = self.clone();
+        normalized
+            .optional_services
+            .managed_native_linux_storage
+            .enabled = normalized.managed_native_linux_storage_enabled;
+        let content = serde_json::to_string_pretty(&AppSettingsDisk::from(&normalized))?;
         std::fs::write(&path, content)?;
 
         secrets::save(
@@ -206,6 +217,12 @@ impl AppSettings {
         if self.php_timezone.trim().is_empty() {
             self.php_timezone = default_php_timezone();
         }
+
+        if self.optional_services.managed_native_linux_storage.enabled {
+            self.managed_native_linux_storage_enabled = true;
+        }
+        self.optional_services.managed_native_linux_storage.enabled =
+            self.managed_native_linux_storage_enabled;
 
         self.optional_services.mailpit.virtual_host = self
             .optional_services
@@ -350,6 +367,7 @@ mod tests {
         let settings = AppSettings::default();
         assert_eq!(settings.config_version, CURRENT_CONFIG_VERSION);
         assert!(settings.xdebug_enabled);
+        assert!(!settings.managed_native_linux_storage_enabled);
     }
 
     #[test]
@@ -378,11 +396,37 @@ mod tests {
         assert!(!normalized.optional_services.redis.enabled);
         assert!(!normalized.optional_services.mailpit.enabled);
         assert!(!normalized.optional_services.memcached.enabled);
+        assert!(!normalized.managed_native_linux_storage_enabled);
         assert_eq!(
             normalized.prereq_credentials.mysql_database,
             "wsdd-database"
         );
         assert_eq!(normalized.prereq_credentials.mysql_user, "tester");
+    }
+
+    #[test]
+    fn config_v8_loads_managed_storage_from_optional_services() {
+        let settings = AppSettings {
+            config_version: 8,
+            optional_services: OptionalServicesSettings {
+                managed_native_linux_storage:
+                    super::super::services::ManagedNativeLinuxStorageSettings { enabled: true },
+                ..OptionalServicesSettings::default()
+            },
+            managed_native_linux_storage_enabled: false,
+            ..AppSettings::default()
+        };
+
+        let normalized = settings.validate_loaded().expect("config v8 should load");
+
+        assert_eq!(normalized.config_version, CURRENT_CONFIG_VERSION);
+        assert!(normalized.managed_native_linux_storage_enabled);
+        assert!(
+            normalized
+                .optional_services
+                .managed_native_linux_storage
+                .enabled
+        );
     }
 
     #[test]

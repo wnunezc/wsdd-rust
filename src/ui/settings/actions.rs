@@ -1,6 +1,7 @@
 use crate::app::WsddApp;
 use crate::handlers::docker_deploy::{self, OptionalServiceKind};
 use crate::handlers::log_types::LogLine;
+use crate::handlers::managed_storage;
 use crate::handlers::setting::AppSettings;
 use crate::i18n;
 use crate::ui::ActiveView;
@@ -36,6 +37,15 @@ pub(super) fn save(ctx: &egui::Context, app: &mut WsddApp) {
             app.ui.settings_error = Some(e.to_string());
             app.ui.settings_draft = Some(draft);
             return;
+        }
+        if managed_storage_enable_requested(&previous, &draft) {
+            if let Err(e) =
+                managed_storage::provision_managed_storage(&app.runner, &app.main_log_tx)
+            {
+                app.ui.settings_error = Some(e.to_string());
+                app.ui.settings_draft = Some(draft);
+                return;
+            }
         }
 
         app.settings = draft;
@@ -135,6 +145,10 @@ fn optional_service_changes(
     }
 
     changes
+}
+
+fn managed_storage_enable_requested(previous: &AppSettings, next: &AppSettings) -> bool {
+    next.managed_native_linux_storage_enabled && !previous.managed_native_linux_storage_enabled
 }
 
 fn spawn_optional_service_change(

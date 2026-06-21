@@ -203,6 +203,9 @@ fn storage_mode_display(mode: crate::models::project::StorageMode) -> String {
         crate::models::project::StorageMode::NativeLinuxProject => {
             tr("storage_native_linux_project")
         }
+        crate::models::project::StorageMode::ManagedNativeLinuxStorage => {
+            tr("storage_managed_native_linux")
+        }
     }
 }
 

@@ -133,6 +133,7 @@ mod tests {
             ssl: true,
             metadata_version: crate::models::project::CURRENT_PROJECT_METADATA_VERSION,
             storage_mode: StorageMode::ClassicBind,
+            managed_storage: None,
             status: Default::default(),
         }
     }

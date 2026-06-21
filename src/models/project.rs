@@ -25,5 +25,5 @@ pub use domain::normalize_domain;
 pub use entry_point::EntryPoint;
 pub use php_version::PhpVersion;
 pub use status::ProjectStatus;
-pub use storage::{StorageMode, CURRENT_PROJECT_METADATA_VERSION};
-pub use types::Project;
+pub use storage::{is_native_linux_path, StorageMode, CURRENT_PROJECT_METADATA_VERSION};
+pub use types::{ManagedNativeStorage, Project};

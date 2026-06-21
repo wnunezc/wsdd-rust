@@ -58,12 +58,18 @@ pub fn deploy_project(
     let container_existed_before = docker_ops::php_container_exists(project, runner)?;
     let mut volume_created = false;
     let mut container_rebuilt = false;
+    let mut storage_transition =
+        crate::handlers::managed_storage_transfer::ManagedStorageTransition::default();
 
     let result = (|| -> Result<(), InfraError> {
+        storage_transition =
+            crate::handlers::managed_storage::prepare_project_storage(project, runner, tx)?;
         project_handler::save(project)?;
         let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
 
-        volume_created = docker_ops::create_volume(project, runner, tx)?;
+        let volume_outcome = docker_ops::create_volume(project, runner, tx)?;
+        volume_created = volume_outcome.created;
+        container_rebuilt = volume_outcome.runtime_container_removed;
         steps::update_options_yml(project, tx)?;
 
         crate::handlers::docker_deploy::sync_php_version_resources_sync(
@@ -101,6 +107,7 @@ pub fn deploy_project(
                 volume_existed_before,
                 container_rebuilt,
                 container_existed_before,
+                storage_transition,
             },
         );
         return Err(err);
@@ -227,6 +234,12 @@ fn rollback_failed_deploy(
                 "[Rollback] No se pudo limpiar el volumen nuevo: {e}"
             )));
         }
+    }
+
+    if let Err(e) = state.storage_transition.rollback() {
+        let _ = tx.send(LogLine::warn(format!(
+            "[Rollback] No se pudo restaurar la carpeta Windows original: {e}"
+        )));
     }
 }
 

@@ -15,6 +15,8 @@ pub(super) struct SettingsCopy {
     language_label: String,
     docker_path_label: String,
     wsl_distro_label: String,
+    managed_storage_label: String,
+    managed_storage_note: String,
     log_lines_label: String,
     auto_start_label: String,
     php_note: String,
@@ -70,6 +72,8 @@ impl SettingsCopy {
             language_label: format!("{}:", tr("settings_language")),
             docker_path_label: format!("{}:", tr("settings_docker_path")),
             wsl_distro_label: format!("{}:", tr("settings_wsl_distro")),
+            managed_storage_label: format!("{}:", tr("settings_managed_storage_enabled")),
+            managed_storage_note: tr("settings_managed_storage_note"),
             log_lines_label: format!("{}:", tr("settings_log_lines")),
             auto_start_label: format!("{}:", tr("settings_auto_start")),
             php_note: tr("settings_apply_new_php_note"),
@@ -206,6 +210,17 @@ fn render_general_section(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Set
                             .desired_width(200.0)
                             .hint_text("Ubuntu-22.04 (opcional)"),
                     );
+                    ui.end_row();
+
+                    ui.label(&copy.managed_storage_label);
+                    ui.horizontal(|ui| {
+                        ui.checkbox(&mut draft.managed_native_linux_storage_enabled, "");
+                        ui.label(
+                            egui::RichText::new(&copy.managed_storage_note)
+                                .size(11.0)
+                                .color(ui.visuals().weak_text_color()),
+                        );
+                    });
                     ui.end_row();
 
                     ui.label(&copy.log_lines_label);

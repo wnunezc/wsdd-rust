@@ -6,6 +6,14 @@ use super::php_version::PhpVersion;
 use super::status::ProjectStatus;
 use super::storage::{default_project_metadata_version, StorageMode};
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct ManagedNativeStorage {
+    pub distro: String,
+    pub linux_path: String,
+    pub windows_unc: String,
+    pub windows_alias: Option<String>,
+}
+
 /// Web project managed by WSDD.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Project {
@@ -27,6 +35,9 @@ pub struct Project {
     /// Storage/runtime mode used by the Docker deploy flow.
     #[serde(default)]
     pub storage_mode: StorageMode,
+    /// Metadata for WSDD-managed WSL-backed project storage.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub managed_storage: Option<ManagedNativeStorage>,
     /// Runtime-only container status.
     #[serde(skip)]
     pub status: ProjectStatus,
@@ -50,6 +61,7 @@ impl Project {
             ssl: true,
             metadata_version: default_project_metadata_version(),
             storage_mode: StorageMode::default(),
+            managed_storage: None,
             status: ProjectStatus::default(),
         }
     }
@@ -66,6 +78,7 @@ impl Default for Project {
             ssl: true,
             metadata_version: default_project_metadata_version(),
             storage_mode: StorageMode::default(),
+            managed_storage: None,
             status: ProjectStatus::default(),
         }
     }
@@ -114,5 +127,25 @@ mod tests {
 
         assert!(json.contains("\"metadata_version\":2"));
         assert!(json.contains("\"storage_mode\":\"fast_sync_workspace\""));
+    }
+
+    #[test]
+    fn managed_native_storage_metadata_persists_when_present() {
+        let project = Project {
+            storage_mode: super::super::StorageMode::ManagedNativeLinuxStorage,
+            managed_storage: Some(ManagedNativeStorage {
+                distro: "WSDD-Storage".to_string(),
+                linux_path: "/home/wsdd/projects/demo".to_string(),
+                windows_unc: r"\\wsl.localhost\WSDD-Storage\home\wsdd\projects\demo".to_string(),
+                windows_alias: Some(r"C:\WSDD-Projects\demo".to_string()),
+            }),
+            ..Project::default()
+        };
+
+        let json = serde_json::to_string(&project).expect("project should serialize");
+
+        assert!(json.contains("\"storage_mode\":\"managed_native_linux_storage\""));
+        assert!(json.contains("\"linux_path\":\"/home/wsdd/projects/demo\""));
+        assert!(json.contains(r#""distro":"WSDD-Storage""#));
     }
 }
