@@ -48,6 +48,14 @@ pub(super) fn save(ctx: &egui::Context, app: &mut WsddApp) {
             }
         }
 
+        if draft.managed_native_linux_storage_enabled {
+            if let Err(e) = crate::handlers::scheduled_task::reconcile(&app.runner, &draft) {
+                app.ui.settings_error = Some(format!("Error registrando recuperacion WSL: {e}"));
+                app.ui.settings_draft = Some(draft);
+                return;
+            }
+        }
+
         app.settings = draft;
         i18n::set_language(selected_language);
         if let Err(e) = app.settings.save() {
@@ -72,6 +80,14 @@ pub(super) fn save(ctx: &egui::Context, app: &mut WsddApp) {
             app.ui.settings_error = Some(format!("Error actualizando servicios opcionales: {e}"));
             app.ui.settings_draft = Some(app.settings.clone());
             return;
+        }
+
+        if !app.settings.managed_native_linux_storage_enabled {
+            if let Err(e) = crate::handlers::scheduled_task::reconcile(&app.runner, &app.settings) {
+                app.ui.settings_error = Some(format!("Error reconciliando recuperacion WSL: {e}"));
+                app.ui.settings_draft = Some(app.settings.clone());
+                return;
+            }
         }
 
         for change in optional_service_changes(&previous, &app.settings) {

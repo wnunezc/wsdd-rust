@@ -24,6 +24,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     if app.ui.settings_draft.is_none() {
         app.ui.settings_draft = Some(app.settings.clone());
         app.ui.settings_error = None;
+        app.ui.settings_recovery_task_status = Some(recovery_task_status(app));
     }
 
     let copy = sections::SettingsCopy::new();
@@ -53,7 +54,12 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.separator();
             ui.add_space(6.0);
             sections::render_error(ui, current_error.as_deref());
-            sections::render_body(ui, draft, &copy);
+            sections::render_body(
+                ui,
+                draft,
+                &copy,
+                app.ui.settings_recovery_task_status.as_deref(),
+            );
         });
 
     if !open && !save {
@@ -64,5 +70,29 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         actions::save(ctx, app);
     } else if cancel {
         actions::cancel(app);
+    }
+}
+
+fn recovery_task_status(app: &WsddApp) -> String {
+    let projects = crate::handlers::project::list_all().unwrap_or_default();
+    let required = crate::handlers::scheduled_task::recovery_task_decision(
+        app.settings.managed_native_linux_storage_enabled,
+        &projects,
+        app.settings.wsl_distro.as_deref(),
+    ) != crate::handlers::scheduled_task::RecoveryTaskDecision::Remove;
+    match crate::handlers::scheduled_task::status(&app.runner, required) {
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::Installed) => {
+            crate::i18n::tr("settings_recovery_task_installed")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::Missing) => {
+            crate::i18n::tr("settings_recovery_task_missing")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::NotRequired) => {
+            crate::i18n::tr("settings_recovery_task_not_required")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::NeedsUpdate) => {
+            crate::i18n::tr("settings_recovery_task_needs_update")
+        }
+        Err(error) => format!("{}: {error}", crate::i18n::tr("status_error")),
     }
 }

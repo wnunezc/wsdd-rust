@@ -63,6 +63,18 @@ impl PathConfig {
         self.logs_dir().join(format!("wsdd-deploy-d{day}.log"))
     }
 
+    pub fn runtime_recovery_script(&self) -> PathBuf {
+        self.scripts_dir().join("wsdd-runtime-recovery.ps1")
+    }
+
+    pub fn runtime_recovery_log(&self) -> PathBuf {
+        self.logs_dir().join("wsl-runtime-recovery.log")
+    }
+
+    pub fn runtime_recovery_task_xml(&self) -> PathBuf {
+        self.environment_root.join("wsl-runtime-recovery-task.xml")
+    }
+
     pub fn projects_dir(&self) -> PathBuf {
         self.docker_structure_dir().join("projects")
     }
@@ -307,6 +319,14 @@ mod tests {
         assert_eq!(
             paths.hosts_temp_file(),
             PathBuf::from(r"C:\WSDD-Environment\hosts.tmp")
+        );
+        assert_eq!(
+            paths.runtime_recovery_script(),
+            PathBuf::from(r"C:\WSDD-Environment\PS-Script\wsdd-runtime-recovery.ps1")
+        );
+        assert_eq!(
+            paths.runtime_recovery_log(),
+            PathBuf::from(r"C:\WSDD-Environment\logs\wsl-runtime-recovery.log")
         );
     }
 

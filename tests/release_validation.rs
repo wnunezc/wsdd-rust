@@ -184,3 +184,54 @@ fn docker_structure_zip_contains_ngrok_service_template() {
     assert!(contents.contains("WSDD-Ngrok-Server"));
     assert!(contents.contains("127.0.0.1:__WSDD_NGROK_API_PORT__:4040"));
 }
+
+#[test]
+fn wsl_runtime_recovery_worker_is_packaged() {
+    let source = workspace_file("recursos/recursos/PS-Script/wsdd-runtime-recovery.ps1");
+    for token in [
+        "Global\\WSDD-WslRuntimeRecovery",
+        "Diagnose",
+        "Recover",
+        "docker info",
+        "--no-build",
+        "--force-recreate",
+        "No WSL runtime targets",
+        "RecoveryBlocked",
+        "ConsecutiveFailures",
+        "MaxRecoveryFailures",
+        "ResetCircuit",
+        "UnhealthyNonRelay",
+    ] {
+        assert!(source.contains(token), "worker must contain {token}");
+    }
+
+    let zip_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("recursos/ps-script.zip");
+    let zip_file = fs::File::open(&zip_path)
+        .unwrap_or_else(|err| panic!("could not open {}: {err}", zip_path.display()));
+    let mut archive = zip::ZipArchive::new(zip_file)
+        .unwrap_or_else(|err| panic!("could not read {}: {err}", zip_path.display()));
+    assert!(
+        archive
+            .by_name("PS-Script/wsdd-runtime-recovery.ps1")
+            .is_ok(),
+        "ps-script.zip must contain the recovery worker"
+    );
+}
+
+#[test]
+fn launcher_hides_pwsh_discovery_process() {
+    let launcher = std::fs::read_to_string("wsdd-launcher/src/main.rs")
+        .expect("launcher source should be readable");
+    assert!(
+        launcher.contains("hidden_command(\"where.exe\")"),
+        "where.exe must use the same hidden process configuration as PowerShell"
+    );
+    assert!(
+        launcher.contains("DOCKER_READY_TIMEOUT_SECONDS"),
+        "launcher must use the documented Docker readiness timeout"
+    );
+    assert!(
+        launcher.contains("const DOCKER_READY_TIMEOUT_SECONDS: &str = \"180\""),
+        "scheduled recovery must wait up to 180 seconds for Docker Desktop"
+    );
+}

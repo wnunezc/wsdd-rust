@@ -17,6 +17,7 @@ pub(super) struct SettingsCopy {
     wsl_distro_label: String,
     managed_storage_label: String,
     managed_storage_note: String,
+    recovery_task_label: String,
     log_lines_label: String,
     auto_start_label: String,
     php_note: String,
@@ -74,6 +75,7 @@ impl SettingsCopy {
             wsl_distro_label: format!("{}:", tr("settings_wsl_distro")),
             managed_storage_label: format!("{}:", tr("settings_managed_storage_enabled")),
             managed_storage_note: tr("settings_managed_storage_note"),
+            recovery_task_label: format!("{}:", tr("settings_recovery_task")),
             log_lines_label: format!("{}:", tr("settings_log_lines")),
             auto_start_label: format!("{}:", tr("settings_auto_start")),
             php_note: tr("settings_apply_new_php_note"),
@@ -147,9 +149,14 @@ pub(super) fn render_error(ui: &mut egui::Ui, error: Option<&str>) {
     }
 }
 
-pub(super) fn render_body(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &SettingsCopy) {
+pub(super) fn render_body(
+    ui: &mut egui::Ui,
+    draft: &mut AppSettings,
+    copy: &SettingsCopy,
+    recovery_task_status: Option<&str>,
+) {
     egui::ScrollArea::vertical().show(ui, |ui| {
-        render_general_section(ui, draft, copy);
+        render_general_section(ui, draft, copy, recovery_task_status);
         ui.add_space(8.0);
         render_php_section(ui, draft, copy);
         ui.add_space(8.0);
@@ -162,7 +169,12 @@ pub(super) fn render_body(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Set
     });
 }
 
-fn render_general_section(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &SettingsCopy) {
+fn render_general_section(
+    ui: &mut egui::Ui,
+    draft: &mut AppSettings,
+    copy: &SettingsCopy,
+    recovery_task_status: Option<&str>,
+) {
     egui::CollapsingHeader::new(egui::RichText::new(&copy.general_title).strong())
         .default_open(true)
         .show(ui, |ui| {
@@ -177,6 +189,10 @@ fn render_general_section(ui: &mut egui::Ui, draft: &mut AppSettings, copy: &Set
                             .desired_width(300.0)
                             .hint_text(path_to_string(path_config().default_projects_root())),
                     );
+                    ui.end_row();
+
+                    ui.label(&copy.recovery_task_label);
+                    ui.label(recovery_task_status.unwrap_or("-"));
                     ui.end_row();
 
                     ui.label(&copy.language_label);

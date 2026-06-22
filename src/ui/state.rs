@@ -68,6 +68,7 @@ pub struct UiState {
     pub folder_pick_rx: Option<mpsc::Receiver<Option<String>>>,
     pub settings_draft: Option<AppSettings>,
     pub settings_error: Option<String>,
+    pub settings_recovery_task_status: Option<String>,
     pub wsl_draft: Option<WslConfig>,
     pub helps_search: String,
 }
@@ -99,6 +100,7 @@ impl UiState {
             folder_pick_rx: None,
             settings_draft: None,
             settings_error: None,
+            settings_recovery_task_status: None,
             wsl_draft: None,
             helps_search: String::new(),
         }

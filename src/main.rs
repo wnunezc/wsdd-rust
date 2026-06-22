@@ -49,6 +49,11 @@ fn main() -> Result<()> {
             return Err(anyhow::anyhow!("error cargando configuracion: {e}"));
         }
     };
+    if let Err(error) =
+        handlers::scheduled_task::reconcile(&handlers::ps_script::PsRunner::new(), &settings)
+    {
+        tracing::warn!("No se pudo reconciliar la tarea de recuperacion WSL: {error}");
+    }
     i18n::init(settings.language);
 
     #[cfg(windows)]

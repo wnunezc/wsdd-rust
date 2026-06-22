@@ -204,7 +204,7 @@ Condiciones mínimas antes de reabrir migración:
 
 No generar MSI/RC para #8 hasta que exista validación end-to-end real de las fases implementadas. Las pruebas `cargo fmt`, `cargo check`, `cargo clippy` y `cargo test` son necesarias, pero no suficientes para declarar lista esta funcionalidad.
 
-## Cierre validado
+## Validacion inicial y correccion posterior
 
 Validado manualmente el 2026-06-21 con `inspinia-theme` y PHP 8.4:
 
@@ -217,9 +217,59 @@ Validado manualmente el 2026-06-21 con `inspinia-theme` y PHP 8.4:
 - volumen Docker recreado para renovar el relay interno de Docker Desktop;
 - runtime PHP, vhost y acceso HTTP funcionales.
 
-La recreación obligatoria del volumen se limita a `ManagedNativeLinuxStorage`. El modo
-`NativeLinuxProject` conserva su comportamiento independiente.
+Esta validacion no cubrio un reinicio posterior de Docker Desktop. Tras reiniciar el equipo,
+los contenedores PHP no pudieron arrancar porque el volumen `local` con `device=UNC` dependia
+de un relay efimero bajo `/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts`.
+
+Correccion local en validacion:
+
+- Managed deja de crear volumenes `local` respaldados por UNC.
+- `options.phpXX.yml` usa un bind directo desde
+  `/home/wsdd/projects/<project>` hacia `/var/www/html/<domain>.dock`.
+- Cuando una version PHP contiene al menos un bind Managed, Compose se ejecuta dentro de
+  `WSDD-Storage` mediante la integracion WSL de Docker Desktop.
+- Los volumenes UNC legados se conservan durante la primera prueba para no romper rollback.
+- El modo `NativeLinuxProject` conserva su comportamiento independiente.
+
+Prueba aislada inicial:
+
+- contenedor `wsdd-managed-bind-probe`;
+- `restart: always`;
+- origen registrado por Docker:
+  `/home/wsdd/projects/.wsdd-runtime-probe`;
+- lectura/escritura confirmada desde contenedor, WSL y UNC;
+- despues de reiniciar el equipo, el probe quedo `exited (127)`, `restartCount=0`;
+- Docker conservo el source visible `/home/wsdd/projects/.wsdd-runtime-probe`, pero el error
+  OCI revelo que internamente seguia dependiendo de
+  `/run/desktop/mnt/host/wsl/docker-desktop-bind-mounts/WSDD-Storage/<hash>`;
+- el relay no existia despues del reinicio y Docker no lo reconstruyo automaticamente.
 
 La migración de proyectos WSDD existentes desde `Classic Bind` continúa eliminada y queda fuera
-del alcance cerrado. El flujo entregado crea/despliega proyectos directamente sobre storage
-Linux administrado a partir de una carpeta Windows seleccionada.
+del alcance. La opcion de bind Linux directo mediante la integracion WSL de Docker Desktop queda
+descartada para persistencia entre reinicios. El issue #8 permanece abierto tecnicamente y
+requiere otra arquitectura.
+
+## Recuperacion automatica implementada localmente
+
+La solucion adoptada conserva el contrato de volumenes UNC y agrega una tarea programada
+independiente de la interfaz WSDD:
+
+- worker `wsdd-runtime-recovery.ps1`;
+- targets Managed y Native WSL;
+- mutex global y `IgnoreNew`;
+- triggers de logon, desbloqueo, evento de `com.docker.service` y repeticion cada dos minutos;
+- espera de hasta 180 segundos por readiness real de Docker;
+- circuito persistente que bloquea reconstrucciones tras tres fallos consecutivos;
+- reconstruccion permitida solo ante evidencia explicita de relay WSL roto;
+- intento de `docker start` antes de recrear;
+- recreacion exclusiva de volumenes WSL y contenedor PHP afectado;
+- `--no-build --force-recreate`;
+- salida normal cuando no existen targets o Docker esta cerrado.
+
+Validacion inicial del 2026-06-21:
+
+- PHP 8.3 y PHP 8.4 fueron detectados con relay roto;
+- ambos runtimes fueron rehidratados correctamente;
+- una segunda ejecucion reporto `Healthy`;
+- IDs y fechas de creacion no cambiaron;
+- dos disparos simultaneos de Task Scheduler no ejecutaron workers paralelos.

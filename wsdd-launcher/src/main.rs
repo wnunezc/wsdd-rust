@@ -1,6 +1,7 @@
 #![windows_subsystem = "windows"]
 
 use std::env;
+use std::ffi::OsStr;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::process::Command;
@@ -15,9 +16,17 @@ const RELEASES_LATEST_URL: &str = "https://api.github.com/repos/wnunezc/wsdd-rus
 const USER_AGENT: &str = "wsdd-launcher";
 const MSIEXT: &str = ".msi";
 const APPLY_UPDATE_ARG: &str = "--apply-update";
+const RECOVER_WSL_RUNTIME_ARG: &str = "--recover-wsl-runtime";
+const DOCKER_READY_TIMEOUT_SECONDS: &str = "180";
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 fn main() -> Result<()> {
     let args: Vec<String> = env::args().collect();
+    if let Some(worker_path) = recovery_worker_request(&args) {
+        return run_recovery_worker(&worker_path);
+    }
     if let Some(request) = apply_update_request(&args) {
         return run_updater_mode(request);
     }
@@ -74,6 +83,127 @@ fn main() -> Result<()> {
     }
 
     Ok(())
+}
+
+fn recovery_worker_request(args: &[String]) -> Option<PathBuf> {
+    if args.len() >= 3 && args[1] == RECOVER_WSL_RUNTIME_ARG {
+        Some(PathBuf::from(&args[2]))
+    } else {
+        None
+    }
+}
+
+fn run_recovery_worker(worker_path: &Path) -> Result<()> {
+    if !worker_path.exists() {
+        return Err(anyhow!(
+            "worker de recuperacion no encontrado: {}",
+            worker_path.display()
+        ));
+    }
+
+    let pwsh = discover_supported_pwsh()
+        .ok_or_else(|| anyhow!("PowerShell 7.5+ no esta disponible mediante PATH/where.exe"))?;
+    let mut command = hidden_command(&pwsh);
+    command.args([
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-WindowStyle",
+        "Hidden",
+        "-ExecutionPolicy",
+        "Bypass",
+        "-File",
+        &worker_path.to_string_lossy(),
+        "-Mode",
+        "Recover",
+        "-DockerReadyTimeoutSeconds",
+        DOCKER_READY_TIMEOUT_SECONDS,
+    ]);
+    let status = command
+        .status()
+        .with_context(|| format!("no se pudo ejecutar {}", pwsh.display()))?;
+    if status.success() {
+        Ok(())
+    } else {
+        Err(anyhow!(
+            "worker de recuperacion devolvio exit code {}",
+            status.code().unwrap_or(-1)
+        ))
+    }
+}
+
+fn discover_supported_pwsh() -> Option<PathBuf> {
+    discover_pwsh_candidates()
+        .into_iter()
+        .filter_map(|candidate| probe_pwsh_version(&candidate).map(|version| (candidate, version)))
+        .filter(|(_, version)| version.0 > 7 || (version.0 == 7 && version.1 >= 5))
+        .max_by_key(|(candidate, version)| (*version, pwsh_candidate_priority(candidate)))
+        .map(|(candidate, _)| candidate)
+}
+
+fn pwsh_candidate_priority(candidate: &Path) -> u8 {
+    let normalized = candidate.to_string_lossy().to_ascii_lowercase();
+    if normalized.contains(r"\program files\powershell\") {
+        3
+    } else if normalized.contains(r"\program files\windowsapps\microsoft.powershell_") {
+        2
+    } else if normalized.contains(r"\appdata\local\microsoft\windowsapps\") {
+        0
+    } else {
+        1
+    }
+}
+
+fn discover_pwsh_candidates() -> Vec<PathBuf> {
+    let mut candidates = Vec::new();
+    if let Ok(output) = hidden_command("where.exe").arg("pwsh.exe").output() {
+        if output.status.success() {
+            for line in String::from_utf8_lossy(&output.stdout).lines() {
+                push_unique_path(&mut candidates, Some(PathBuf::from(line.trim())));
+            }
+        }
+    }
+    if let Some(path) = env::var_os("PATH") {
+        for directory in env::split_paths(&path) {
+            let candidate = directory.join("pwsh.exe");
+            if candidate.exists() {
+                push_unique_path(&mut candidates, Some(candidate));
+            }
+        }
+    }
+    candidates
+}
+
+fn probe_pwsh_version(program: &Path) -> Option<(u32, u32, u32)> {
+    let mut command = hidden_command(program);
+    command.args([
+        "-NoLogo",
+        "-NoProfile",
+        "-NonInteractive",
+        "-Command",
+        "$PSVersionTable.PSVersion.ToString()",
+    ]);
+    let output = command.output().ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let text = String::from_utf8_lossy(&output.stdout);
+    let mut parts = text.trim().split('.').map(|part| part.parse().unwrap_or(0));
+    Some((
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+        parts.next().unwrap_or(0),
+    ))
+}
+
+fn hidden_command(program: impl AsRef<OsStr>) -> Command {
+    let mut command = Command::new(program);
+    #[cfg(windows)]
+    {
+        use std::os::windows::process::CommandExt;
+        command.creation_flags(CREATE_NO_WINDOW);
+    }
+    command
 }
 
 fn apply_update_request(args: &[String]) -> Option<UpdateRequest> {
@@ -378,6 +508,43 @@ mod tests {
         assert_eq!(
             request.install_dir,
             Some(PathBuf::from(r"C:\Program Files\WSDD\bin"))
+        );
+    }
+
+    #[test]
+    fn recovery_worker_request_accepts_worker_path() {
+        let args = vec![
+            "wsdd-launcher.exe".to_string(),
+            RECOVER_WSL_RUNTIME_ARG.to_string(),
+            r"C:\WSDD-Environment\PS-Script\wsdd-runtime-recovery.ps1".to_string(),
+        ];
+        assert_eq!(
+            recovery_worker_request(&args),
+            Some(PathBuf::from(
+                r"C:\WSDD-Environment\PS-Script\wsdd-runtime-recovery.ps1"
+            ))
+        );
+    }
+
+    #[test]
+    fn pwsh_version_probe_accepts_discovered_candidate() {
+        let candidate = discover_supported_pwsh().expect("PowerShell 7.5+ should be discoverable");
+        let version = probe_pwsh_version(&candidate).expect("candidate must return a version");
+        assert!(version.0 > 7 || (version.0 == 7 && version.1 >= 5));
+        assert!(!candidate
+            .to_string_lossy()
+            .to_ascii_lowercase()
+            .contains(r"\appdata\local\microsoft\windowsapps\"));
+    }
+
+    #[test]
+    fn real_pwsh_executable_is_preferred_over_execution_alias() {
+        assert!(
+            pwsh_candidate_priority(Path::new(
+                r"C:\Program Files\WindowsApps\Microsoft.PowerShell_7.6.3_x64\pwsh.exe"
+            )) > pwsh_candidate_priority(Path::new(
+                r"C:\Users\dev\AppData\Local\Microsoft\WindowsApps\pwsh.exe"
+            ))
         );
     }
 
