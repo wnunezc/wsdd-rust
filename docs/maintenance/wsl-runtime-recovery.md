@@ -116,5 +116,17 @@ Codigo `1`:
 - source WSL desaparecido;
 - volumen no recreable;
 - Compose fallo;
-- contenedor no alcanzo postcondiciones.
+- contenedor no alcanzo postcondiciones;
 - runtime bloqueado tras tres fallos consecutivos.
+
+## Relacion Con 2.1.0
+
+Este mecanismo es una compensacion necesaria para una limitacion de lifecycle entre Docker
+Desktop y WSL. Docker conserva referencias a relays internos efimeros, pero no garantiza su
+rehidratacion despues de todos los reinicios. WSDD conserva la identidad logica de distro y ruta
+Linux para reconstruir solo el estado derivado afectado.
+
+Reportes relacionados:
+
+- https://github.com/docker/for-win/issues/14924
+- https://github.com/microsoft/WSL/issues/5851

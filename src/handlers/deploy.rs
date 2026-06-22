@@ -84,6 +84,15 @@ pub fn deploy_project(
         docker_ops::sync_php_container(project, runner, tx, true)?;
         container_rebuilt = true;
 
+        if project.storage_mode == crate::models::project::StorageMode::ManagedNativeLinuxStorage {
+            crate::handlers::managed_storage::fix_project_permissions(
+                project,
+                settings.wsl_distro.as_deref(),
+                runner,
+                tx,
+            )?;
+        }
+
         if project.ssl {
             steps::setup_ssl(project, runner, tx)?;
         }

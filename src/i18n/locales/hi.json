@@ -257,6 +257,8 @@
   "toolbox_tty_hint": "कंटेनर के अंदर इंटरैक्टिव शेल खोलें",
   "toolbox_logs_hint": "कंटेनर लॉग को रियल टाइम में देखें",
   "toolbox_backup_project": "प्रोजेक्ट बैकअप",
+  "toolbox_fix_permissions": "अनुमतियां ठीक करें",
+  "toolbox_fix_permissions_hint": "WSL प्रोजेक्ट के रनटाइम डायरेक्टरी लेखन अनुमतियां ठीक करें",
   "toolbox_ngrok_title": "Public publishing",
   "toolbox_ngrok_publish": "अस्थायी रूप से publish करें",
   "toolbox_ngrok_stop": "Publishing रोकें",

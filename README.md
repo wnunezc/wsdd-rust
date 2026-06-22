@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: `2.0.1` patch validation line
+- **Current stage**: `2.1.0` stable release line
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content
@@ -39,7 +39,9 @@ single desktop app.
 3. **Manages web projects**: Creates PHP containers per version with Apache + Xdebug
 4. **Automatic local SSL**: MKCert certificates per domain, no browser warnings
 5. **Automatic hosts**: Modifies `C:\Windows\System32\drivers\etc\hosts` for you
-6. **Optional developer services**: Redis, Memcached, and Mailpit are disabled by default and deploy only after explicit activation in Settings
+6. **Optional developer services**: Redis, Memcached, Mailpit, and ngrok are disabled by default and deploy only after explicit activation in Settings
+7. **Linux-native project storage**: Optional managed WSL storage provides Linux filesystem performance while preserving a Windows-accessible project alias
+8. **WSL runtime recovery**: A hidden scheduled task repairs Docker Desktop WSL mount relays after Windows or Docker restarts
 
 ## Docker Stack Containers
 
@@ -95,7 +97,17 @@ C:\WSDD-Environment\
 1. Click "Add Project"
 2. Choose the local domain (e.g., `myproject.wsdd.dock`)
 3. Select the PHP version
-4. The application creates the container, SSL certificate, and hosts entry
+4. Select the storage mode:
+   - `Classic Bind` for maximum compatibility with Windows folders
+   - `Native Linux Project` for projects already stored in WSL
+   - `Managed Native Linux` to convert a Windows folder into WSDD-managed WSL storage
+   - `Fast Sync Workspace` for an initial Windows-to-Docker-volume snapshot
+5. The application creates the container, SSL certificate, and hosts entry
+
+Managed Native Linux Storage creates a validated ZIP snapshot before changing the source
+folder, preserves the original Windows directory, stores project files under
+`/home/wsdd/projects` in `WSDD-Storage`, and exposes the project through a Windows symbolic
+link. Runtime permissions can be repaired from the project toolbox.
 
 ### Managing Containers
 - Start / stop individual containers from the main panel
@@ -104,7 +116,7 @@ C:\WSDD-Environment\
 
 ## Technical Information
 
-- **Version**: 2.0.1 (Rust edition)
+- **Version**: 2.1.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

@@ -69,6 +69,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let open_folder = tr("main_open_folder");
             let open_browser = tr("main_open_browser");
             let backup_project = tr("toolbox_backup_project");
+            let fix_permissions = tr("toolbox_fix_permissions");
             let ngrok_copy = NgrokToolboxCopy::new();
             let close_label = tr("btn_close");
             let info_name = format!("{}:", tr("col_name"));
@@ -126,6 +127,35 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                                 message
                             },
                         )
+                    });
+                }
+            }
+
+            if crate::handlers::managed_storage::supports_wsl_permissions(project.storage_mode) {
+                let job_key = format!("permissions:project:{}", project.name);
+                let busy = app.is_job_running(&job_key);
+                if ui
+                    .add_enabled(!busy, egui::Button::new(&fix_permissions))
+                    .on_hover_text(tr("toolbox_fix_permissions_hint"))
+                    .clicked()
+                {
+                    let project_clone = project.clone();
+                    let default_wsl_distro = app.settings.wsl_distro.clone();
+                    let runner = app.runner.clone();
+                    let tx = app.main_log_tx.clone();
+                    let label = format!("Fix permissions {}", project.name);
+                    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
+                        crate::handlers::managed_storage::fix_project_permissions(
+                            &project_clone,
+                            default_wsl_distro.as_deref(),
+                            &runner,
+                            &tx,
+                        )
+                        .map_err(|error| {
+                            let message = format!("[Permissions] Error: {error}");
+                            let _ = tx.send(LogLine::error(message.clone()));
+                            message
+                        })
                     });
                 }
             }

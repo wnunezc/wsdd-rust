@@ -1,6 +1,6 @@
 [package]
 name = "wsdd"
-version = "2.0.1"
+version = "2.1.0"
 edition = "2021"
 description = "WebStack Deployer for Docker - Rust edition"
 authors = ["Walter Nunez / Icaros Net S.A"]
@@ -42,6 +42,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 walkdir = "2"
 tempfile = "3"
 sha2 = "0.10"
+base64 = "0.22"
 
 # Imagen — decodificación de icono ICO embebido
 image = { version = "0.25", default-features = false, features = ["ico"] }

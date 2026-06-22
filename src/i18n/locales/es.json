@@ -257,6 +257,8 @@
   "toolbox_tty_hint": "Abrir una sesion interactiva dentro del contenedor",
   "toolbox_logs_hint": "Seguir logs del contenedor en tiempo real",
   "toolbox_backup_project": "Backup del proyecto",
+  "toolbox_fix_permissions": "Corregir permisos",
+  "toolbox_fix_permissions_hint": "Reparar permisos de escritura de directorios runtime en proyectos WSL",
   "toolbox_ngrok_title": "Publicacion publica",
   "toolbox_ngrok_publish": "Publicar temporalmente",
   "toolbox_ngrok_stop": "Detener publicacion",

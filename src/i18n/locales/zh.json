@@ -257,6 +257,8 @@
   "toolbox_tty_hint": "在容器内打开交互式 shell",
   "toolbox_logs_hint": "实时跟踪容器日志",
   "toolbox_backup_project": "备份项目",
+  "toolbox_fix_permissions": "修复权限",
+  "toolbox_fix_permissions_hint": "修复 WSL 项目运行时目录的写入权限",
   "toolbox_ngrok_title": "公网发布",
   "toolbox_ngrok_publish": "临时发布",
   "toolbox_ngrok_stop": "停止发布",

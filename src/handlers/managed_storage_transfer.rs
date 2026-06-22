@@ -120,11 +120,21 @@ pub(super) fn build_inventory(root: &Path) -> Result<FileInventory, InfraError> 
                 entry.path().display()
             )))
         })?;
-        let mut file = File::open(entry.path()).map_err(InfraError::Io)?;
+        let mut file = File::open(entry.path()).map_err(|error| {
+            InfraError::Io(std::io::Error::other(format!(
+                "No se pudo abrir para inventario '{}': {error}",
+                entry.path().display()
+            )))
+        })?;
         let mut hasher = Sha256::new();
         let mut buffer = [0_u8; 64 * 1024];
         loop {
-            let read = file.read(&mut buffer).map_err(InfraError::Io)?;
+            let read = file.read(&mut buffer).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo leer para inventario '{}': {error}",
+                    entry.path().display()
+                )))
+            })?;
             if read == 0 {
                 break;
             }
@@ -145,51 +155,30 @@ fn is_internal_link(root: &Path, entry: &Path) -> bool {
     entry != root
 }
 
-pub(super) fn copy_tree(source: &Path, destination: &Path) -> Result<(), InfraError> {
-    if destination.exists() && destination.read_dir()?.next().is_some() {
-        return Err(InfraError::PrerequisiteNotMet(format!(
-            "El destino temporal no esta vacio: {}",
-            destination.display()
-        )));
-    }
-    fs::create_dir_all(destination).map_err(InfraError::Io)?;
-
-    for entry in WalkDir::new(source).follow_links(false) {
-        let entry = entry.map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
-        let relative = entry
-            .path()
-            .strip_prefix(source)
-            .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
-        let target = destination.join(relative);
-
-        if entry.file_type().is_symlink() {
-            return Err(InfraError::PrerequisiteNotMet(format!(
-                "No se migran enlaces internos sin validacion explicita: {}",
-                entry.path().display()
-            )));
-        }
-        if entry.file_type().is_dir() {
-            fs::create_dir_all(&target).map_err(InfraError::Io)?;
-        } else {
-            if let Some(parent) = target.parent() {
-                fs::create_dir_all(parent).map_err(InfraError::Io)?;
-            }
-            fs::copy(entry.path(), &target).map_err(InfraError::Io)?;
-        }
-    }
-    Ok(())
-}
-
 pub(super) fn create_validated_zip(
     source: &Path,
     destination_zip: &Path,
-    expected_files: usize,
-) -> Result<(), InfraError> {
+    expected_inventory: &FileInventory,
+) -> Result<FileInventory, InfraError> {
     create_zip_from_dir(source, destination_zip)?;
-    let file = File::open(destination_zip).map_err(InfraError::Io)?;
+    let archived_inventory = build_zip_inventory(destination_zip)?;
+    if archived_inventory != *expected_inventory {
+        return Err(InfraError::UnexpectedOutput(
+            destination_zip.display().to_string(),
+            format!(
+                "El ZIP no coincide con el inventario inicial:\n{}",
+                inventory_diff(expected_inventory, &archived_inventory, 50)
+            ),
+        ));
+    }
+    Ok(archived_inventory)
+}
+
+fn build_zip_inventory(zip_path: &Path) -> Result<FileInventory, InfraError> {
+    let file = File::open(zip_path).map_err(InfraError::Io)?;
     let mut archive =
         ZipArchive::new(file).map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
-    let mut archived_files = 0;
+    let mut inventory = BTreeMap::new();
     for index in 0..archive.len() {
         let mut item = archive
             .by_index(index)
@@ -197,18 +186,129 @@ pub(super) fn create_validated_zip(
         if item.is_dir() {
             continue;
         }
-        archived_files += 1;
-        std::io::copy(&mut item, &mut std::io::sink()).map_err(InfraError::Io)?;
+        let name = item
+            .enclosed_name()
+            .ok_or_else(|| {
+                InfraError::UnexpectedOutput(
+                    zip_path.display().to_string(),
+                    format!("Entrada ZIP insegura: {}", item.name()),
+                )
+            })?
+            .components()
+            .map(|part| part.as_os_str().to_string_lossy())
+            .collect::<Vec<_>>()
+            .join("/");
+        let size = item.size();
+        let mut hasher = Sha256::new();
+        let mut buffer = [0_u8; 64 * 1024];
+        loop {
+            let read = item.read(&mut buffer).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo leer '{name}' desde '{}': {error}",
+                    zip_path.display()
+                )))
+            })?;
+            if read == 0 {
+                break;
+            }
+            hasher.update(&buffer[..read]);
+        }
+        inventory.insert(
+            name,
+            InventoryEntry {
+                size,
+                sha256: hasher.finalize().into(),
+            },
+        );
     }
-    if archived_files != expected_files {
-        return Err(InfraError::UnexpectedOutput(
-            destination_zip.display().to_string(),
-            format!(
-                "ZIP incompleto: esperados {expected_files} archivos, encontrados {archived_files}"
-            ),
-        ));
+    Ok(inventory)
+}
+
+pub(super) fn extract_zip_snapshot(zip_path: &Path, destination: &Path) -> Result<(), InfraError> {
+    if destination.exists() && destination.read_dir()?.next().is_some() {
+        return Err(InfraError::PrerequisiteNotMet(format!(
+            "El destino temporal no esta vacio: {}",
+            destination.display()
+        )));
+    }
+    fs::create_dir_all(destination).map_err(InfraError::Io)?;
+    let file = File::open(zip_path).map_err(InfraError::Io)?;
+    let mut archive =
+        ZipArchive::new(file).map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
+    for index in 0..archive.len() {
+        let mut item = archive
+            .by_index(index)
+            .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
+        let enclosed = item.enclosed_name().ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                zip_path.display().to_string(),
+                format!("Entrada ZIP insegura: {}", item.name()),
+            )
+        })?;
+        let output_path = destination.join(enclosed);
+        if item.is_dir() {
+            fs::create_dir_all(&output_path).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo crear directorio '{}': {error}",
+                    output_path.display()
+                )))
+            })?;
+            continue;
+        }
+        if let Some(parent) = output_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo crear directorio '{}': {error}",
+                    parent.display()
+                )))
+            })?;
+        }
+        let mut output = File::create(&output_path).map_err(|error| {
+            InfraError::Io(std::io::Error::other(format!(
+                "No se pudo crear archivo destino '{}': {error}",
+                output_path.display()
+            )))
+        })?;
+        std::io::copy(&mut item, &mut output).map_err(|error| {
+            InfraError::Io(std::io::Error::other(format!(
+                "No se pudo extraer '{}' hacia '{}': {error}",
+                item.name(),
+                output_path.display()
+            )))
+        })?;
     }
     Ok(())
+}
+
+pub(super) fn inventory_diff(
+    expected: &FileInventory,
+    actual: &FileInventory,
+    limit: usize,
+) -> String {
+    let mut differences = Vec::new();
+    for path in expected.keys() {
+        match actual.get(path) {
+            None => differences.push(format!("FALTA {path}")),
+            Some(value) if value != &expected[path] => {
+                differences.push(format!("TAMANO/SHA256 {path}"))
+            }
+            Some(_) => {}
+        }
+    }
+    for path in actual.keys() {
+        if !expected.contains_key(path) {
+            differences.push(format!("ADICIONAL {path}"));
+        }
+    }
+    let total = differences.len();
+    differences.truncate(limit);
+    if total > limit {
+        differences.push(format!(
+            "... {} diferencias adicionales omitidas",
+            total - limit
+        ));
+    }
+    differences.join("\n")
 }
 
 #[cfg(test)]
@@ -217,7 +317,10 @@ mod tests {
 
     use tempfile::tempdir;
 
-    use super::{build_inventory, ensure_process_success, is_internal_link};
+    use super::{
+        build_inventory, create_validated_zip, ensure_process_success, extract_zip_snapshot,
+        inventory_diff, is_internal_link,
+    };
     use crate::handlers::ps_script::ProcOutput;
 
     #[test]
@@ -268,5 +371,48 @@ mod tests {
 
         assert!(!is_internal_link(root, root));
         assert!(is_internal_link(root, &root.join("vendor-link")));
+    }
+
+    #[test]
+    fn validated_zip_is_the_snapshot_extracted_to_destination() {
+        let source = tempdir().expect("source tempdir");
+        let destination = tempdir().expect("destination tempdir");
+        let zip_dir = tempdir().expect("zip tempdir");
+        fs::create_dir_all(source.path().join("public")).expect("source dir");
+        fs::write(
+            source.path().join("public/index.php"),
+            b"<?php echo 'snapshot';",
+        )
+        .expect("source file");
+        let source_inventory = build_inventory(source.path()).expect("source inventory");
+        let zip_path = zip_dir.path().join("snapshot.zip");
+
+        let zip_inventory =
+            create_validated_zip(source.path(), &zip_path, &source_inventory).expect("valid zip");
+        extract_zip_snapshot(&zip_path, destination.path()).expect("extract snapshot");
+
+        assert_eq!(zip_inventory, source_inventory);
+        assert_eq!(
+            build_inventory(destination.path()).expect("destination inventory"),
+            zip_inventory
+        );
+    }
+
+    #[test]
+    fn inventory_diff_reports_only_actionable_mismatches() {
+        let expected_root = tempdir().expect("expected tempdir");
+        let actual_root = tempdir().expect("actual tempdir");
+        fs::write(expected_root.path().join("missing.txt"), b"missing").expect("expected missing");
+        fs::write(expected_root.path().join("changed.txt"), b"before").expect("expected changed");
+        fs::write(actual_root.path().join("changed.txt"), b"after").expect("actual changed");
+        fs::write(actual_root.path().join("extra.txt"), b"extra").expect("actual extra");
+
+        let expected = build_inventory(expected_root.path()).expect("expected inventory");
+        let actual = build_inventory(actual_root.path()).expect("actual inventory");
+        let report = inventory_diff(&expected, &actual, 20);
+
+        assert!(report.contains("FALTA missing.txt"));
+        assert!(report.contains("ADICIONAL extra.txt"));
+        assert!(report.contains("TAMANO/SHA256 changed.txt"));
     }
 }

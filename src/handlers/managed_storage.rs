@@ -2,20 +2,213 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use base64::Engine;
+
 use crate::config::environment::{env_config, path_config};
 use crate::errors::InfraError;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::managed_storage_transfer::{
-    build_inventory, copy_tree, create_validated_zip, ensure_process_success, is_reparse_point,
-    ManagedStorageTransition,
+    build_inventory, create_validated_zip, ensure_process_success, extract_zip_snapshot,
+    inventory_diff, is_reparse_point, ManagedStorageTransition,
 };
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
+use crate::handlers::wsl_runtime_targets::{resolve_project, TargetResolution};
 use crate::models::project::{ManagedNativeStorage, Project, StorageMode};
 
 pub const MANAGED_STORAGE_DISTRO: &str = "WSDD-Storage";
 pub const MANAGED_STORAGE_ROOT: &str = "/home/wsdd/projects";
 const MANAGED_STORAGE_IMAGE: &str = "debian:13-slim";
 const MANAGED_STORAGE_CONTAINER: &str = "wsdd-storage-rootfs";
+
+/// Returns whether the project storage mode can use Linux runtime permission repair.
+pub fn supports_wsl_permissions(mode: StorageMode) -> bool {
+    matches!(
+        mode,
+        StorageMode::NativeLinuxProject | StorageMode::ManagedNativeLinuxStorage
+    )
+}
+
+/// Repairs writable runtime directories for a WSL-backed project and verifies Apache access.
+pub fn fix_project_permissions(
+    project: &Project,
+    default_wsl_distro: Option<&str>,
+    runner: &PsRunner,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let target = match resolve_project(project, default_wsl_distro) {
+        TargetResolution::Target(target) => target,
+        TargetResolution::NotWslDependent => {
+            return Err(InfraError::PrerequisiteNotMet(
+                "La reparacion de permisos solo aplica a proyectos WSL".to_string(),
+            ));
+        }
+        TargetResolution::UnresolvedNative { reason, .. } => {
+            return Err(InfraError::PrerequisiteNotMet(reason));
+        }
+    };
+    let container_name = format!(
+        "WSDD-Web-Server-{}",
+        project.php_version.runtime_container_tag()
+    );
+    let group_id = container_www_data_gid(&container_name, runner)?;
+    ensure_acl_available(
+        &target.distro,
+        project.storage_mode == StorageMode::ManagedNativeLinuxStorage,
+        runner,
+    )?;
+
+    let _ = tx.send(LogLine::info(format!(
+        "[Permissions] Reparando directorios runtime de '{}'...",
+        project.name
+    )));
+    let script = render_permissions_script(&target.linux_path, group_id);
+    let command = encoded_shell_command(&script);
+    let output = runner.run_direct_sync(
+        "wsl.exe",
+        &[
+            "-d",
+            &target.distro,
+            "-u",
+            "root",
+            "--",
+            "sh",
+            "-lc",
+            &command,
+        ],
+        None,
+        None,
+    )?;
+    let output = ensure_process_success("WSL runtime permissions", output)?;
+    if output.text.contains("WSDD_NO_RUNTIME_TARGETS") {
+        let _ = tx.send(LogLine::warn(format!(
+            "[Permissions] No se encontraron directorios runtime conocidos en '{}'",
+            project.name
+        )));
+        return Ok(());
+    }
+
+    verify_container_runtime_permissions(project, &container_name, runner)?;
+    let _ = tx.send(LogLine::success(format!(
+        "[Permissions] Permisos runtime validados para '{}' ✓",
+        project.name
+    )));
+    Ok(())
+}
+
+fn container_www_data_gid(container_name: &str, runner: &PsRunner) -> Result<u32, InfraError> {
+    let output = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &[
+            "exec",
+            container_name,
+            "sh",
+            "-lc",
+            "getent group www-data | cut -d: -f3",
+        ],
+        None,
+        None,
+    )?;
+    let output = ensure_process_success("resolve www-data group", output)?;
+    output.text.trim().parse::<u32>().map_err(|error| {
+        InfraError::UnexpectedOutput(
+            "resolve www-data group".to_string(),
+            format!("GID invalido '{}': {error}", output.text.trim()),
+        )
+    })
+}
+
+fn ensure_acl_available(distro: &str, managed: bool, runner: &PsRunner) -> Result<(), InfraError> {
+    let check = runner.run_direct_sync(
+        "wsl.exe",
+        &["-d", distro, "--", "sh", "-lc", "command -v setfacl"],
+        None,
+        None,
+    )?;
+    if check.success {
+        return Ok(());
+    }
+    if !managed {
+        return Err(InfraError::PrerequisiteNotMet(format!(
+            "La distro WSL '{distro}' necesita el paquete 'acl' para reparar permisos"
+        )));
+    }
+    let install = runner.run_direct_sync(
+        "wsl.exe",
+        &[
+            "-d",
+            distro,
+            "-u",
+            "root",
+            "--",
+            "sh",
+            "-lc",
+            "apt-get update -qq && DEBIAN_FRONTEND=noninteractive apt-get install -y -qq acl",
+        ],
+        None,
+        None,
+    )?;
+    ensure_process_success("install WSL acl support", install)?;
+    Ok(())
+}
+
+fn render_permissions_script(linux_path: &str, group_id: u32) -> String {
+    let root = sh_single_quote(linux_path);
+    format!(
+        "set -eu; root={root}; test -d \"$root\"; \
+         targets=$(find \"$root\" \
+           \\( -path \"$root/.git\" -o -path '*/.git/*' -o -path '*/vendor' -o -path '*/vendor/*' -o -path '*/node_modules' -o -path '*/node_modules/*' \\) -prune -o \
+           -type d \\( -name storage -o -name var -o -name cache -o -name logs -o -path '*/bootstrap/cache' \\) -print); \
+         if [ -z \"$targets\" ]; then echo WSDD_NO_RUNTIME_TARGETS; exit 0; fi; \
+         printf '%s\n' \"$targets\" | while IFS= read -r dir; do \
+           chgrp -R {group_id} \"$dir\"; \
+           chmod -R g+rwX \"$dir\"; \
+           find \"$dir\" -type d -exec chmod g+s {{}} +; \
+           setfacl -R -m g:{group_id}:rwX \"$dir\"; \
+           setfacl -R -d -m g:{group_id}:rwX \"$dir\"; \
+           probe=\"$dir/.wsdd-permission-probe\"; : > \"$probe\"; rm -f \"$probe\"; \
+         done"
+    )
+}
+
+fn encoded_shell_command(script: &str) -> String {
+    let payload = base64::engine::general_purpose::STANDARD.encode(script.as_bytes());
+    format!("echo {payload} | base64 -d | sh")
+}
+
+fn verify_container_runtime_permissions(
+    project: &Project,
+    container_name: &str,
+    runner: &PsRunner,
+) -> Result<(), InfraError> {
+    let container_root = format!("/var/www/html/{}", project.domain);
+    let root = sh_single_quote(&container_root);
+    let script = format!(
+        "set -eu; root={root}; \
+         targets=$(find \"$root\" \
+           \\( -path \"$root/.git\" -o -path '*/.git/*' -o -path '*/vendor' -o -path '*/vendor/*' -o -path '*/node_modules' -o -path '*/node_modules/*' \\) -prune -o \
+           -type d \\( -name storage -o -name var -o -name cache -o -name logs -o -path '*/bootstrap/cache' \\) -print); \
+         [ -n \"$targets\" ] || exit 0; \
+         printf '%s\n' \"$targets\" | while IFS= read -r dir; do \
+           probe=\"$dir/.wsdd-permission-probe\"; : > \"$probe\"; rm -f \"$probe\"; \
+         done"
+    );
+    let output = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &[
+            "exec",
+            "--user",
+            "www-data",
+            container_name,
+            "sh",
+            "-lc",
+            &script,
+        ],
+        None,
+        None,
+    )?;
+    ensure_process_success("verify www-data runtime permissions", output)?;
+    Ok(())
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ManagedStoragePlan {
@@ -157,7 +350,7 @@ fn prepare_windows_project(
         "[Storage] Creando backup previo: {}",
         backup_path.display()
     )));
-    create_validated_zip(alias_path, &backup_path, source_inventory.len())?;
+    let snapshot_inventory = create_validated_zip(alias_path, &backup_path, &source_inventory)?;
     let _ = tx.send(LogLine::success(format!(
         "[Storage] Backup ZIP validado ✓ {}",
         backup_path.display()
@@ -167,9 +360,10 @@ fn prepare_windows_project(
     let target_inventory = build_inventory(target_path)?;
     let mut temporary_linux_path = None;
     if !target_inventory.is_empty() {
-        if target_inventory != source_inventory {
+        if target_inventory != snapshot_inventory {
             return Err(InfraError::PrerequisiteNotMet(format!(
-                "El destino WSL contiene archivos distintos; no se sobrescribira: {windows_unc}"
+                "El destino WSL contiene archivos distintos; no se sobrescribira: {windows_unc}\n{}",
+                inventory_diff(&snapshot_inventory, &target_inventory, 50)
             )));
         }
         let _ = tx.send(LogLine::info(
@@ -180,16 +374,18 @@ fn prepare_windows_project(
         let temp_unc = format!("{windows_unc}.wsdd-import-{suffix}");
         ensure_linux_project_dir(distro, &temp_linux, runner)?;
         let _ = tx.send(LogLine::info(
-            "[Storage] Copiando proyecto hacia almacenamiento WSL temporal...",
+            "[Storage] Extrayendo snapshot ZIP hacia almacenamiento WSL temporal...",
         ));
         let copy_result = (|| -> Result<(), InfraError> {
-            copy_tree(alias_path, Path::new(&temp_unc))?;
+            extract_zip_snapshot(&backup_path, Path::new(&temp_unc))?;
             let copied_inventory = build_inventory(Path::new(&temp_unc))?;
-            if copied_inventory != source_inventory {
+            if copied_inventory != snapshot_inventory {
                 return Err(InfraError::UnexpectedOutput(
                     "managed storage copy validation".to_string(),
-                    "El inventario SHA256 del destino temporal no coincide con el origen"
-                        .to_string(),
+                    format!(
+                        "El inventario SHA256 del destino temporal no coincide con el snapshot ZIP:\n{}",
+                        inventory_diff(&snapshot_inventory, &copied_inventory, 50)
+                    ),
                 ));
             }
             Ok(())
@@ -220,10 +416,13 @@ fn prepare_windows_project(
         ensure_windows_alias(alias, windows_unc, runner)?;
         validate_alias_inventory(alias_path, target_path)?;
         let final_inventory = build_inventory(target_path)?;
-        if final_inventory != source_inventory {
+        if final_inventory != snapshot_inventory {
             return Err(InfraError::UnexpectedOutput(
                 "managed storage final validation".to_string(),
-                "El inventario SHA256 final no coincide con el origen preservado".to_string(),
+                format!(
+                    "El inventario SHA256 final no coincide con el snapshot ZIP:\n{}",
+                    inventory_diff(&snapshot_inventory, &final_inventory, 50)
+                ),
             ));
         }
         Ok(())
@@ -636,5 +835,55 @@ mod tests {
         let output = "d\0o\0c\0k\0e\0r\0-\0d\0e\0s\0k\0t\0o\0p\0\n\0\n\0W\0S\0D\0D\0-\0S\0t\0o\0r\0a\0g\0e\0\n\0";
 
         assert!(wsl_list_contains_distro(output, "WSDD-Storage"));
+    }
+
+    #[test]
+    fn permissions_are_available_only_for_wsl_projects() {
+        assert!(supports_wsl_permissions(StorageMode::NativeLinuxProject));
+        assert!(supports_wsl_permissions(
+            StorageMode::ManagedNativeLinuxStorage
+        ));
+        assert!(!supports_wsl_permissions(StorageMode::ClassicBind));
+        assert!(!supports_wsl_permissions(StorageMode::FastSyncWorkspace));
+    }
+
+    #[test]
+    fn permission_script_targets_runtime_directories_and_excludes_dependencies() {
+        let script = render_permissions_script("/home/wsdd/projects/demo", 33);
+
+        for token in [
+            ".git",
+            "vendor",
+            "node_modules",
+            "bootstrap/cache",
+            "-name storage",
+            "-name var",
+            "-name cache",
+            "-name logs",
+        ] {
+            assert!(script.contains(token), "missing token: {token}");
+        }
+    }
+
+    #[test]
+    fn permission_script_uses_group_setgid_default_acl_and_runtime_probe() {
+        let script = render_permissions_script("/home/wsdd/projects/demo", 33);
+
+        assert!(script.contains("chgrp -R 33"));
+        assert!(script.contains("chmod -R g+rwX"));
+        assert!(script.contains("chmod g+s"));
+        assert!(script.contains("setfacl -R -m g:33:rwX"));
+        assert!(script.contains("setfacl -R -d -m g:33:rwX"));
+        assert!(script.contains(".wsdd-permission-probe"));
+    }
+
+    #[test]
+    fn encoded_wsl_script_preserves_shell_quotes() {
+        let script = "root='/home/wsdd/projects/demo'; find \"$root\" -type d";
+        let command = encoded_shell_command(script);
+
+        assert!(command.starts_with("echo "));
+        assert!(command.ends_with(" | base64 -d | sh"));
+        assert!(!command.contains("\"$root\""));
     }
 }

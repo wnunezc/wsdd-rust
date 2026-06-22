@@ -84,14 +84,30 @@ pub(crate) fn create_zip_from_dir(
 
         zip.start_file(name, options)
             .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
-        let mut src = File::open(path).map_err(InfraError::Io)?;
+        let mut src = File::open(path).map_err(|error| {
+            InfraError::Io(std::io::Error::other(format!(
+                "No se pudo abrir para backup '{}': {error}",
+                path.display()
+            )))
+        })?;
         let mut buffer = [0_u8; 64 * 1024];
         loop {
-            let read = src.read(&mut buffer).map_err(InfraError::Io)?;
+            let read = src.read(&mut buffer).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo leer para backup '{}': {error}",
+                    path.display()
+                )))
+            })?;
             if read == 0 {
                 break;
             }
-            zip.write_all(&buffer[..read]).map_err(InfraError::Io)?;
+            zip.write_all(&buffer[..read]).map_err(|error| {
+                InfraError::Io(std::io::Error::other(format!(
+                    "No se pudo escribir '{}' dentro de '{}': {error}",
+                    path.display(),
+                    destination_zip.display()
+                )))
+            })?;
         }
     }
 

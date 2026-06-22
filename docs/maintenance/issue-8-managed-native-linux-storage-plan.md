@@ -246,8 +246,7 @@ Prueba aislada inicial:
 
 La migración de proyectos WSDD existentes desde `Classic Bind` continúa eliminada y queda fuera
 del alcance. La opcion de bind Linux directo mediante la integracion WSL de Docker Desktop queda
-descartada para persistencia entre reinicios. El issue #8 permanece abierto tecnicamente y
-requiere otra arquitectura.
+descartada como solucion persistente por si sola.
 
 ## Recuperacion automatica implementada localmente
 
@@ -261,6 +260,10 @@ independiente de la interfaz WSDD:
 - espera de hasta 180 segundos por readiness real de Docker;
 - circuito persistente que bloquea reconstrucciones tras tres fallos consecutivos;
 - reconstruccion permitida solo ante evidencia explicita de relay WSL roto;
+- permisos runtime Managed reparados automaticamente despues de levantar PHP;
+- accion manual `Fix Permissions` disponible para proyectos Native y Managed;
+- propietario Linux preservado, grupo `www-data`, `setgid` y ACL por defecto solo sobre
+  directorios runtime conocidos; nunca se aplica `chmod 777` al proyecto completo;
 - intento de `docker start` antes de recrear;
 - recreacion exclusiva de volumenes WSL y contenedor PHP afectado;
 - `--no-build --force-recreate`;
@@ -273,3 +276,29 @@ Validacion inicial del 2026-06-21:
 - una segunda ejecucion reporto `Healthy`;
 - IDs y fechas de creacion no cambiaron;
 - dos disparos simultaneos de Task Scheduler no ejecutaron workers paralelos.
+
+## Cierre para 2.1.0
+
+Issue #8 se considera cerrado para `v2.1.0` con estas condiciones:
+
+- Managed Native Linux Storage es una opcion explicita, no el modo por defecto.
+- La conversion ocurre durante el alta de un proyecto desde una carpeta Windows; no se ofrece
+  migracion de proyectos Classic ya registrados.
+- El ZIP validado es el snapshot inmutable usado para poblar WSL.
+- Los archivos bloqueados y diferencias de inventario reportan rutas concretas.
+- La carpeta Windows original y el ZIP permanecen preservados.
+- El relay efimero de Docker Desktop no se considera persistente; la tarea programada lo
+  diagnostica y rehidrata.
+- El circuito de seguridad detiene reconstrucciones automaticas despues de tres fallos.
+- Los permisos runtime se limitan a rutas conocidas, con grupo `www-data`, setgid y ACL.
+- `Classic Bind` permanece como opcion de maxima compatibilidad.
+
+Necesidades tecnicas incorporadas para cerrar el issue:
+
+- WSL 2 y una distro administrada Debian 13 slim.
+- Docker Desktop con backend WSL2 e integracion de `WSDD-Storage`.
+- PowerShell 7.5+ para el worker de recuperacion.
+- Task Scheduler con ejecucion elevada y oculta.
+- Paquete Linux `acl` dentro de la distro administrada.
+- Soporte Windows para symlink de directorio hacia `\\wsl.localhost`.
+- Backup ZIP, inventario por SHA256 y rollback conservador.

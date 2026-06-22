@@ -257,6 +257,8 @@
   "toolbox_tty_hint": "Open an interactive shell inside the container",
   "toolbox_logs_hint": "Follow container logs in real time",
   "toolbox_backup_project": "Backup Project",
+  "toolbox_fix_permissions": "Fix Permissions",
+  "toolbox_fix_permissions_hint": "Repair runtime directory write permissions for WSL projects",
   "toolbox_ngrok_title": "Public publishing",
   "toolbox_ngrok_publish": "Publish temporarily",
   "toolbox_ngrok_stop": "Stop publishing",
