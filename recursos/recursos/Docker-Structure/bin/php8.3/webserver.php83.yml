@@ -17,6 +17,8 @@ services:
       - wsdd-network
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    volumes:
+      - ../../ssl/wsdd-mkcert-rootCA.crt:/usr/local/share/ca-certificates/wsdd-mkcert-rootCA.crt:ro
     labels:
       - "wsdd.webserver.description=Web Server php8.3"
       - "wsdd.webserver.role=webserver"

@@ -159,19 +159,29 @@ fn discover_pwsh_candidates() -> Vec<PathBuf> {
     if let Ok(output) = hidden_command("where.exe").arg("pwsh.exe").output() {
         if output.status.success() {
             for line in String::from_utf8_lossy(&output.stdout).lines() {
-                push_unique_path(&mut candidates, Some(PathBuf::from(line.trim())));
+                let candidate = PathBuf::from(line.trim());
+                if !is_windowsapps_execution_alias(&candidate) {
+                    push_unique_path(&mut candidates, Some(candidate));
+                }
             }
         }
     }
     if let Some(path) = env::var_os("PATH") {
         for directory in env::split_paths(&path) {
             let candidate = directory.join("pwsh.exe");
-            if candidate.exists() {
+            if candidate.exists() && !is_windowsapps_execution_alias(&candidate) {
                 push_unique_path(&mut candidates, Some(candidate));
             }
         }
     }
     candidates
+}
+
+fn is_windowsapps_execution_alias(candidate: &Path) -> bool {
+    candidate
+        .to_string_lossy()
+        .to_ascii_lowercase()
+        .contains(r"\appdata\local\microsoft\windowsapps\")
 }
 
 fn probe_pwsh_version(program: &Path) -> Option<(u32, u32, u32)> {

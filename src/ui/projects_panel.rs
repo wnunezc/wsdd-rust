@@ -38,8 +38,6 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     let projects: Vec<Project> = app.projects.clone();
 
     enum PendingAction {
-        Deploy(Project),
-        Remove(String),
         Toolbox(String),
     }
 
@@ -47,13 +45,10 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     let col_name = tr("col_name");
     let col_domain = tr("col_domain");
     let col_php = tr("col_php");
-    let col_ssl = tr("col_ssl");
-    let col_deploy = tr("col_deploy");
-    let col_remove = tr("col_remove");
     let col_toolbox = tr("col_toolbox");
 
     egui::Grid::new("projects_grid")
-        .num_columns(7)
+        .num_columns(4)
         .striped(true)
         .min_col_width(90.0)
         .spacing([18.0, 10.0])
@@ -61,35 +56,13 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
             ui.strong(col_name);
             ui.strong(col_domain);
             ui.strong(col_php);
-            ui.strong(col_ssl);
-            ui.strong(col_deploy.clone());
-            ui.strong(col_remove.clone());
             ui.strong(col_toolbox.clone());
             ui.end_row();
 
             for project in &projects {
-                let project_busy = app.is_job_running(&project_job_key(&project.name));
-
                 ui.label(egui::RichText::new(&project.name).strong());
                 ui.label(&project.domain);
                 ui.label(project.php_version.display_name());
-                ui.label(if project.ssl { "\u{2713}" } else { "\u{2014}" });
-
-                if ui
-                    .add_enabled(!project_busy, egui::Button::new(&col_deploy))
-                    .clicked()
-                    && pending.is_none()
-                {
-                    pending = Some(PendingAction::Deploy(project.clone()));
-                }
-
-                if ui
-                    .add_enabled(!project_busy, egui::Button::new(&col_remove))
-                    .clicked()
-                    && pending.is_none()
-                {
-                    pending = Some(PendingAction::Remove(project.name.clone()));
-                }
 
                 if ui.button(&col_toolbox).clicked() && pending.is_none() {
                     pending = Some(PendingAction::Toolbox(project.name.clone()));
@@ -100,12 +73,6 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         });
 
     match pending {
-        Some(PendingAction::Deploy(project)) => {
-            let _ = prepare_deploy(ui.ctx(), app, project, false);
-        }
-        Some(PendingAction::Remove(name)) => {
-            app.ui.confirm_remove_project = Some(name);
-        }
         Some(PendingAction::Toolbox(name)) => {
             app.ui.toolbox_project_name = Some(name);
             app.ui.active = ActiveView::ToolboxProject;
@@ -231,6 +198,6 @@ fn add_project_to_memory_if_missing(app: &mut WsddApp, project: &Project) {
     }
 }
 
-fn project_job_key(name: &str) -> String {
+pub(crate) fn project_job_key(name: &str) -> String {
     format!("project:{name}")
 }

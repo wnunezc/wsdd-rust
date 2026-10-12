@@ -40,7 +40,7 @@ RUN set -eux; \
     rm -f /tmp/composer-setup.php; \
     composer --version
 
-RUN docker-php-ext-install pdo pdo_mysql
+RUN docker-php-ext-install pdo pdo_mysql mysqli
 
 RUN apt-get -y autoremove && \
     apt-get clean
@@ -97,7 +97,8 @@ RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
     echo "php_ini=$PHP_INI_DIR" >> /etc/webmin/phpini/config && \
     echo "referers=wm72.wsdd.dock" >> /etc/webmin/config
 
-CMD cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && \
+CMD update-ca-certificates >/dev/null 2>&1 || true && \
+    cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && \
     chmod 0644 /etc/cron.d/cron-task && \
     touch /var/log/cron/cron.log && \
     cron && \

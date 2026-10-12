@@ -1,9 +1,9 @@
 use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::errors::InfraError;
-use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use crate::handlers::yml;
+use crate::handlers::{hosts, mkcert};
 use crate::models::project::Project;
 
 use super::paths;
@@ -26,6 +26,8 @@ pub(super) fn setup_ssl(
 ) -> Result<(), InfraError> {
     let paths = path_config();
     std::fs::create_dir_all(paths.ssl_dir()).map_err(InfraError::Io)?;
+    mkcert::sync_root_ca_to_docker_ssl()
+        .map_err(|e| InfraError::Io(std::io::Error::other(e.to_string())))?;
 
     let cert_file = path_to_string(paths.ssl_cert_file(&project.domain));
     let key_file = path_to_string(paths.ssl_key_file(&project.domain));

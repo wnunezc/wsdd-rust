@@ -192,17 +192,20 @@ fn should_recreate_existing_volume(
 }
 
 /// Recreates the PHP container so Apache picks up options and vhost changes.
+///
+/// When `build_image` is true, Compose is run with `--build` even if the PHP
+/// container already exists. Deploy writes WSDD-managed Dockerfile and compose
+/// resources immediately before this step, so the runtime image must be rebuilt
+/// to pick up template changes such as PHP extensions or CA trust updates.
 pub(super) fn sync_php_container(
     project: &Project,
     runner: &PsRunner,
     tx: &LogSender,
-    build_on_missing: bool,
+    build_image: bool,
 ) -> Result<(), InfraError> {
     let container_name = paths::php_container_name(project);
     let php_dir_name = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
-    let container_exists = php_container_exists(project, runner)?;
-    let should_build = build_on_missing && !container_exists;
 
     let bin_dir_str = paths::php_bin_dir(php_dir_name);
     let bin_dir = Path::new(&bin_dir_str);
@@ -226,7 +229,7 @@ pub(super) fn sync_php_container(
         None,
     );
 
-    let _ = tx.send(LogLine::info(if should_build {
+    let _ = tx.send(LogLine::info(if build_image {
         "[Runtime] Construyendo y creando contenedor PHP (puede tardar)..."
     } else {
         "[Runtime] Recreando contenedor PHP..."
@@ -236,7 +239,7 @@ pub(super) fn sync_php_container(
         &format!(
             "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
             env_config().docker_compose_exe(),
-            if should_build { "--build " } else { "" }
+            if build_image { "--build " } else { "" }
         ),
         Some(bin_dir),
         Some(&bridge),

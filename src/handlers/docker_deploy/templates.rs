@@ -21,6 +21,10 @@ const INIT_YML_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/init.yml"
 ));
+const PROXY_CONF_TEMPLATE: &str = include_str!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/recursos/recursos/Docker-Structure/proxy.conf"
+));
 const PHP56_DOCKERFILE_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/bin/php5.6/Dockerfile"
@@ -113,6 +117,11 @@ pub(super) fn render_init_yml(credentials: &PrereqCredentials) -> String {
             "__WSDD_MYSQL_PASSWORD__",
             &yaml_single_quoted(&credentials.mysql_password),
         )
+}
+
+/// Renders nginx-proxy defaults managed by WSDD.
+pub(super) fn render_proxy_conf() -> &'static str {
+    PROXY_CONF_TEMPLATE
 }
 
 /// Renders a PHP Webmin compose file for one PHP version.
@@ -282,6 +291,25 @@ mod tests {
     }
 
     #[test]
+    fn managed_init_mounts_proxy_conf() {
+        let credentials = PrereqCredentials::default();
+
+        let rendered = render_init_yml(&credentials);
+
+        assert!(rendered.contains("./proxy.conf:/etc/nginx/proxy.conf:ro"));
+    }
+
+    #[test]
+    fn managed_proxy_conf_sets_effective_timeouts() {
+        let rendered = render_proxy_conf();
+
+        assert!(rendered.contains("proxy_connect_timeout 300s;"));
+        assert!(rendered.contains("proxy_send_timeout 300s;"));
+        assert!(rendered.contains("proxy_read_timeout 300s;"));
+        assert!(rendered.contains("send_timeout 300s;"));
+    }
+
+    #[test]
     fn yaml_single_quoted_escapes_single_quotes() {
         assert_eq!(yaml_single_quoted("o'hara"), "'o''hara'");
     }
@@ -308,6 +336,9 @@ mod tests {
         assert!(rendered.contains("WEBMIN_USER: 'walter'"));
         assert!(rendered.contains("WEBMIN_PASS: 'secret'"));
         assert!(rendered.contains("XDEBUG_ENABLED: '1'"));
+        assert!(rendered.contains(
+            "../../ssl/wsdd-mkcert-rootCA.crt:/usr/local/share/ca-certificates/wsdd-mkcert-rootCA.crt:ro"
+        ));
         assert!(!rendered.contains("__WSDD_"));
     }
 

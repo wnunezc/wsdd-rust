@@ -19,6 +19,7 @@ services:
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - ./ssl:/etc/nginx/certs:rw
+      - ./proxy.conf:/etc/nginx/proxy.conf:ro
     networks:
       - wsdd-network
     extra_hosts:

@@ -95,6 +95,10 @@ impl PathConfig {
         self.ssl_dir().join(format!("{domain}.key"))
     }
 
+    pub fn mkcert_root_ca_file(&self) -> PathBuf {
+        self.ssl_dir().join("wsdd-mkcert-rootCA.crt")
+    }
+
     pub fn php_dir(&self, php_dir_name: &str) -> PathBuf {
         self.docker_structure_dir().join("bin").join(php_dir_name)
     }
@@ -360,6 +364,10 @@ mod tests {
         assert_eq!(
             paths.ngrok_yml(),
             PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\services\ngrok.yml")
+        );
+        assert_eq!(
+            paths.mkcert_root_ca_file(),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\ssl\wsdd-mkcert-rootCA.crt")
         );
     }
 

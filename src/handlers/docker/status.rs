@@ -112,10 +112,8 @@ fn parse_docker_desktop_status(output: &str, daemon_ready: bool) -> DockerDeskto
             "process_count" => {
                 status.process_count = value.parse::<usize>().unwrap_or(0);
             }
-            "process_name" => {
-                if !value.is_empty() {
-                    status.process_name = Some(value.to_string());
-                }
+            "process_name" if !value.is_empty() => {
+                status.process_name = Some(value.to_string());
             }
             _ => {}
         }

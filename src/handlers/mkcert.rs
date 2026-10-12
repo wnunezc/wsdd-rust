@@ -68,6 +68,7 @@ pub fn generate_ca() -> Result<()> {
             status.code().unwrap_or(-1)
         ));
     }
+    sync_root_ca_to_docker_ssl()?;
     Ok(())
 }
 
@@ -78,6 +79,7 @@ pub fn generate_ca() -> Result<()> {
 pub fn generate(domain: &str) -> Result<()> {
     let paths = path_config();
     std::fs::create_dir_all(paths.ssl_dir())?;
+    sync_root_ca_to_docker_ssl()?;
     let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
     let key_file = path_to_string(paths.ssl_key_file(domain));
     let cert_file = path_to_string(paths.ssl_cert_file(domain));
@@ -161,6 +163,9 @@ pub fn process_requirements(tx: &LogSender) -> bool {
     let _ = tx.send(LogLine::info("Verificando mkcert..."));
 
     if is_installed() {
+        if let Err(e) = sync_root_ca_to_docker_ssl() {
+            let _ = tx.send(LogLine::warn(format!("⚠ CA local para contenedores: {e}")));
+        }
         let _ = tx.send(LogLine::success("✓ mkcert está instalado"));
         return true;
     }
@@ -194,6 +199,39 @@ pub fn process_requirements(tx: &LogSender) -> bool {
             false
         }
     }
+}
+
+pub fn sync_root_ca_to_docker_ssl() -> Result<()> {
+    let mkcert_exe = resolve_mkcert_exe().ok_or_else(|| anyhow::anyhow!("mkcert no encontrado"))?;
+    let mut cmd = Command::new(mkcert_exe);
+    cmd.arg("-CAROOT");
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
+    let output = cmd.output()?;
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "mkcert -CAROOT devolvio exit code {}",
+            output.status.code().unwrap_or(-1)
+        ));
+    }
+
+    let caroot = String::from_utf8_lossy(&output.stdout).trim().to_string();
+    if caroot.is_empty() {
+        return Err(anyhow::anyhow!("mkcert -CAROOT devolvio una ruta vacia"));
+    }
+
+    let source = std::path::Path::new(&caroot).join("rootCA.pem");
+    if !source.is_file() {
+        return Err(anyhow::anyhow!(
+            "rootCA.pem no existe en {}",
+            source.display()
+        ));
+    }
+
+    let paths = path_config();
+    std::fs::create_dir_all(paths.ssl_dir())?;
+    std::fs::copy(&source, paths.mkcert_root_ca_file())?;
+    Ok(())
 }
 
 fn resolve_mkcert_exe() -> Option<std::path::PathBuf> {

@@ -4,6 +4,7 @@ wix-msi = "run -p xtask -- wix-msi"
 [build]
 # Target principal: Windows x64
 target = "x86_64-pc-windows-msvc"
+target-dir = "D:/OpsZone/DevWorkspace/Engines/Rust-Resource/cargo-targets/WSDD"
 
 [target.x86_64-pc-windows-msvc]
 # Linker por defecto para MSVC

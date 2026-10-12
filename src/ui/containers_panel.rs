@@ -32,38 +32,27 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     let containers: Vec<ContainerInfo> = app.containers.clone();
 
     enum PendingAction {
-        ContainerOp(&'static str, String),
         Toolbox(String),
     }
 
     let mut pending: Option<PendingAction> = None;
     let col_name = tr("col_name");
     let col_status = tr("col_status");
-    let col_start = tr("main_start");
-    let col_stop = tr("main_stop");
-    let col_restart = tr("main_restart");
     let col_toolbox = tr("col_toolbox");
-    let start_label = format!("{} {}", '\u{25B6}', tr("main_start"));
-    let stop_label = format!("{} {}", '\u{25A0}', tr("main_stop"));
-    let restart_label = format!("{} {}", '\u{21BA}', tr("main_restart"));
 
     egui::Grid::new("containers_grid")
-        .num_columns(6)
+        .num_columns(3)
         .striped(true)
         .min_col_width(110.0)
         .spacing([18.0, 10.0])
         .show(ui, |ui| {
             ui.strong(col_name);
             ui.strong(col_status);
-            ui.strong(col_start);
-            ui.strong(col_stop);
-            ui.strong(col_restart);
             ui.strong(col_toolbox.clone());
             ui.end_row();
 
             for container in &containers {
                 let running = container.is_running();
-                let container_busy = app.is_job_running(&container_job_key(&container.name));
 
                 ui.label(egui::RichText::new(&container.name).strong());
 
@@ -71,27 +60,6 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
                     ui.colored_label(egui::Color32::from_rgb(80, 200, 80), &container.status);
                 } else {
                     ui.colored_label(egui::Color32::from_rgb(200, 80, 80), &container.status);
-                }
-
-                let start_btn =
-                    ui.add_enabled(!running && !container_busy, egui::Button::new(&start_label));
-                if start_btn.clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp("start", container.name.clone()));
-                }
-
-                let stop_btn =
-                    ui.add_enabled(running && !container_busy, egui::Button::new(&stop_label));
-                if stop_btn.clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp("stop", container.name.clone()));
-                }
-
-                let restart_btn =
-                    ui.add_enabled(!container_busy, egui::Button::new(&restart_label));
-                if restart_btn.clicked() && pending.is_none() {
-                    pending = Some(PendingAction::ContainerOp(
-                        "restart",
-                        container.name.clone(),
-                    ));
                 }
 
                 if ui.button(&col_toolbox).clicked() && pending.is_none() {
@@ -103,9 +71,6 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
         });
 
     match pending {
-        Some(PendingAction::ContainerOp(action, name)) => {
-            spawn_container_op(ui.ctx(), app, action, name);
-        }
         Some(PendingAction::Toolbox(name)) => {
             app.ui.toolbox_container_name = Some(name);
             app.ui.active = ActiveView::ToolboxContainer;
@@ -114,7 +79,12 @@ pub fn render(ui: &mut egui::Ui, app: &mut WsddApp) {
     }
 }
 
-fn spawn_container_op(ctx: &egui::Context, app: &mut WsddApp, action: &'static str, name: String) {
+pub(crate) fn spawn_container_op(
+    ctx: &egui::Context,
+    app: &mut WsddApp,
+    action: &'static str,
+    name: String,
+) {
     let tx = app.main_log_tx.clone();
     let job_key = container_job_key(&name);
     let label = format!("Container {} {}", action, name);
@@ -143,6 +113,6 @@ fn spawn_container_op(ctx: &egui::Context, app: &mut WsddApp, action: &'static s
     });
 }
 
-fn container_job_key(name: &str) -> String {
+pub(crate) fn container_job_key(name: &str) -> String {
     format!("container:{name}")
 }

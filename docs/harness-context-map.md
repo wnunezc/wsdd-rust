@@ -28,6 +28,7 @@ Este archivo enruta la documentacion de `WSDD` para mantener el contexto calient
 - `REMEDIATION_PLAN.md` - cierre historico de `WP-01` a `WP-10`
 - `README.md` - overview tecnico y estructura de entorno
 - `docs/release/` - drafts/notas de release cuando la tarea toca RCs o versionado
+- `docs/maintenance/php80-php85-and-php-admin-wsdd-desktop-plan-2026-10-11.md` - plan de cambios WSDD Desktop para PHP 8.0, PHP 8.5 y futura integracion WSDD-PHP-Admin
 - `Knowledge/Obsidian-Vault/08-AI-Context/wsdd-rust-history.md` - historia resumida por fases
 - `Knowledge/Obsidian-Vault/08-AI-Context/wsdd-csharp.md` - referencia narrativa C#
 - `Finished/WSDD-CSharp/WebStack Deployer for Docker/` - referencia de codigo/flujo legacy cuando haga falta

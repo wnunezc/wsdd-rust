@@ -31,6 +31,7 @@ use crate::errors::InfraError;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{OutputSender, PsRunner, ScriptRunner};
 use crate::handlers::setting::AppSettings;
+use crate::handlers::{project, yml};
 use crate::models::project::PhpVersion;
 
 /// Result of Docker Desktop requirement evaluation.
@@ -142,7 +143,35 @@ pub fn sync_prerequisite_compose_sync(settings: &AppSettings) -> Result<(), Infr
 
     let rendered = templates::render_init_yml(&settings.prereq_credentials);
     std::fs::write(docker_dir.join("init.yml"), rendered)?;
+    std::fs::write(
+        docker_dir.join("proxy.conf"),
+        templates::render_proxy_conf(),
+    )?;
     Ok(())
+}
+
+/// Synchronizes WSDD-managed Docker resources into an existing local environment.
+///
+/// This intentionally updates only files owned by WSDD templates and performs
+/// line-based migrations for live `options.phpXX.yml` files. It does not
+/// re-extract the complete Docker structure, so local projects, volumes, SSL
+/// certificates, database files, and project-specific compose entries remain in
+/// place.
+///
+/// Important: project `options.phpXX.yml` files are WSDD-managed live state, not
+/// immutable templates. They must never be overwritten during startup
+/// reconciliation because Add/Remove Project mutates their virtual hosts,
+/// volume mounts, global volume declarations, and `extra_hosts` entries.
+pub fn sync_installed_docker_resources_sync(settings: &AppSettings) -> Result<(), InfraError> {
+    sync_prerequisite_compose_sync(settings)?;
+
+    let mut render_settings = settings.clone();
+    for php_version in PhpVersion::all() {
+        render_settings.ensure_legacy_webmin_credentials(php_version.clone());
+        sync_php_version_resources_sync(&render_settings, &php_version)?;
+    }
+
+    sync_registered_project_options_sync()
 }
 
 /// Writes optional service compose files without deploying them.
@@ -208,6 +237,22 @@ pub fn sync_saved_php_version_resources_sync(settings: &AppSettings) -> Result<(
             continue;
         }
         sync_php_version_resources_sync(settings, &credentials.php_version)?;
+    }
+
+    Ok(())
+}
+
+fn sync_registered_project_options_sync() -> Result<(), InfraError> {
+    for project in project::list_all()? {
+        let options_file = yml::options_path(
+            project.php_version.dir_name(),
+            project.php_version.compose_tag(),
+        );
+        yml::add_project_to_options_yml(
+            &options_file,
+            &project.domain,
+            project.php_version.compose_tag(),
+        )?;
     }
 
     Ok(())

@@ -66,7 +66,7 @@ RUN docker-php-ext-configure ldap --with-ldap=/usr --with-ldap-sasl
 
 # ====== PHP: compilar extensiones del core ======
 # Nota: NO usar docker-php-ext-enable para estas; ya quedan habilitadas.
-RUN docker-php-ext-install -j"$(nproc)" bz2 curl fileinfo gd gettext gmp intl ldap mbstring exif opcache pdo_mysql soap sockets sodium tidy xsl zip
+RUN docker-php-ext-install -j"$(nproc)" bz2 curl fileinfo gd gettext gmp intl ldap mbstring mysqli exif opcache pdo_mysql soap sockets sodium tidy xsl zip
 
 RUN docker-php-ext-install ftp
 
@@ -129,6 +129,7 @@ EXPOSE 10000
 
 # ====== CMD: arranca cron + webmin y deja Apache en foreground ======
 CMD sh -lc '\
+  update-ca-certificates >/dev/null 2>&1 || true; \
   if [ -f /etc/cron-task/new-task ]; then \
     cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && chmod 0644 /etc/cron.d/cron-task; \
   fi; \

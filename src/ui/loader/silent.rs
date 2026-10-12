@@ -129,17 +129,17 @@ fn paint_core(painter: &egui::Painter, rect: Rect, time: f64) {
     painter.circle_stroke(
         center,
         42.0 + (t * 1.3).sin() * 2.0,
-        Stroke::new(1.4, with_alpha(crimson, 78)),
+        Stroke::new(1.4_f32, with_alpha(crimson, 78)),
     );
     painter.circle_stroke(
         center,
         58.0 + (t * 1.1).cos() * 2.0,
-        Stroke::new(1.0, with_alpha(crimson, 44)),
+        Stroke::new(1.0_f32, with_alpha(crimson, 44)),
     );
     painter.circle_stroke(
         center,
         pulse + 30.0,
-        Stroke::new(1.0, with_alpha(crimson, 34)),
+        Stroke::new(1.0_f32, with_alpha(crimson, 34)),
     );
 }
 
@@ -165,7 +165,7 @@ fn paint_orbit_rings(painter: &egui::Painter, rect: Rect, time: f64) {
                     pos_from_polar(center, radius, a2),
                 ],
                 Stroke::new(
-                    1.2,
+                    1.2_f32,
                     with_alpha(base_color, 78_u8.saturating_sub(ring as u8 * 18)),
                 ),
             );
@@ -259,7 +259,7 @@ fn paint_energy_rays(painter: &egui::Painter, rect: Rect, time: f64) {
                 pos_from_polar(center, inner, angle),
                 pos_from_polar(center, outer, angle + 0.05),
             ],
-            Stroke::new(1.0, Color32::from_rgba_unmultiplied(255, 52, 36, alpha)),
+            Stroke::new(1.0_f32, Color32::from_rgba_unmultiplied(255, 52, 36, alpha)),
         );
     }
 }
@@ -347,7 +347,7 @@ fn paint_satellites(painter: &egui::Painter, rect: Rect, time: f64) {
             Color32::from_rgba_unmultiplied(160, 0, 12, 26),
         );
         painter.circle_filled(pos, radius, body);
-        painter.circle_stroke(pos, radius + 1.2, Stroke::new(1.0, rim));
+        painter.circle_stroke(pos, radius + 1.2, Stroke::new(1.0_f32, rim));
         painter.circle_filled(
             Pos2::new(pos.x - radius * 0.25, pos.y - radius * 0.3),
             radius * 0.32,

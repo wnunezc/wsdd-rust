@@ -110,9 +110,9 @@ pub fn run_requirements(
         return;
     }
 
-    if let Err(e) = docker_deploy::sync_prerequisite_compose_sync(&settings) {
+    if let Err(e) = docker_deploy::sync_installed_docker_resources_sync(&settings) {
         let _ = log_tx.send(LogLine::error(format!(
-            "Error al preparar init.yml con credenciales: {e}"
+            "Error al sincronizar recursos Docker administrados: {e}"
         )));
         let _ = outcome_tx.send(LoaderOutcome::BlockingError);
         return;

@@ -41,9 +41,10 @@ use crate::errors::InfraError;
 /// # Operaciones
 /// 1. Si `project_ref` ya está en el archivo → no hace nada (idempotente).
 /// 2. Agrega `project_ref` a la línea `VIRTUAL_HOST:` (separado por coma).
-/// 3. Agrega el volume mount `- php83-myapp.dock:/var/www/html/myapp.dock`
+/// 3. Agrega `project_ref:host-gateway` a `extra_hosts` para self-calls HTTPS.
+/// 4. Agrega el volume mount `- php83-myapp.dock:/var/www/html/myapp.dock`
 ///    al final de la sección `volumes:` del servicio.
-/// 4. Agrega la declaración global del volume con `external: true`.
+/// 5. Agrega la declaración global del volume con `external: true`.
 ///
 /// # Errors
 /// [`InfraError::Io`] si el archivo no se puede leer o escribir.
@@ -94,6 +95,8 @@ pub fn add_project_to_options_yml(
         lines[vh_idx] = format!("{indent}VIRTUAL_HOST: {}", hosts.join(","));
         changed = true;
     }
+
+    changed |= ensure_project_extra_host(&mut lines, project_ref)?;
 
     // ── 3. Volume mount en la sección volumes: del servicio ───────────────
     // Buscar `    volumes:` (sección del servicio, no la global al fondo)
@@ -199,8 +202,9 @@ pub fn ensure_client_max_body_size(path: &str) -> Result<(), InfraError> {
 /// # Operaciones (inversas a `add_project_to_options_yml`)
 /// 1. Si `project_ref` no está en el archivo → no hace nada (idempotente).
 /// 2. Elimina `project_ref` de la línea `VIRTUAL_HOST:`.
-/// 3. Elimina el volume mount del proyecto.
-/// 4. Elimina la declaración global del volume (entrada + `external: true`).
+/// 3. Elimina `project_ref:host-gateway` de `extra_hosts`.
+/// 4. Elimina el volume mount del proyecto.
+/// 5. Elimina la declaración global del volume (entrada + `external: true`).
 ///
 /// # Errors
 /// [`InfraError::Io`] si el archivo no se puede leer o escribir.
@@ -235,6 +239,8 @@ pub fn remove_project_from_options_yml(
             .collect();
         lines[idx] = format!("{indent}VIRTUAL_HOST: {}", updated.join(","));
     }
+
+    remove_project_extra_host(&mut lines, project_ref);
 
     // ── 3. Volume mount del proyecto ──────────────────────────────────────
     lines.retain(|l| l.trim() != mount_line);
@@ -279,6 +285,84 @@ fn write_lines(path: &str, lines: &[String]) -> Result<(), InfraError> {
     std::fs::write(path, content).map_err(InfraError::Io)
 }
 
+fn ensure_project_extra_host(
+    lines: &mut Vec<String>,
+    project_ref: &str,
+) -> Result<bool, InfraError> {
+    let host_entry = format!("\"{project_ref}:host-gateway\"");
+    if lines
+        .iter()
+        .any(|line| line.trim() == format!("- {host_entry}"))
+    {
+        return Ok(false);
+    }
+
+    let service_idx = lines
+        .iter()
+        .position(|line| line.starts_with("  ") && line.trim_end().ends_with(':'))
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                project_ref.to_string(),
+                "no se encontró el servicio webserver en options.yml".to_string(),
+            )
+        })?;
+
+    if let Some(extra_hosts_idx) = lines
+        .iter()
+        .enumerate()
+        .skip(service_idx + 1)
+        .take_while(|(_, line)| line.starts_with("    ") || line.trim().is_empty())
+        .find_map(|(idx, line)| {
+            (line.trim_start().starts_with("extra_hosts:") && line.starts_with("    "))
+                .then_some(idx)
+        })
+    {
+        let mut insert_at = extra_hosts_idx + 1;
+        while insert_at < lines.len() && lines[insert_at].trim_start().starts_with('-') {
+            insert_at += 1;
+        }
+        lines.insert(insert_at, format!("      - {host_entry}"));
+        return Ok(true);
+    }
+
+    let volumes_idx = lines
+        .iter()
+        .enumerate()
+        .skip(service_idx + 1)
+        .take_while(|(_, line)| line.starts_with("    ") || line.trim().is_empty())
+        .find_map(|(idx, line)| {
+            (line.trim_start().starts_with("volumes:") && line.starts_with("    ")).then_some(idx)
+        })
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                project_ref.to_string(),
+                "no se encontró la sección volumes: del servicio".to_string(),
+            )
+        })?;
+
+    lines.insert(volumes_idx, format!("      - {host_entry}"));
+    lines.insert(volumes_idx, "    extra_hosts:".to_string());
+    Ok(true)
+}
+
+fn remove_project_extra_host(lines: &mut Vec<String>, project_ref: &str) {
+    let host_entry = format!("- \"{project_ref}:host-gateway\"");
+    lines.retain(|line| line.trim() != host_entry);
+
+    let mut idx = 0;
+    while idx < lines.len() {
+        if lines[idx].trim_start().starts_with("extra_hosts:") && lines[idx].starts_with("    ") {
+            let next_has_entry =
+                idx + 1 < lines.len() && lines[idx + 1].trim_start().starts_with('-');
+            if !next_has_entry {
+                lines.remove(idx);
+                continue;
+            }
+        }
+        idx += 1;
+    }
+}
+
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
 #[cfg(test)]
@@ -314,6 +398,10 @@ services:
         assert!(
             content.contains("php83-myapp.dock:/var/www/html/myapp.dock"),
             "volume mount"
+        );
+        assert!(
+            content.contains("      - \"myapp.dock:host-gateway\""),
+            "extra_hosts debe permitir self-calls HTTPS al vhost local"
         );
         assert!(content.contains("volumes:"), "sección global volumes");
         assert!(content.contains("external: true"), "volume externo");
@@ -402,6 +490,14 @@ volumes:
         assert_eq!(
             content
                 .lines()
+                .filter(|line| line.trim() == "- \"myapp.dock:host-gateway\"")
+                .count(),
+            1,
+            "el extra_host del proyecto debe existir una sola vez"
+        );
+        assert_eq!(
+            content
+                .lines()
                 .filter(|line| line.trim() == "- php83-myapp.dock:/var/www/html/myapp.dock")
                 .count(),
             1,
@@ -473,5 +569,110 @@ volumes:
         assert!(!content.contains("php83-myapp.dock:/var/www/html/myapp.dock"));
         assert!(!content.contains("  php83-myapp.dock:"));
         assert!(!content.contains("    external: true"));
+    }
+
+    #[test]
+    fn add_project_preserves_existing_extra_hosts() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_extra_hosts.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock
+      VIRTUAL_PORT: 80
+    extra_hosts:
+      - \"existing.dock:host-gateway\"
+    volumes:
+      - ./dev:/var/www/html/dev
+",
+        )
+        .unwrap();
+
+        add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("      - \"existing.dock:host-gateway\""));
+        assert!(content.contains("      - \"myapp.dock:host-gateway\""));
+        assert_eq!(
+            content
+                .lines()
+                .filter(|line| line.trim() == "- \"myapp.dock:host-gateway\"")
+                .count(),
+            1
+        );
+    }
+
+    #[test]
+    fn add_project_preserves_existing_project_state() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_existing_project_state.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock,cron83.wsdd.dock,wm83.wsdd.dock,existing.dock
+      VIRTUAL_PORT: 80
+      CLIENT_MAX_BODY_SIZE: 16m
+    extra_hosts:
+      - \"existing.dock:host-gateway\"
+    volumes:
+      - ./dev:/var/www/html/dev
+      - php83-existing.dock:/var/www/html/existing.dock
+      - ./vhost:/etc/apache2/sites-enabled
+volumes:
+  php83-existing.dock:
+    external: true
+",
+        )
+        .unwrap();
+
+        add_project_to_options_yml(path.to_str().unwrap(), "newapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(
+            content.contains("existing.dock"),
+            "existing project domain must be preserved"
+        );
+        assert!(content.contains("      - \"existing.dock:host-gateway\""));
+        assert!(content.contains("      - php83-existing.dock:/var/www/html/existing.dock"));
+        assert!(content.contains("  php83-existing.dock:"));
+        assert!(content.contains("      - \"newapp.dock:host-gateway\""));
+        assert!(content.contains("      - php83-newapp.dock:/var/www/html/newapp.dock"));
+        assert!(content.contains("  php83-newapp.dock:"));
+    }
+
+    #[test]
+    fn remove_project_keeps_other_extra_hosts() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_remove_extra_hosts.yml");
+        std::fs::write(
+            &path,
+            "\
+services:
+  webserver83:
+    environment:
+      VIRTUAL_HOST: php83.wsdd.dock,myapp.dock,other.dock
+    extra_hosts:
+      - \"myapp.dock:host-gateway\"
+      - \"other.dock:host-gateway\"
+    volumes:
+      - php83-myapp.dock:/var/www/html/myapp.dock
+volumes:
+  php83-myapp.dock:
+    external: true
+",
+        )
+        .unwrap();
+
+        remove_project_from_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(!content.contains("\"myapp.dock:host-gateway\""));
+        assert!(content.contains("      - \"other.dock:host-gateway\""));
     }
 }

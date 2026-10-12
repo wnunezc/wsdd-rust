@@ -22,6 +22,7 @@ use crate::app::{NgrokPublicationEvent, WsddApp};
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::{launch, launch_url};
 use crate::i18n::tr;
+use crate::ui::projects_panel;
 use crate::ui::ActiveView;
 
 /// Renderiza el panel de herramientas del proyecto.
@@ -72,6 +73,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let fix_permissions = tr("toolbox_fix_permissions");
             let ngrok_copy = NgrokToolboxCopy::new();
             let close_label = tr("btn_close");
+            let deploy_label = tr("col_deploy");
+            let remove_label = tr("col_remove");
             let info_name = format!("{}:", tr("col_name"));
             let info_domain = format!("{}:", tr("col_domain"));
             let info_php = format!("{}:", tr("col_php"));
@@ -85,6 +88,28 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             // ── Acciones rápidas ──────────────────────────────────────────
             ui.strong(actions);
             ui.add_space(4.0);
+
+            let project_busy = app.is_job_running(&projects_panel::project_job_key(&project.name));
+
+            ui.horizontal(|ui| {
+                if ui
+                    .add_enabled(!project_busy, egui::Button::new(&deploy_label))
+                    .clicked()
+                {
+                    let _ = projects_panel::prepare_deploy(ctx, app, project.clone(), false);
+                }
+
+                if ui
+                    .add_enabled(!project_busy, egui::Button::new(&remove_label))
+                    .clicked()
+                {
+                    app.ui.confirm_remove_project = Some(project.name.clone());
+                    app.ui.toolbox_project_name = None;
+                    app.ui.active = ActiveView::Main;
+                }
+            });
+
+            ui.add_space(6.0);
 
             ui.horizontal(|ui| {
                 if ui

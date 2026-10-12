@@ -1,3 +1,4 @@
+use std::cmp::Reverse;
 use std::process::{Command, Stdio};
 use std::sync::OnceLock;
 
@@ -49,7 +50,7 @@ fn detect_pwsh_candidates() -> Vec<PwshProbe> {
         }
     }
 
-    probes.sort_by(|a, b| version_key(&b.version).cmp(&version_key(&a.version)));
+    probes.sort_by_key(|probe| Reverse(version_key(&probe.version)));
     probes
 }
 

@@ -15,13 +15,11 @@
 //! Herramientas del contenedor Docker.
 
 use crate::app::WsddApp;
-use crate::handlers::docker;
-use crate::handlers::log_types::LogLine;
 use crate::handlers::mkcert;
 use crate::handlers::ps_script::{launch_shell_window, launch_url};
 use crate::i18n::tr;
 use crate::models::project::PhpVersion;
-use crate::ui::ActiveView;
+use crate::ui::{containers_panel, ActiveView};
 
 pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
     let name = match app.ui.toolbox_container_name.clone() {
@@ -37,7 +35,7 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         .iter()
         .find(|entry| entry.name == name)
         .cloned();
-    let mut spawn_restart = false;
+    let mut pending_container_action: Option<&'static str> = None;
     let mut open = true;
 
     crate::ui::render_modal_backdrop(ctx, "toolbox_container_backdrop");
@@ -53,6 +51,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             let urls_title = tr("toolbox_urls");
             let status_title = tr("col_status");
             let close_label = tr("btn_close");
+            let start_label = tr("main_start");
+            let stop_label = tr("main_stop");
             let restart_label = tr("main_restart");
             let logs_label = tr("main_view_logs");
             let name_label = format!("{}:", tr("col_name"));
@@ -65,6 +65,49 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.strong(operations);
             ui.add_space(4.0);
 
+            if let Some(ref container_info) = container {
+                let running = container_info.is_running();
+                let container_busy =
+                    app.is_job_running(&containers_panel::container_job_key(&container_info.name));
+
+                ui.horizontal(|ui| {
+                    if ui
+                        .add_enabled(
+                            !running && !container_busy,
+                            egui::Button::new(format!("{} {start_label}", '\u{25B6}')),
+                        )
+                        .on_hover_text(&start_label)
+                        .clicked()
+                    {
+                        pending_container_action = Some("start");
+                    }
+
+                    if ui
+                        .add_enabled(
+                            running && !container_busy,
+                            egui::Button::new(format!("{} {stop_label}", '\u{25A0}')),
+                        )
+                        .on_hover_text(&stop_label)
+                        .clicked()
+                    {
+                        pending_container_action = Some("stop");
+                    }
+
+                    if ui
+                        .add_enabled(
+                            !container_busy,
+                            egui::Button::new(format!("{} {restart_label}", '\u{21BA}')),
+                        )
+                        .on_hover_text(&restart_label)
+                        .clicked()
+                    {
+                        pending_container_action = Some("restart");
+                    }
+                });
+
+                ui.add_space(6.0);
+            }
+
             ui.horizontal(|ui| {
                 if ui
                     .button(format!("{} {}", '\u{2B1B}', tr("toolbox_tty")))
@@ -72,14 +115,6 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     .clicked()
                 {
                     launch_shell_window(&format!("docker exec -it {name} sh"));
-                }
-
-                if ui
-                    .button(format!("{} {restart_label}", '\u{21BA}'))
-                    .on_hover_text(&restart_label)
-                    .clicked()
-                {
-                    spawn_restart = true;
                 }
 
                 if ui
@@ -165,30 +200,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             }
         });
 
-    if spawn_restart {
-        let tx = app.main_log_tx.clone();
-        let container_name = name.clone();
-        let job_key = format!("container:{container_name}");
-        let label = format!("Restart container {}", container_name);
-
-        let _ = app.spawn_async_job(ctx, job_key, label, async move {
-            let _ = tx.send(LogLine::info(format!(
-                "[Docker] Reiniciando {container_name}..."
-            )));
-            match docker::restart_container(&container_name, None).await {
-                Ok(()) => {
-                    let _ = tx.send(LogLine::success(format!(
-                        "[Docker] {container_name} reiniciado OK"
-                    )));
-                    Ok(())
-                }
-                Err(e) => {
-                    let message = format!("[Docker] Error al reiniciar {container_name}: {e}");
-                    let _ = tx.send(LogLine::error(message.clone()));
-                    Err(message)
-                }
-            }
-        });
+    if let Some(action) = pending_container_action {
+        containers_panel::spawn_container_op(ctx, app, action, name.clone());
     }
 
     if !open {
