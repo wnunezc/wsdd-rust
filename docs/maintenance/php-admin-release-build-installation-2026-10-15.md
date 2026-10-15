@@ -1,5 +1,10 @@
 # Instalacion de WSDD-PHP-Admin 1.0.0 durante build
 
+Actualizacion posterior: la sonda que este informe identifica como faltante ya
+esta implementada en fuente WSDD. Ver php-admin-direct-probe-infrastructure-2026-10-15.md
+para el alcance actual y sus verificaciones. El analisis original siguiente es
+historico; la validacion manual end-to-end sigue pendiente.
+
 ## Alcance y archivos
 
 Cambio de recursos para PHP 5.6, 7.2, 7.4, 8.1, 8.2, 8.3 y 8.4; no agrega versiones ni certifica compatibilidad del runtime.

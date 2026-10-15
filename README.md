@@ -57,6 +57,14 @@ For each activated version, the following development URLs are created:
 - `php{version}.wsdd.dock` — Main PHP environment
 - `cron{version}.wsdd.dock` — Cron jobs manager
 - `wm{version}.wsdd.dock` — Webmin (server administration)
+- `phpadmin{version}.wsdd.dock` — WSDD-PHP-Admin, proxied to internal port 8989
+
+PHP-Admin is installed from its verified official package during image build.
+A separate local-only Apache probe selects the same Dev/Release root as the
+existing startup command. PHP 8.3 keeps the Dev root `phpadmin.dock`; other
+versions use `phpadminXX.dock`. See the
+[probe integration report](docs/maintenance/php-admin-direct-probe-infrastructure-2026-10-15.md)
+for configuration and manual acceptance checks.
 
 Webmin is installed inside PHP containers from the official Webmin APT repository during image build, so WSDD no longer pins a package version in application settings.
 

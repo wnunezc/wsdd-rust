@@ -10,6 +10,7 @@ pub const DEFAULT_DOCKER_DESKTOP_EXE_X86: &str =
 pub const DEFAULT_PWSH_EXE: &str = r"C:\Program Files\PowerShell\7\pwsh.exe";
 pub const MIN_SUPPORTED_PWSH_VERSION: &str = "7.5.0";
 pub const DOCKER_HOST_VALUE: &str = "tcp://localhost:2375";
+pub const PHP_ADMIN_APACHE_PROBE_HOST: &str = "phpadmin-runtime.internal";
 pub const POWERSHELL_RELEASE_BASE_URL: &str =
     "https://github.com/PowerShell/PowerShell/releases/download";
 

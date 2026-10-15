@@ -3,6 +3,7 @@ services:
     environment:
       VIRTUAL_HOST: php56.wsdd.dock,cron56.wsdd.dock,wm56.wsdd.dock,phpadmin56.wsdd.dock
       VIRTUAL_PORT: 80
+      WSDD_PHP_ADMIN_APACHE_PROBE_HOST: phpadmin-runtime.internal
       CLIENT_MAX_BODY_SIZE: 16m
     volumes:
       - ./dev:/var/www/html/dev

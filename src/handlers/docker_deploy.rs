@@ -278,6 +278,36 @@ fn sync_php_admin_resources_sync(php_version: &PhpVersion) -> Result<(), InfraEr
         &php_version.php_admin_domain(),
     )?;
 
+    // The whole sites-enabled directory is a bind mount: provision its source,
+    // not a build-time file that the mount would hide. Preserve personal vhosts.
+    sync_php_admin_probe_file(
+        &path_config()
+            .php_dir(php_version.dir_name())
+            .join("vhost/wsdd-php-admin-probe.conf"),
+        php_version,
+    )?;
+
+    Ok(())
+}
+
+fn sync_php_admin_probe_file(
+    path: &std::path::Path,
+    version: &PhpVersion,
+) -> Result<(), InfraError> {
+    let rendered = templates::render_php_admin_probe_conf(version);
+    match std::fs::read_to_string(path) {
+        Ok(existing) if existing == rendered => return Ok(()),
+        Ok(existing) if !existing.starts_with("# Managed by WSDD.") => {
+            return Err(InfraError::PrerequisiteNotMet(format!(
+                "No se sobrescribira el vhost no administrado: {}",
+                path.display()
+            )));
+        }
+        Ok(_) => {}
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(error.into()),
+    }
+    std::fs::write(path, rendered)?;
     Ok(())
 }
 
@@ -302,4 +332,41 @@ pub fn fix_mysql_permissions_sync(
     runner
         .run_script_sync("dd-fixmysqlpermission.ps1", None, tx)
         .map(|_| ())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn managed_probe_file_is_created_updated_and_preserves_other_vhosts() {
+        let dir = tempfile::tempdir().unwrap();
+        let probe = dir.path().join("wsdd-php-admin-probe.conf");
+        let personal = dir.path().join("vhost.conf");
+        std::fs::write(&personal, "custom personal vhosts").unwrap();
+        sync_php_admin_probe_file(&probe, &PhpVersion::Php83).unwrap();
+        let first = std::fs::read_to_string(&probe).unwrap();
+        sync_php_admin_probe_file(&probe, &PhpVersion::Php83).unwrap();
+        assert_eq!(std::fs::read_to_string(&probe).unwrap(), first);
+        sync_php_admin_probe_file(&probe, &PhpVersion::Php84).unwrap();
+        assert!(std::fs::read_to_string(&probe)
+            .unwrap()
+            .contains("/var/www/html/phpadmin84.dock/public"));
+        assert_eq!(
+            std::fs::read_to_string(&personal).unwrap(),
+            "custom personal vhosts"
+        );
+    }
+
+    #[test]
+    fn unmanaged_probe_filename_collision_is_not_overwritten() {
+        let dir = tempfile::tempdir().unwrap();
+        let probe = dir.path().join("wsdd-php-admin-probe.conf");
+        std::fs::write(&probe, "user-owned configuration").unwrap();
+        assert!(sync_php_admin_probe_file(&probe, &PhpVersion::Php83).is_err());
+        assert_eq!(
+            std::fs::read_to_string(&probe).unwrap(),
+            "user-owned configuration"
+        );
+    }
 }

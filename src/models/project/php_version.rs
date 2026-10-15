@@ -130,6 +130,15 @@ impl PhpVersion {
         format!("phpadmin{}.wsdd.dock", self.host_suffix())
     }
 
+    /// Returns the development root checked by the existing container CMD.
+    pub fn php_admin_dev_root(&self) -> String {
+        if self == &Self::Php83 {
+            "/var/www/html/phpadmin.dock".into()
+        } else {
+            format!("/var/www/html/phpadmin{}.dock", self.host_suffix())
+        }
+    }
+
     /// Returns all WSDD-managed internal domains for this PHP version.
     pub fn internal_container_domains(&self) -> Vec<String> {
         let mut domains = self.base_container_domains().to_vec();

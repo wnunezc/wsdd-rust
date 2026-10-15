@@ -207,6 +207,7 @@ pub fn ensure_php_admin_options_yml(
     let mut lines = read_lines(path)?;
     let mut changed = false;
     changed |= ensure_virtual_host(&mut lines, path, php_admin_domain)?;
+    changed |= ensure_php_admin_probe_host(&mut lines, path)?;
     changed |= ensure_service_volume(
         &mut lines,
         &format!("- ../../state/php-admin/{php_compose_tag}:/var/lib/wsdd-php-admin"),
@@ -221,6 +222,36 @@ pub fn ensure_php_admin_options_yml(
     }
 
     Ok(())
+}
+
+fn ensure_php_admin_probe_host(lines: &mut Vec<String>, path: &str) -> Result<bool, InfraError> {
+    let port_index = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with("VIRTUAL_PORT:"))
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(path.into(), "Falta VIRTUAL_PORT en environment".into())
+        })?;
+    let indent: String = lines[port_index]
+        .chars()
+        .take_while(|c| c.is_whitespace())
+        .collect();
+    let key = "WSDD_PHP_ADMIN_APACHE_PROBE_HOST:";
+    let desired = format!(
+        "{indent}{key} {}",
+        crate::config::environment::PHP_ADMIN_APACHE_PROBE_HOST
+    );
+    if let Some(index) = lines
+        .iter()
+        .position(|line| line.trim_start().starts_with(key))
+    {
+        if lines[index] == desired {
+            return Ok(false);
+        }
+        lines[index] = desired;
+    } else {
+        lines.insert(port_index + 1, desired);
+    }
+    Ok(true)
 }
 
 /// Ensures the PHP-Admin Apache proxy block exists in the WSDD-managed section.
@@ -935,6 +966,43 @@ volumes:
         let after_second = std::fs::read_to_string(&path).unwrap();
 
         assert_eq!(after_first, after_second);
+    }
+
+    #[test]
+    fn php_admin_probe_environment_migration_keeps_project_data_and_is_idempotent() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("options.yml");
+        std::fs::write(&path, sample_yml()).unwrap();
+        let p = path.to_str().unwrap();
+        add_project_to_options_yml(p, "kept.dock", "php83").unwrap();
+        ensure_php_admin_options_yml(p, "phpadmin83.wsdd.dock", "php83").unwrap();
+        let first = std::fs::read_to_string(&path).unwrap();
+        ensure_php_admin_options_yml(p, "phpadmin83.wsdd.dock", "php83").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), first);
+        assert_eq!(
+            first.matches("WSDD_PHP_ADMIN_APACHE_PROBE_HOST:").count(),
+            1
+        );
+        let doc: serde_yaml::Value = serde_yaml::from_str(&first).unwrap();
+        assert!(
+            doc["services"]["webserver83"]["environment"]["VIRTUAL_HOST"]
+                .as_str()
+                .unwrap()
+                .contains("kept.dock")
+        );
+        assert!(doc["volumes"]["php83-kept.dock"]["external"]
+            .as_bool()
+            .unwrap());
+        assert!(first.contains("php83-kept.dock:/var/www/html/kept.dock"));
+        assert!(first.contains("../../state/php-admin/php83:/var/lib/wsdd-php-admin"));
+        // Replace a stale managed value, without duplicating the environment key.
+        std::fs::write(
+            &path,
+            first.replace("phpadmin-runtime.internal", "obsolete.internal"),
+        )
+        .unwrap();
+        ensure_php_admin_options_yml(p, "phpadmin83.wsdd.dock", "php83").unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), first);
     }
 
     #[test]

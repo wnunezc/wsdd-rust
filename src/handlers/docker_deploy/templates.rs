@@ -17,6 +17,39 @@
 use crate::handlers::setting::{AppSettings, PrereqCredentials, WebminCredentials};
 use crate::models::project::PhpVersion;
 
+/// Direct mod_php observation, separate from the public proxy on port 8989.
+pub(super) fn render_php_admin_probe_conf(version: &PhpVersion) -> String {
+    let host = crate::config::environment::PHP_ADMIN_APACHE_PROBE_HOST;
+    let dev_root = version.php_admin_dev_root();
+    format!(
+        r#"# Managed by WSDD. Keep the root selection aligned with the container CMD.
+<VirtualHost *:80>
+    ServerName {host}
+    DocumentRoot /opt/wsdd-php-admin/public
+    RewriteEngine On
+    RewriteRule !^/runtime-probe[.]php$ - [F]
+    RewriteCond {dev_root}/bin/wsdd-php-admin -x
+    RewriteRule ^/runtime-probe[.]php$ {dev_root}/public/runtime-probe.php [END]
+    RewriteCond /opt/wsdd-php-admin/bin/wsdd-php-admin -x
+    RewriteRule ^/runtime-probe[.]php$ /opt/wsdd-php-admin/public/runtime-probe.php [END]
+    RewriteRule ^ - [F]
+    <Directory /opt/wsdd-php-admin/public>
+        Options -Indexes
+        AllowOverride None
+        Require local
+    </Directory>
+    <Directory {dev_root}/public>
+        Options -Indexes
+        AllowOverride None
+        Require local
+    </Directory>
+    ErrorLog /var/log/wsdd-php-admin/phpadmin-runtime.internal_error.log
+    CustomLog /var/log/wsdd-php-admin/phpadmin-runtime.internal_access.log combined
+</VirtualHost>
+"#
+    )
+}
+
 const INIT_YML_TEMPLATE: &str = include_str!(concat!(
     env!("CARGO_MANIFEST_DIR"),
     "/recursos/recursos/Docker-Structure/init.yml"
@@ -271,6 +304,54 @@ fn restart_policy(auto_start: bool) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn probe_resources_match_renderer_and_existing_cmd_root_priority() {
+        let resources = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("recursos/recursos/Docker-Structure/bin");
+        for version in PhpVersion::all() {
+            let dir = resources.join(version.dir_name());
+            let rendered = render_php_admin_probe_conf(&version);
+            let bundled =
+                std::fs::read_to_string(dir.join("vhost/wsdd-php-admin-probe.conf")).unwrap();
+            assert_eq!(bundled.replace("\r\n", "\n"), rendered);
+            let dockerfile = std::fs::read_to_string(dir.join("Dockerfile")).unwrap();
+            let dev_cli = format!("{}/bin/wsdd-php-admin", version.php_admin_dev_root());
+            assert!(dockerfile.contains(&format!("if [ -x {dev_cli} ]; then")));
+            assert!(dockerfile.contains("elif [ -x /opt/wsdd-php-admin/bin/wsdd-php-admin ]; then"));
+            assert!(rendered.contains(&format!("RewriteCond {dev_cli} -x")));
+            assert!(
+                rendered.find(&format!("RewriteCond {dev_cli}")).unwrap()
+                    < rendered
+                        .find("RewriteCond /opt/wsdd-php-admin/bin")
+                        .unwrap()
+            );
+            assert!(rendered.contains("<VirtualHost *:80>"));
+            assert!(!rendered.contains("<VirtualHost 127.0.0.1"));
+            assert!(!rendered.contains("ProxyPass"));
+            assert!(!rendered.contains("[P]"));
+            assert_eq!(rendered.matches("Require local").count(), 2);
+            assert_eq!(rendered.matches("AllowOverride None").count(), 2);
+            assert!(rendered.contains("RewriteRule !^/runtime-probe[.]php$ - [F]"));
+            let options: serde_yaml::Value = serde_yaml::from_str(
+                &std::fs::read_to_string(
+                    dir.join(format!("options.{}.yml", version.compose_tag())),
+                )
+                .unwrap(),
+            )
+            .unwrap();
+            let service = format!("webserver{}", version.host_suffix());
+            let environment = &options["services"][service.as_str()]["environment"];
+            assert_eq!(
+                environment["WSDD_PHP_ADMIN_APACHE_PROBE_HOST"].as_str(),
+                Some(crate::config::environment::PHP_ADMIN_APACHE_PROBE_HOST)
+            );
+            assert!(!environment["VIRTUAL_HOST"]
+                .as_str()
+                .unwrap()
+                .contains("phpadmin-runtime.internal"));
+        }
+    }
 
     #[test]
     fn rendered_init_yml_replaces_all_placeholders() {

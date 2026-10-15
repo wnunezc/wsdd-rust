@@ -30,6 +30,7 @@ Este archivo enruta la documentacion de `WSDD` para mantener el contexto calient
 - `docs/release/` - drafts/notas de release cuando la tarea toca RCs o versionado
 - `docs/maintenance/php80-php85-and-php-admin-wsdd-desktop-plan-2026-10-11.md` - plan de cambios WSDD Desktop para PHP 8.0, PHP 8.5 y futura integracion WSDD-PHP-Admin
 - `docs/maintenance/php-admin-release-build-installation-2026-10-15.md` - instalacion verificada de PHP-Admin 1.0.0 mediante RUN, CMD preservado e impedimento de sonda HTTP Release
+- `docs/maintenance/php-admin-direct-probe-infrastructure-2026-10-15.md` - complemento implementado: Host y sonda Apache directa con seleccion Dev/Release, sin cambiar CMD ni entrypoint
 - `docs/maintenance/remove-empty-volumes-and-readonly-install-audit-2026-10-15.md` - fix Remove/rollback, contrato volumes y auditoria de instalacion sin escrituras
 - `docs/maintenance/base-container-recovery-compose-project-conflict-2026-10-15.md` - recuperacion base sin recrear servicios existentes con proyectos Compose mixtos
 - `Knowledge/Obsidian-Vault/08-AI-Context/wsdd-rust-history.md` - historia resumida por fases
