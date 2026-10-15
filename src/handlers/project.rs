@@ -55,7 +55,20 @@ pub fn save(project: &Project) -> Result<(), InfraError> {
 /// # Errors
 /// [`InfraError::Io`] si el directorio no existe y no se puede crear.
 pub fn list_all() -> Result<Vec<Project>, InfraError> {
+    list_projects(false)
+}
+
+/// Loads the inventory for destructive actions, refusing unreadable project records.
+pub fn list_all_strict() -> Result<Vec<Project>, InfraError> {
+    list_projects(true)
+}
+
+fn list_projects(strict: bool) -> Result<Vec<Project>, InfraError> {
     let dir = path_config().projects_dir();
+    list_projects_in(&dir, strict)
+}
+
+fn list_projects_in(dir: &Path, strict: bool) -> Result<Vec<Project>, InfraError> {
     if !dir.exists() {
         return Ok(Vec::new());
     }
@@ -63,7 +76,12 @@ pub fn list_all() -> Result<Vec<Project>, InfraError> {
     let entries = std::fs::read_dir(dir).map_err(InfraError::Io)?;
     let mut projects = Vec::new();
 
-    for entry in entries.flatten() {
+    for entry in entries {
+        let entry = match entry {
+            Ok(entry) => entry,
+            Err(error) if strict => return Err(InfraError::Io(error)),
+            Err(_) => continue,
+        };
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
             continue;
@@ -71,6 +89,9 @@ pub fn list_all() -> Result<Vec<Project>, InfraError> {
         match load_from_file(&path) {
             Ok(p) => projects.push(p),
             Err(e) => {
+                if strict {
+                    return Err(e);
+                }
                 tracing::warn!(file = %path.display(), error = %e, "no se pudo cargar proyecto")
             }
         }
@@ -167,5 +188,13 @@ mod tests {
     fn exists_returns_false_for_unknown() {
         // No puede depender de PROJECTS_DIR real — solo verificamos la lógica de path
         assert!(!exists("proyecto_que_no_existe_xyz_abc_123"));
+    }
+
+    #[test]
+    fn strict_inventory_rejects_corrupt_project_instead_of_omitting_it() {
+        let dir = tempfile::tempdir().unwrap();
+        std::fs::write(dir.path().join("broken.json"), "invalid json").unwrap();
+        assert!(list_projects_in(dir.path(), true).is_err());
+        assert!(list_projects_in(dir.path(), false).unwrap().is_empty());
     }
 }

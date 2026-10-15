@@ -23,6 +23,23 @@ impl WsddApp {
                 self.container_poll_active = false;
                 self.last_container_poll = Instant::now();
             }
+            if key == crate::ui::projects_panel::REMOVE_PROJECTS_JOB {
+                match crate::handlers::project::list_all() {
+                    Ok(projects) => {
+                        self.projects = projects;
+                        self.ui
+                            .selected_projects
+                            .retain(|name| self.projects.iter().any(|p| &p.name == name));
+                    }
+                    Err(error) => {
+                        let _ = self
+                            .main_log_tx
+                            .send(crate::handlers::log_types::LogLine::error(format!(
+                                "[Remove] No se pudo recargar proyectos: {error}"
+                            )));
+                    }
+                }
+            }
         }
 
         while let Ok(line) = self.main_log_rx.try_recv() {
@@ -37,13 +54,7 @@ impl WsddApp {
                     self.main_log.push(line);
                 }
             } else {
-                let is_dup = self
-                    .main_log
-                    .last()
-                    .is_some_and(|last| last.text == line.text);
-                if !is_dup {
-                    self.main_log.push(line);
-                }
+                self.main_log.push(line);
             }
         }
 

@@ -4,6 +4,9 @@ services:
     container_name: WSDD-Proxy-Server
     image: nginxproxy/nginx-proxy
     restart: always
+    mem_limit: 512m
+    memswap_limit: 768m
+    cpus: 0.50
     ports:
       - 80:80
       - 443:443
@@ -36,6 +39,9 @@ services:
       context: ./bin/mysql
       dockerfile: Dockerfile
     restart: always
+    mem_limit: 2g
+    memswap_limit: 3g
+    cpus: 2.00
     networks:
       - wsdd-network
     ports:
@@ -59,6 +65,9 @@ services:
     container_name: WSDD-phpMyAdmin-Server
     image: phpmyadmin/phpmyadmin
     restart: always
+    mem_limit: 768m
+    memswap_limit: 1g
+    cpus: 0.75
     expose:
       - 80
     depends_on:

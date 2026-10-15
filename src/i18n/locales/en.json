@@ -274,5 +274,16 @@
   "backup_dialog_save_title": "Save environment backup",
   "backup_dialog_restore_title": "Select environment backup",
   "project_backup_dialog_title": "Save project backup",
-  "project_restore_dialog_title": "Select project backup"
+  "project_restore_dialog_title": "Select project backup",
+  "toolbar_deploy_php": "Deploy PHP",
+  "deploy_php_exists": "This container already exists. Use its toolbox.",
+  "deploy_php_busy": "Another container or project operation is running.",
+  "projects_remove_selected": "Remove selected ({count})",
+  "projects_select_all": "Select all visible projects",
+  "projects_filter": "Filter",
+  "projects_clear_filter": "Clear filter",
+  "projects_no_matches": "No matching projects",
+  "projects_remove_confirm": "Remove these {count} projects?",
+  "projects_remove_container_confirm": "Remove this PHP container and its {count} associated projects?",
+  "projects_remove_storage": "Removes registrations, hosts, certificates and project volumes. Source folders are kept. Data stored only in Docker volumes is deleted."
 }

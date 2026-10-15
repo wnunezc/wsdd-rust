@@ -131,14 +131,8 @@ pub(super) fn create_volume(
     let args = strategy.volume_create_args();
     let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
     let bridge = make_log_bridge(tx);
-    let create =
-        runner.run_direct_sync(env_config().docker_exe(), &arg_refs, None, Some(&bridge))?;
-    if !create.success {
-        return Err(InfraError::UnexpectedOutput(
-            "docker volume create".to_string(),
-            create.text,
-        ));
-    }
+    let create = runner.run_direct_sync(env_config().docker_exe(), &arg_refs, None, Some(&bridge));
+    bridge.complete(create, "docker volume create")?;
 
     if strategy.requires_initial_sync {
         runtime_storage::sync_fast_workspace(&strategy, runner, tx)?;
@@ -203,6 +197,38 @@ pub(super) fn sync_php_container(
     tx: &LogSender,
     build_image: bool,
 ) -> Result<(), InfraError> {
+    sync_php_container_tracked(project, runner, tx, build_image, &mut false)
+}
+
+pub(super) fn sync_php_container_tracked(
+    project: &Project,
+    runner: &PsRunner,
+    tx: &LogSender,
+    build_image: bool,
+    runtime_changed: &mut bool,
+) -> Result<(), InfraError> {
+    sync_php_container_with(
+        project,
+        runner,
+        tx,
+        build_image,
+        runtime_changed,
+        |command, dir| {
+            let bridge = make_docker_progress_bridge(tx);
+            let compose = runner.run_ps_sync(command, Some(dir), Some(&bridge));
+            bridge.complete(compose, "docker-compose up").map(|_| ())
+        },
+    )
+}
+
+fn sync_php_container_with(
+    project: &Project,
+    runner: &impl ScriptRunner,
+    tx: &LogSender,
+    build_image: bool,
+    runtime_changed: &mut bool,
+    run_up: impl FnOnce(&str, &Path) -> Result<(), InfraError>,
+) -> Result<(), InfraError> {
     let container_name = paths::php_container_name(project);
     let php_dir_name = project.php_version.dir_name();
     let compose_tag = project.php_version.compose_tag();
@@ -212,44 +238,33 @@ pub(super) fn sync_php_container(
     let webserver_yml = paths::webserver_yml_path(php_dir_name, compose_tag);
     let options_yml = crate::handlers::yml::options_path(php_dir_name, compose_tag);
 
-    let _ = tx.send(LogLine::info(format!(
-        "[Runtime] Deteniendo {}...",
-        container_name
-    )));
-    let _ = runner.run_direct_sync(
-        env_config().docker_exe(),
-        &["stop", &container_name],
-        None,
-        None,
+    let prefix = format!(
+        "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\"",
+        env_config().docker_compose_exe()
     );
-    let _ = runner.run_direct_sync(
-        env_config().docker_exe(),
-        &["rm", &container_name],
-        None,
-        None,
-    );
+    let validation =
+        runner.run_ps_sync(&format!("{prefix} config --quiet"), Some(bin_dir), None)?;
+    if !validation.success {
+        return Err(InfraError::UnexpectedOutput(
+            "docker-compose config".into(),
+            validation.text,
+        ));
+    }
 
     let _ = tx.send(LogLine::info(if build_image {
         "[Runtime] Construyendo y creando contenedor PHP (puede tardar)..."
     } else {
         "[Runtime] Recreando contenedor PHP..."
     }));
-    let bridge = make_docker_progress_bridge(tx);
-    let compose = runner.run_ps_sync(
+    // Compose owns replacement; mark the attempt before it can change runtime state.
+    *runtime_changed = true;
+    run_up(
         &format!(
-            "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
-            env_config().docker_compose_exe(),
+            "{prefix} up -d {}--force-recreate",
             if build_image { "--build " } else { "" }
         ),
-        Some(bin_dir),
-        Some(&bridge),
+        bin_dir,
     )?;
-    if !compose.success {
-        return Err(InfraError::UnexpectedOutput(
-            "docker-compose up".to_string(),
-            compose.text,
-        ));
-    }
 
     let _ = tx.send(LogLine::success(format!(
         "[Runtime] {} sincronizado ✓",
@@ -301,12 +316,18 @@ pub(super) fn remove_volume(
         "[Remove] Eliminando volumen '{}'...",
         volume_name
     )));
-    runner.run_direct_sync(
+    let output = runner.run_direct_sync(
         env_config().docker_exe(),
         &["volume", "rm", &volume_name],
         None,
         None,
     )?;
+    if !output.success {
+        return Err(InfraError::UnexpectedOutput(
+            "docker volume rm".into(),
+            output.text,
+        ));
+    }
     let _ = tx.send(LogLine::success(format!(
         "[Remove] Volumen '{}' eliminado ✓",
         volume_name
@@ -316,8 +337,100 @@ pub(super) fn remove_volume(
 
 #[cfg(test)]
 mod tests {
-    use super::{should_recreate_existing_volume, volume_source_matches};
+    use super::{should_recreate_existing_volume, sync_php_container_with, volume_source_matches};
+    use crate::errors::InfraError;
+    use crate::handlers::ps_script::{OutputSender, ProcOutput, ScriptRunner};
     use crate::models::project::StorageMode;
+    use crate::models::project::{PhpVersion, Project};
+    use std::path::Path;
+
+    struct ValidateRunner(bool);
+
+    impl ScriptRunner for ValidateRunner {
+        fn run_script_sync(
+            &self,
+            _: &str,
+            _: Option<&Path>,
+            _: Option<&OutputSender>,
+        ) -> Result<ProcOutput, InfraError> {
+            panic!("No scripts expected")
+        }
+        fn run_ps_sync(
+            &self,
+            command: &str,
+            _: Option<&Path>,
+            tx: Option<&OutputSender>,
+        ) -> Result<ProcOutput, InfraError> {
+            assert!(command.ends_with(" config --quiet"));
+            assert!(tx.is_none());
+            Ok(ProcOutput {
+                text: "validation result".into(),
+                success: self.0,
+            })
+        }
+        fn run_direct_sync(
+            &self,
+            _: &str,
+            _: &[&str],
+            _: Option<&Path>,
+            _: Option<&OutputSender>,
+        ) -> Result<ProcOutput, InfraError> {
+            panic!("Must never stop/remove containers manually")
+        }
+    }
+
+    #[test]
+    fn compose_preflight_failure_never_changes_runtime_or_runs_up() {
+        let project = Project::new(
+            "test".into(),
+            "test.dock",
+            PhpVersion::Php83,
+            "C:/test".into(),
+        );
+        let (tx, _) = std::sync::mpsc::channel();
+        let mut changed = false;
+        assert!(sync_php_container_with(
+            &project,
+            &ValidateRunner(false),
+            &tx,
+            false,
+            &mut changed,
+            |_, _| panic!("Must not run up")
+        )
+        .is_err());
+        assert!(!changed);
+    }
+
+    #[test]
+    fn failed_recreate_is_tracked_before_error_for_rollback() {
+        let project = Project::new(
+            "test".into(),
+            "test.dock",
+            PhpVersion::Php83,
+            "C:/test".into(),
+        );
+        let (tx, _) = std::sync::mpsc::channel();
+        for build in [false, true] {
+            let mut changed = false;
+            let result = sync_php_container_with(
+                &project,
+                &ValidateRunner(true),
+                &tx,
+                build,
+                &mut changed,
+                |command, _| {
+                    assert!(command.ends_with("--force-recreate"));
+                    assert_eq!(command.contains("--build"), build);
+                    Err(InfraError::PrerequisiteNotMet("up failed".into()))
+                },
+            );
+            assert!(result.is_err());
+            assert!(
+                changed,
+                "Rollback must see even a failed runtime recreation attempt"
+            );
+        }
+    }
 
     #[test]
     fn volume_source_comparison_accepts_unc_case_differences() {

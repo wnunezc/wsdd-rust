@@ -110,6 +110,17 @@ folder, preserves the original Windows directory, stores project files under
 link. Runtime permissions can be repaired from the project toolbox.
 
 ### Managing Containers
+Use **Deploy PHP**, between **CMD Terminal** and **Add Project** in the toolbar,
+to select and deploy a PHP version without adding a project. If Webmin credentials
+are not stored for that version, enter them in the dialog. Existing containers
+are not replaced by this action; use their toolbox instead.
+
+Deployment builds the selected service before creating its container, preserves
+existing project registrations and volumes, and reports progress in the main log.
+Success requires a running container and an Apache HTTP response. A startup failure
+leaves the container available for diagnostics; it does not delete its data.
+This check does not certify PHP-Admin agent/reconciliation readiness.
+
 - Start / stop individual containers from the main panel
 - Open real-time logs with one click
 - Restart the complete stack from the menu

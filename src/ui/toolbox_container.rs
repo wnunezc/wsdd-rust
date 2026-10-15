@@ -67,8 +67,9 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
             if let Some(ref container_info) = container {
                 let running = container_info.is_running();
-                let container_busy =
-                    app.is_job_running(&containers_panel::container_job_key(&container_info.name));
+                let container_busy = app
+                    .is_job_running(&containers_panel::container_job_key(&container_info.name))
+                    || app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB);
 
                 ui.horizontal(|ui| {
                     if ui
@@ -106,6 +107,27 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 });
 
                 ui.add_space(6.0);
+                if let Some(version) = PhpVersion::from_container_name(&name) {
+                    if ui
+                        .add_enabled(
+                            !crate::ui::projects_panel::project_operations_busy(app),
+                            egui::Button::new(tr("col_remove")),
+                        )
+                        .clicked()
+                    {
+                        app.ui.confirm_remove_projects = Some(crate::ui::state::RemovalRequest {
+                            project_names: app
+                                .projects
+                                .iter()
+                                .filter(|p| p.php_version == version)
+                                .map(|p| p.name.clone())
+                                .collect(),
+                            php_container: Some(name.clone()),
+                        });
+                        app.ui.toolbox_container_name = None;
+                        app.ui.active = ActiveView::Main;
+                    }
+                }
             }
 
             ui.horizontal(|ui| {

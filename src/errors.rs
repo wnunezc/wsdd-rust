@@ -94,6 +94,10 @@ pub enum InfraError {
     #[error("Output inesperado del script '{0}': '{1}'")]
     UnexpectedOutput(String, String),
 
+    /// The process output was already streamed; never replay it as an error message.
+    #[error("El comando '{command}' fallo. {details}")]
+    StreamedProcessFailed { command: String, details: String },
+
     /// El ejecutable del proceso no existe en PATH o en la ruta indicada.
     #[error("Proceso no encontrado: {0}")]
     ProcessNotFound(String),

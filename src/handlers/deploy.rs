@@ -23,10 +23,47 @@ use crate::models::project::Project;
 
 mod docker_ops;
 mod paths;
+mod php_runtime;
+mod removal;
 mod rollback;
 mod runtime_storage;
 mod steps;
 mod vhost;
+
+static PROJECT_LIFECYCLE: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Deploys an absent PHP runtime without creating a project or project volume.
+pub fn deploy_php_version(
+    version: &crate::models::project::PhpVersion,
+    settings: &AppSettings,
+    runner: &PsRunner,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let _guard = PROJECT_LIFECYCLE.lock().map_err(|_| {
+        InfraError::PrerequisiteNotMet("Project lifecycle lock is unavailable".into())
+    })?;
+    php_runtime::deploy(version, runner, tx, || {
+        crate::handlers::docker_deploy::sync_php_version_resources_sync(settings, version)?;
+        crate::handlers::mkcert::sync_root_ca_to_docker_ssl()
+            .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))?;
+        crate::handlers::hosts::update_host(None, tx)
+            .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))
+    })
+}
+
+/// Removes confirmed projects, optionally including their shared PHP container.
+/// Stops at the first failure; previously completed removals remain committed.
+pub fn remove_projects(
+    names: &[String],
+    php_container: Option<&str>,
+    runner: &PsRunner,
+    tx: &LogSender,
+) -> Result<(), InfraError> {
+    let _guard = PROJECT_LIFECYCLE.lock().map_err(|_| {
+        InfraError::PrerequisiteNotMet("Project lifecycle lock is unavailable".into())
+    })?;
+    removal::remove_projects(names, php_container, runner, tx)
+}
 
 /// Deploys a complete WSDD project.
 ///
@@ -38,6 +75,9 @@ pub fn deploy_project(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    let _guard = PROJECT_LIFECYCLE.lock().map_err(|_| {
+        InfraError::PrerequisiteNotMet("Project lifecycle lock is unavailable".into())
+    })?;
     let _ = tx.send(LogLine::info(format!(
         "[Deploy] Iniciando despliegue de '{}'...",
         project.name
@@ -81,8 +121,7 @@ pub fn deploy_project(
         ));
 
         vhost::update(project, tx)?;
-        docker_ops::sync_php_container(project, runner, tx, true)?;
-        container_rebuilt = true;
+        docker_ops::sync_php_container_tracked(project, runner, tx, true, &mut container_rebuilt)?;
 
         if project.storage_mode == crate::models::project::StorageMode::ManagedNativeLinuxStorage {
             crate::handlers::managed_storage::fix_project_permissions(
@@ -133,11 +172,7 @@ pub fn deploy_project(
 ///
 /// # Errors
 /// Returns [`InfraError`] when any options, Docker, vhost, hosts, SSL, or project file step fails.
-pub fn remove_project(
-    project: &Project,
-    runner: &PsRunner,
-    tx: &LogSender,
-) -> Result<(), InfraError> {
+fn remove_project(project: &Project, runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
     let _ = tx.send(LogLine::info(format!(
         "[Remove] Eliminando proyecto '{}'...",
         project.name
@@ -163,8 +198,13 @@ pub fn remove_project(
         vhost::remove(project, tx)?;
 
         if container_existed_before {
-            docker_ops::sync_php_container(project, runner, tx, false)?;
-            container_rebuilt = true;
+            docker_ops::sync_php_container_tracked(
+                project,
+                runner,
+                tx,
+                false,
+                &mut container_rebuilt,
+            )?;
         } else {
             let _ = tx.send(LogLine::info(
                 "[Remove] El contenedor PHP no existe; se omite recreate",

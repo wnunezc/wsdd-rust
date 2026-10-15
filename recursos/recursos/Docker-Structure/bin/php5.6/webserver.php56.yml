@@ -9,10 +9,14 @@ services:
         WEBMIN_PASS: __WSDD_WEBMIN_PASS__
         XDEBUG_ENABLED: __WSDD_XDEBUG_ENABLED__
     restart: always
+    mem_limit: 1g
+    memswap_limit: 1536m
+    cpus: 1.00
     expose:
       - "80"   # Exposes Web Server (Apache)
       - "9000" # Exposes xDebug
       - "10000" # Exposes Webmin
+      - "8989" # Exposes WSDD-PHP-Admin
     networks:
       - wsdd-network
     extra_hosts:

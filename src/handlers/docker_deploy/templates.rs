@@ -339,6 +339,7 @@ mod tests {
         assert!(rendered.contains(
             "../../ssl/wsdd-mkcert-rootCA.crt:/usr/local/share/ca-certificates/wsdd-mkcert-rootCA.crt:ro"
         ));
+        assert!(rendered.contains("\"8989\" # Exposes WSDD-PHP-Admin"));
         assert!(!rendered.contains("__WSDD_"));
     }
 

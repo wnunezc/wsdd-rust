@@ -134,7 +134,7 @@ pub fn ensure_internal_endpoint_certs(tx: &LogSender) -> bool {
 pub fn internal_endpoint_domains() -> Vec<String> {
     let mut domains = vec!["pma.wsdd.dock".to_string()];
     for php_version in PhpVersion::all() {
-        domains.extend(php_version.base_container_domains());
+        domains.extend(php_version.internal_container_domains());
     }
     domains
 }
@@ -269,8 +269,12 @@ mod tests {
         assert!(domains.contains(&"php84.wsdd.dock".to_string()));
         assert!(domains.contains(&"cron84.wsdd.dock".to_string()));
         assert!(domains.contains(&"wm84.wsdd.dock".to_string()));
+        assert!(domains.contains(&"phpadmin83.wsdd.dock".to_string()));
+        assert!(domains.contains(&"phpadmin84.wsdd.dock".to_string()));
         assert!(!domains.contains(&"mysql.wsdd.dock".to_string()));
         assert!(is_internal_endpoint_domain("pma.wsdd.dock"));
+        assert!(is_internal_endpoint_domain("phpadmin83.wsdd.dock"));
+        assert!(is_internal_endpoint_domain("phpadmin84.wsdd.dock"));
         assert!(!is_internal_endpoint_domain("mysql.wsdd.dock"));
     }
 
@@ -278,6 +282,13 @@ mod tests {
     fn internal_endpoint_domains_cover_all_php_versions() {
         let domains = internal_endpoint_domains();
 
-        assert_eq!(domains.len(), 1 + PhpVersion::all().len() * 3);
+        let php_admin_domains = PhpVersion::all()
+            .into_iter()
+            .filter(PhpVersion::supports_php_admin)
+            .count();
+        assert_eq!(
+            domains.len(),
+            1 + PhpVersion::all().len() * 3 + php_admin_domains
+        );
     }
 }

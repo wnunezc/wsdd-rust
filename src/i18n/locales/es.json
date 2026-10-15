@@ -274,5 +274,16 @@
   "backup_dialog_save_title": "Guardar backup del entorno",
   "backup_dialog_restore_title": "Seleccionar backup del entorno",
   "project_backup_dialog_title": "Guardar backup del proyecto",
-  "project_restore_dialog_title": "Seleccionar backup del proyecto"
+  "project_restore_dialog_title": "Seleccionar backup del proyecto",
+  "toolbar_deploy_php": "Desplegar PHP",
+  "deploy_php_exists": "Este contenedor ya existe. Utiliza su toolbox.",
+  "deploy_php_busy": "Hay otra operacion de contenedor o proyecto en curso.",
+  "projects_remove_selected": "Remover seleccionados ({count})",
+  "projects_select_all": "Seleccionar todos los proyectos visibles",
+  "projects_filter": "Filtro",
+  "projects_clear_filter": "Limpiar filtro",
+  "projects_no_matches": "No hay proyectos coincidentes",
+  "projects_remove_confirm": "Remover estos {count} proyectos?",
+  "projects_remove_container_confirm": "Remover este contenedor PHP y sus {count} proyectos asociados?",
+  "projects_remove_storage": "Elimina registros, hosts, certificados y volumenes del proyecto. Conserva las carpetas fuente. Los datos guardados solo en volumenes Docker se eliminan."
 }

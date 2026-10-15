@@ -55,12 +55,13 @@ pub(super) fn ensure_network_sync(runner: &PsRunner, tx: &LogSender) -> Result<(
     }
     let _ = tx.send(LogLine::warn("Red wsdd-network no encontrada — creando..."));
     let bridge = make_log_bridge(tx);
-    runner.run_direct_sync(
+    let result = runner.run_direct_sync(
         env_config().docker_exe(),
         &["network", "create", "--driver", "bridge", WSDD_NETWORK],
         None,
         Some(&bridge),
-    )?;
+    );
+    bridge.complete(result, "docker network create wsdd-network")?;
     if check_network_sync(runner)? {
         let _ = tx.send(LogLine::success("✓ Red wsdd-network creada correctamente"));
         Ok(())
@@ -84,7 +85,7 @@ pub(super) fn create_pma_volume_sync(runner: &PsRunner, tx: &LogSender) -> Resul
     let device = path_to_string(path_config().pma_app_dir());
     let device_opt = format!("device={device}");
     let bridge = make_log_bridge(tx);
-    runner.run_direct_sync(
+    let result = runner.run_direct_sync(
         env_config().docker_exe(),
         &[
             "volume",
@@ -101,7 +102,8 @@ pub(super) fn create_pma_volume_sync(runner: &PsRunner, tx: &LogSender) -> Resul
         ],
         None,
         Some(&bridge),
-    )?;
+    );
+    bridge.complete(result, "docker volume create pma-code")?;
     if check_pma_volume_sync(runner)? {
         let _ = tx.send(LogLine::success("✓ Volumen pma-code creado correctamente"));
         Ok(())

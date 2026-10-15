@@ -85,6 +85,9 @@ pub(crate) fn spawn_container_op(
     action: &'static str,
     name: String,
 ) {
+    if app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB) {
+        return;
+    }
     let tx = app.main_log_tx.clone();
     let job_key = container_job_key(&name);
     let label = format!("Container {} {}", action, name);

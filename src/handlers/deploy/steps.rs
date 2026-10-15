@@ -62,8 +62,8 @@ pub(super) fn setup_ssl(
 }
 
 pub(super) fn update_hosts(project: &Project, tx: &LogSender) -> Result<(), InfraError> {
-    let base_domains = project.php_version.base_container_domains();
-    let mut domains: Vec<&str> = base_domains.iter().map(String::as_str).collect();
+    let internal_domains = project.php_version.internal_container_domains();
+    let mut domains: Vec<&str> = internal_domains.iter().map(String::as_str).collect();
     domains.push(project.domain.as_str());
 
     hosts::update_host(Some(&domains), tx)

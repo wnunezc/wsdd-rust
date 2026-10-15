@@ -274,5 +274,16 @@
   "backup_dialog_save_title": "Enregistrer la sauvegarde de l'environnement",
   "backup_dialog_restore_title": "Selectionner une sauvegarde d'environnement",
   "project_backup_dialog_title": "Enregistrer la sauvegarde du projet",
-  "project_restore_dialog_title": "Selectionner une sauvegarde de projet"
+  "project_restore_dialog_title": "Selectionner une sauvegarde de projet",
+  "projects_remove_selected": "Supprimer la selection ({count})",
+  "toolbar_deploy_php": "Deployer PHP",
+  "deploy_php_exists": "Ce conteneur existe deja. Utilisez sa toolbox.",
+  "deploy_php_busy": "Une operation de conteneur ou de projet est en cours.",
+  "projects_select_all": "Selectionner tous les projets visibles",
+  "projects_filter": "Filtre",
+  "projects_clear_filter": "Effacer le filtre",
+  "projects_no_matches": "Aucun projet correspondant",
+  "projects_remove_confirm": "Supprimer ces {count} projets ?",
+  "projects_remove_container_confirm": "Supprimer ce conteneur PHP et ses {count} projets associes ?",
+  "projects_remove_storage": "Supprime les enregistrements, hosts, certificats et volumes. Les dossiers source sont conserves. Les donnees stockees uniquement dans les volumes Docker sont supprimees."
 }

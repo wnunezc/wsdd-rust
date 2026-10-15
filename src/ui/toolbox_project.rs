@@ -89,7 +89,8 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
             ui.strong(actions);
             ui.add_space(4.0);
 
-            let project_busy = app.is_job_running(&projects_panel::project_job_key(&project.name));
+            let project_busy = app.is_job_running(&projects_panel::project_job_key(&project.name))
+                || app.is_job_running(projects_panel::REMOVE_PROJECTS_JOB);
 
             ui.horizontal(|ui| {
                 if ui
@@ -103,7 +104,10 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                     .add_enabled(!project_busy, egui::Button::new(&remove_label))
                     .clicked()
                 {
-                    app.ui.confirm_remove_project = Some(project.name.clone());
+                    app.ui.confirm_remove_projects = Some(crate::ui::state::RemovalRequest {
+                        project_names: vec![project.name.clone()],
+                        php_container: None,
+                    });
                     app.ui.toolbox_project_name = None;
                     app.ui.active = ActiveView::Main;
                 }

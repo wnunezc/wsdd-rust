@@ -274,5 +274,16 @@
   "backup_dialog_save_title": "保存环境备份",
   "backup_dialog_restore_title": "选择环境备份",
   "project_backup_dialog_title": "保存项目备份",
-  "project_restore_dialog_title": "选择项目备份"
+  "project_restore_dialog_title": "选择项目备份",
+  "projects_remove_selected": "删除所选项目 ({count})",
+  "toolbar_deploy_php": "部署 PHP",
+  "deploy_php_exists": "此容器已存在。请使用其工具箱。",
+  "deploy_php_busy": "另一个容器或项目操作正在进行。",
+  "projects_select_all": "选择所有可见项目",
+  "projects_filter": "筛选",
+  "projects_clear_filter": "清除筛选",
+  "projects_no_matches": "没有匹配的项目",
+  "projects_remove_confirm": "删除这 {count} 个项目？",
+  "projects_remove_container_confirm": "删除此 PHP 容器及其关联的 {count} 个项目？",
+  "projects_remove_storage": "将删除注册记录、hosts、证书和项目卷。保留源文件夹。仅存储在 Docker 卷中的数据将被删除。"
 }

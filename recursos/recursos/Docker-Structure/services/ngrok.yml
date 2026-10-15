@@ -3,6 +3,9 @@ services:
     container_name: WSDD-Ngrok-Server
     image: ngrok/ngrok:latest
     restart: __WSDD_NGROK_RESTART__
+    mem_limit: 256m
+    memswap_limit: 384m
+    cpus: 0.25
     command:
       - start
       - --none

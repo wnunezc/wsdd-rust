@@ -132,7 +132,11 @@ pub(super) fn deploy_service_sync(
         kind.display_name()
     )));
     let bridge = make_docker_progress_bridge(tx);
-    runner.run_ps_sync(&command, Some(&docker_dir), Some(&bridge))?;
+    let result = runner.run_ps_sync(&command, Some(&docker_dir), Some(&bridge));
+    bridge.complete(
+        result,
+        &format!("docker-compose up {}", kind.service_name()),
+    )?;
 
     if !wait_until_sync(READY_TIMEOUT, READY_POLL_INTERVAL, || {
         container_running_sync(runner, kind.container_name())
@@ -191,12 +195,13 @@ fn ensure_network_sync(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraErr
 
     let _ = tx.send(LogLine::info("Creando red Docker wsdd-network..."));
     let bridge = make_docker_progress_bridge(tx);
-    runner.run_direct_sync(
+    let result = runner.run_direct_sync(
         env_config().docker_exe(),
         &["network", "create", "--driver", "bridge", WSDD_NETWORK],
         None,
         Some(&bridge),
-    )?;
+    );
+    bridge.complete(result, "docker network create wsdd-network")?;
     Ok(())
 }
 

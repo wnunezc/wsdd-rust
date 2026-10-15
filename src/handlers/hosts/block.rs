@@ -1,19 +1,30 @@
 pub(super) const WSDD_MARKER_START: &str = "# WSDD Developer Area Docker";
 pub(super) const WSDD_MARKER_END: &str = "# WSDD End of Area";
 
+use crate::models::project::PhpVersion;
+
 const DEFAULT_DOMAINS: [&str; 2] = ["pma.wsdd.dock", "mysql.wsdd.dock"];
 
 pub(super) fn default_domains(extra_domains: Option<&[&str]>) -> Vec<String> {
     let mut domains: Vec<String> = DEFAULT_DOMAINS.iter().map(|s| s.to_string()).collect();
+    for php_version in PhpVersion::all() {
+        for domain in php_version.internal_container_domains() {
+            push_unique_domain(&mut domains, domain);
+        }
+    }
+
     if let Some(extra) = extra_domains {
         for domain in extra {
-            let domain = domain.to_string();
-            if !domains.contains(&domain) {
-                domains.push(domain);
-            }
+            push_unique_domain(&mut domains, domain.to_string());
         }
     }
     domains
+}
+
+fn push_unique_domain(domains: &mut Vec<String>, domain: String) {
+    if !domains.contains(&domain) {
+        domains.push(domain);
+    }
 }
 
 pub(super) fn upsert_wsdd_block(content: &str, domains: &mut Vec<String>) -> String {
@@ -190,5 +201,31 @@ mod tests {
         assert!(!updated.contains(WSDD_MARKER_START));
         assert!(!updated.contains(WSDD_MARKER_END));
         assert!(updated.contains("127.0.0.1 localhost"));
+    }
+
+    #[test]
+    fn default_domains_include_internal_php_admin_domain() {
+        let domains = default_domains(None);
+
+        assert!(domains.contains(&"pma.wsdd.dock".to_string()));
+        assert!(domains.contains(&"mysql.wsdd.dock".to_string()));
+        assert!(domains.contains(&"php83.wsdd.dock".to_string()));
+        assert!(domains.contains(&"cron83.wsdd.dock".to_string()));
+        assert!(domains.contains(&"wm83.wsdd.dock".to_string()));
+        assert!(domains.contains(&"phpadmin83.wsdd.dock".to_string()));
+    }
+
+    #[test]
+    fn default_domains_merge_extra_without_duplicates() {
+        let domains = default_domains(Some(&["php83.wsdd.dock", "project.dock"]));
+
+        assert_eq!(
+            domains
+                .iter()
+                .filter(|domain| domain.as_str() == "php83.wsdd.dock")
+                .count(),
+            1
+        );
+        assert!(domains.contains(&"project.dock".to_string()));
     }
 }

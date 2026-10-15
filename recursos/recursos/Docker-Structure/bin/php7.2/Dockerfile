@@ -19,7 +19,7 @@ RUN apt-get update &&  \
 RUN apt-get install -y --no-install-recommends --fix-missing \
     tzdata sed build-essential dialog \
 	nano apt-utils cron wget git \
-	curl zip openssl gettext-base libnss3-tools ca-certificates \
+	curl zip unzip openssl gettext-base libnss3-tools ca-certificates \
     gnupg perl net-tools iproute2 cups
 
 RUN set -eux; \
@@ -77,7 +77,12 @@ RUN mkdir -p /var/log/cron && \
 RUN mkdir -p /var/www/html/log && \
     chmod 755 /var/www/html/log
 
+# ====== WSDD-PHP-Admin runtime state ======
+RUN mkdir -p /var/lib/wsdd-php-admin/operations /var/log/wsdd-php-admin && \
+    chown -R www-data:www-data /var/lib/wsdd-php-admin /var/log/wsdd-php-admin
+
 EXPOSE 10000
+EXPOSE 8989
 
 RUN set -eux; \
     rm -f /etc/apt/sources.list.d/webmin.list /etc/apt/sources.list.d/jcameron.list /usr/share/keyrings/webmin.gpg; \
@@ -97,13 +102,61 @@ RUN sed -i 's/ssl=1/ssl=0/' /etc/webmin/miniserv.conf && \
     echo "php_ini=$PHP_INI_DIR" >> /etc/webmin/phpini/config && \
     echo "referers=wm72.wsdd.dock" >> /etc/webmin/config
 
-CMD update-ca-certificates >/dev/null 2>&1 || true && \
-    cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && \
-    chmod 0644 /etc/cron.d/cron-task && \
-    touch /var/log/cron/cron.log && \
-    cron && \
-    chmod +x /etc/cron-task/crontab-ui.sh && \
-    /etc/cron-task/crontab-ui.sh && \
-    service webmin restart && \
-    /usr/local/bin/apache2-foreground && \
-    tail -f /var/log/cron/cron.log
+# ====== WSDD-PHP-Admin 1.0.0: verified release code only ======
+RUN set -eu; \
+    for tool in curl sha256sum unzip mktemp find; do command -v "$tool" >/dev/null; done; \
+    staging="$(mktemp -d)"; \
+    trap 'rm -rf "$staging"' EXIT HUP INT TERM; \
+    curl --fail --silent --show-error --location --retry 3 \
+        --proto '=https' --proto-redir '=https' --tlsv1.2 \
+        --output "$staging/release.zip" \
+        'https://github.com/wnunezc/WSDD-PHP-Admin/releases/download/v1.0.0/WSDD-PHP-Admin-1.0.0.zip'; \
+    printf '%s  %s\n' \
+        'e1b0b153c6a1816a871aa9caab22bbf438673b9706a5292c555ca30dca353054' \
+        "$staging/release.zip" | sha256sum --check --strict -; \
+    unzip -q "$staging/release.zip" -d "$staging/extracted"; \
+    payload="$staging/extracted/WSDD-PHP-Admin-1.0.0"; \
+    for required in VERSION bin/wsdd-php-admin config/wsdd-php-admin.php \
+        config/extension-catalog.php config/php-compatibility.json \
+        public/index.php public/runtime-probe.php public/runtime-health.php \
+        src/Support/bootstrap.php src/Runtime/RuntimeStarter.php; do \
+        test -s "$payload/$required"; \
+    done; \
+    test "$(cat "$payload/VERSION")" = '1.0.0'; \
+    mkdir -p /opt; \
+    test ! -e /opt/wsdd-php-admin; \
+    mv "$payload" /opt/wsdd-php-admin; \
+    chown -R root:root /opt/wsdd-php-admin; \
+    find /opt/wsdd-php-admin -type d -exec chmod 0755 {} +; \
+    find /opt/wsdd-php-admin -type f -exec chmod 0644 {} +; \
+    chmod 0755 /opt/wsdd-php-admin/bin/wsdd-php-admin; \
+    test -x /opt/wsdd-php-admin/bin/wsdd-php-admin; \
+    rm -rf "$staging"; \
+    trap - EXIT HUP INT TERM
+
+CMD sh -lc '\
+  update-ca-certificates >/dev/null 2>&1 || true; \
+  if [ -f /etc/cron-task/new-task ]; then \
+    cat /etc/cron-task/new-task >> /etc/cron.d/cron-task && chmod 0644 /etc/cron.d/cron-task; \
+  fi; \
+  touch /var/log/cron/cron.log; \
+  mkdir -p /var/lib/wsdd-php-admin/operations /var/log/wsdd-php-admin; \
+  chown -R www-data:www-data /var/lib/wsdd-php-admin /var/log/wsdd-php-admin || true; \
+  cron; \
+  if [ -x /etc/cron-task/crontab-ui.sh ]; then \
+    /etc/cron-task/crontab-ui.sh || true; \
+  fi; \
+  service webmin restart; \
+  WSDD_PHP_ADMIN_ROOT=""; \
+  if [ -x /var/www/html/phpadmin72.dock/bin/wsdd-php-admin ]; then \
+    WSDD_PHP_ADMIN_ROOT="/var/www/html/phpadmin72.dock"; \
+  elif [ -x /opt/wsdd-php-admin/bin/wsdd-php-admin ]; then \
+    WSDD_PHP_ADMIN_ROOT="/opt/wsdd-php-admin"; \
+  fi; \
+  if [ -n "$WSDD_PHP_ADMIN_ROOT" ]; then \
+    php "$WSDD_PHP_ADMIN_ROOT/bin/wsdd-php-admin" runtime:start >> /var/log/wsdd-php-admin/agent.log 2>&1 & \
+  else \
+    echo "WSDD-PHP-Admin not available: no executable CLI found at /var/www/html/phpadmin72.dock/bin/wsdd-php-admin or /opt/wsdd-php-admin/bin/wsdd-php-admin" >> /var/log/wsdd-php-admin/agent.log; \
+  fi; \
+  exec /usr/local/bin/apache2-foreground \
+'

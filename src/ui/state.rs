@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::sync::mpsc;
 
 use crate::handlers::log_types::LogLine;
@@ -43,6 +44,13 @@ pub struct WebminCredentialsPromptState {
     pub error: Option<String>,
 }
 
+/// Targets shown in the removal confirmation dialog.
+#[derive(Clone)]
+pub struct RemovalRequest {
+    pub project_names: Vec<String>,
+    pub php_container: Option<String>,
+}
+
 /// Shared immediate-mode UI state.
 pub struct UiState {
     pub active: ActiveView,
@@ -51,9 +59,12 @@ pub struct UiState {
     pub welcome_error: Option<String>,
     pub prereq_prompt: Option<PrereqCredentialsPromptState>,
     pub webmin_prompt: Option<WebminCredentialsPromptState>,
+    pub deploy_php_prompt: Option<crate::ui::deploy_php::DeployPhpPrompt>,
     pub md_cache: egui_commonmark::CommonMarkCache,
     pub active_main_tab: MainTab,
-    pub confirm_remove_project: Option<String>,
+    pub confirm_remove_projects: Option<RemovalRequest>,
+    pub selected_projects: BTreeSet<String>,
+    pub project_table: crate::ui::projects_panel::view::ProjectTable,
     pub toolbox_project_name: Option<String>,
     pub toolbox_container_name: Option<String>,
     pub form_name: String,
@@ -83,9 +94,12 @@ impl UiState {
             welcome_error: None,
             prereq_prompt: None,
             webmin_prompt: None,
+            deploy_php_prompt: None,
             md_cache: egui_commonmark::CommonMarkCache::default(),
             active_main_tab: MainTab::default(),
-            confirm_remove_project: None,
+            confirm_remove_projects: None,
+            selected_projects: BTreeSet::new(),
+            project_table: Default::default(),
             toolbox_project_name: None,
             toolbox_container_name: None,
             form_name: String::new(),

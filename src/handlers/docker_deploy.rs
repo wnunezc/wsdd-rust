@@ -106,7 +106,8 @@ fn run_script_outcome(
     action: &str,
 ) -> DockerRequirementOutcome {
     let out_tx = make_log_bridge(tx);
-    match runner.run_script_sync(script, None, Some(&out_tx)) {
+    let result = runner.run_script_sync(script, None, Some(&out_tx));
+    match out_tx.complete(result, script) {
         Ok(o) if o.contains("Continue") => {
             let _ = tx.send(LogLine::success("✓ Docker Desktop listo para WSDD"));
             DockerRequirementOutcome::Ready
@@ -225,6 +226,9 @@ pub fn sync_php_version_resources_sync(
         php_dir.join(templates::webserver_file_name(php_version)),
         templates::render_webserver_yml(settings, php_version, credentials),
     )?;
+    if php_version.supports_php_admin() {
+        sync_php_admin_resources_sync(php_version)?;
+    }
     Ok(())
 }
 
@@ -243,6 +247,13 @@ pub fn sync_saved_php_version_resources_sync(settings: &AppSettings) -> Result<(
 }
 
 fn sync_registered_project_options_sync() -> Result<(), InfraError> {
+    for php_version in PhpVersion::all()
+        .into_iter()
+        .filter(PhpVersion::supports_php_admin)
+    {
+        sync_php_admin_options_sync(&php_version)?;
+    }
+
     for project in project::list_all()? {
         let options_file = yml::options_path(
             project.php_version.dir_name(),
@@ -256,6 +267,31 @@ fn sync_registered_project_options_sync() -> Result<(), InfraError> {
     }
 
     Ok(())
+}
+
+fn sync_php_admin_resources_sync(php_version: &PhpVersion) -> Result<(), InfraError> {
+    sync_php_admin_options_sync(php_version)?;
+
+    let vhost_file = path_config().active_vhost_conf(php_version.dir_name());
+    yml::ensure_php_admin_vhost_conf(
+        &crate::config::environment::path_to_string(vhost_file),
+        &php_version.php_admin_domain(),
+    )?;
+
+    Ok(())
+}
+
+fn sync_php_admin_options_sync(php_version: &PhpVersion) -> Result<(), InfraError> {
+    let paths = path_config();
+    std::fs::create_dir_all(paths.php_admin_state_dir(php_version.compose_tag()))?;
+    std::fs::create_dir_all(paths.php_admin_log_dir(php_version.compose_tag()))?;
+
+    let options_file = yml::options_path(php_version.dir_name(), php_version.compose_tag());
+    yml::ensure_php_admin_options_yml(
+        &options_file,
+        &php_version.php_admin_domain(),
+        php_version.compose_tag(),
+    )
 }
 
 /// Applies FullControl permissions to the MySQL data directory.

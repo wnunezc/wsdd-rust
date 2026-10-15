@@ -103,6 +103,20 @@ impl PathConfig {
         self.docker_structure_dir().join("bin").join(php_dir_name)
     }
 
+    pub fn php_admin_state_dir(&self, compose_tag: &str) -> PathBuf {
+        self.docker_structure_dir()
+            .join("state")
+            .join("php-admin")
+            .join(compose_tag)
+    }
+
+    pub fn php_admin_log_dir(&self, compose_tag: &str) -> PathBuf {
+        self.docker_structure_dir()
+            .join("log")
+            .join("php-admin")
+            .join(compose_tag)
+    }
+
     pub fn pma_app_dir(&self) -> PathBuf {
         self.docker_structure_dir()
             .join("bin")
@@ -368,6 +382,14 @@ mod tests {
         assert_eq!(
             paths.mkcert_root_ca_file(),
             PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\ssl\wsdd-mkcert-rootCA.crt")
+        );
+        assert_eq!(
+            paths.php_admin_state_dir("php83"),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\state\php-admin\php83")
+        );
+        assert_eq!(
+            paths.php_admin_log_dir("php83"),
+            PathBuf::from(r"C:\WSDD-Environment\Docker-Structure\log\php-admin\php83")
         );
     }
 

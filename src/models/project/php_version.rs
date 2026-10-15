@@ -120,6 +120,25 @@ impl PhpVersion {
         ]
     }
 
+    /// Returns whether this PHP version ships the WSDD-PHP-Admin integration.
+    pub fn supports_php_admin(&self) -> bool {
+        true
+    }
+
+    /// Returns the WSDD-PHP-Admin internal domain for this PHP version.
+    pub fn php_admin_domain(&self) -> String {
+        format!("phpadmin{}.wsdd.dock", self.host_suffix())
+    }
+
+    /// Returns all WSDD-managed internal domains for this PHP version.
+    pub fn internal_container_domains(&self) -> Vec<String> {
+        let mut domains = self.base_container_domains().to_vec();
+        if self.supports_php_admin() {
+            domains.push(self.php_admin_domain());
+        }
+        domains
+    }
+
     /// Infers a PHP version from a WSDD container name.
     pub fn from_container_name(name: &str) -> Option<Self> {
         Self::all().into_iter().find(|version| {
@@ -189,6 +208,22 @@ mod tests {
         assert_eq!(urls[0], "php83.wsdd.dock");
         assert_eq!(urls[1], "cron83.wsdd.dock");
         assert_eq!(urls[2], "wm83.wsdd.dock");
+    }
+
+    #[test]
+    fn php_admin_domain_is_version_scoped() {
+        assert_eq!(PhpVersion::Php83.php_admin_domain(), "phpadmin83.wsdd.dock");
+    }
+
+    #[test]
+    fn internal_container_domains_include_php_admin_for_supported_versions() {
+        let php83 = PhpVersion::Php83.internal_container_domains();
+        assert!(php83.contains(&"phpadmin83.wsdd.dock".to_string()));
+        assert_eq!(php83.len(), 4);
+
+        let php84 = PhpVersion::Php84.internal_container_domains();
+        assert!(php84.contains(&"phpadmin84.wsdd.dock".to_string()));
+        assert_eq!(php84.len(), 4);
     }
 
     #[test]

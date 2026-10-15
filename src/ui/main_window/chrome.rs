@@ -211,6 +211,16 @@ pub(super) fn render_toolbar(ctx: &egui::Context, app: &mut WsddApp) {
                         ui.add_space(4.0);
 
                         if ui
+                            .add_enabled(
+                                !crate::ui::projects_panel::project_operations_busy(app),
+                                egui::Button::new(tr("toolbar_deploy_php")).min_size(h),
+                            )
+                            .clicked()
+                        {
+                            app.ui.deploy_php_prompt = Some(Default::default());
+                        }
+
+                        if ui
                             .add(egui::Button::new(format!("＋ {add_project}")).min_size(h))
                             .on_hover_text(&add_project_hint)
                             .clicked()

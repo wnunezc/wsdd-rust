@@ -195,6 +195,75 @@ pub fn ensure_client_max_body_size(path: &str) -> Result<(), InfraError> {
     write_lines(path, &lines)
 }
 
+/// Ensures PHP-Admin's live options entries are present without touching
+/// project-specific state.
+pub fn ensure_php_admin_options_yml(
+    path: &str,
+    php_admin_domain: &str,
+    php_compose_tag: &str,
+) -> Result<(), InfraError> {
+    ensure_client_max_body_size(path)?;
+
+    let mut lines = read_lines(path)?;
+    let mut changed = false;
+    changed |= ensure_virtual_host(&mut lines, path, php_admin_domain)?;
+    changed |= ensure_service_volume(
+        &mut lines,
+        &format!("- ../../state/php-admin/{php_compose_tag}:/var/lib/wsdd-php-admin"),
+    )?;
+    changed |= ensure_service_volume(
+        &mut lines,
+        &format!("- ../../log/php-admin/{php_compose_tag}:/var/log/wsdd-php-admin"),
+    )?;
+
+    if changed {
+        write_lines(path, &lines)?;
+    }
+
+    Ok(())
+}
+
+/// Ensures the PHP-Admin Apache proxy block exists in the WSDD-managed section.
+pub fn ensure_php_admin_vhost_conf(path: &str, php_admin_domain: &str) -> Result<(), InfraError> {
+    let mut lines = read_lines(path)?;
+    if lines
+        .iter()
+        .any(|line| line.trim() == format!("ServerName {php_admin_domain}"))
+    {
+        return Ok(());
+    }
+
+    let insert_at = lines
+        .iter()
+        .rposition(|line| line.trim() == "### DO NOT TOUCH ###")
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                path.to_string(),
+                "no se encontró el marcador DO NOT TOUCH final".to_string(),
+            )
+        })?;
+
+    let block = [
+        "<VirtualHost *:80>".to_string(),
+        format!("    ServerName {php_admin_domain}"),
+        "    Protocols h2 h2c http/1.1".to_string(),
+        "    ProxyPass / http://127.0.0.1:8989/".to_string(),
+        "    ProxyPassReverse / http://127.0.0.1:8989/".to_string(),
+        "    ProxyPreserveHost On".to_string(),
+        "    <Proxy *>".to_string(),
+        "        Allow from all".to_string(),
+        "    </Proxy>".to_string(),
+        format!("    ErrorLog /var/log/wsdd-php-admin/{php_admin_domain}_error.log"),
+        format!("    CustomLog /var/log/wsdd-php-admin/{php_admin_domain}_access.log combined"),
+        "</VirtualHost>".to_string(),
+    ];
+
+    for (offset, line) in block.into_iter().enumerate() {
+        lines.insert(insert_at + offset, line);
+    }
+    write_lines(path, &lines)
+}
+
 // ─── Eliminar proyecto de options.yml ────────────────────────────────────────
 
 /// Elimina un proyecto del archivo `options.phpXX.yml` del contenedor PHP.
@@ -256,7 +325,33 @@ pub fn remove_project_from_options_yml(
         lines.remove(idx);
     }
 
+    remove_empty_global_volumes(&mut lines, path)?;
     write_lines(path, &lines)
+}
+
+fn remove_empty_global_volumes(lines: &mut Vec<String>, path: &str) -> Result<(), InfraError> {
+    let document: serde_yaml::Value = serde_yaml::from_str(&lines.join("\n"))
+        .map_err(|e| InfraError::UnexpectedOutput(path.into(), e.to_string()))?;
+    match document.get("volumes") {
+        Some(serde_yaml::Value::Null) => {}
+        None | Some(serde_yaml::Value::Mapping(_)) => return Ok(()),
+        Some(_) => {
+            return Err(InfraError::UnexpectedOutput(
+                path.into(),
+                "La seccion global volumes debe ser un mapping".into(),
+            ));
+        }
+    }
+    // Remove only the empty root key; service mounts and comments stay intact.
+    if let Some(index) = lines.iter().position(|line| {
+        !line.starts_with(char::is_whitespace)
+            && line
+                .split_once(':')
+                .is_some_and(|(key, _)| key == "volumes")
+    }) {
+        lines.remove(index);
+    }
+    Ok(())
 }
 
 // ─── Rutas de archivos ───────────────────────────────────────────────────────
@@ -283,6 +378,66 @@ fn read_lines(path: &str) -> Result<Vec<String>, InfraError> {
 fn write_lines(path: &str, lines: &[String]) -> Result<(), InfraError> {
     let content = lines.join("\n");
     std::fs::write(path, content).map_err(InfraError::Io)
+}
+
+fn ensure_virtual_host(lines: &mut [String], path: &str, host: &str) -> Result<bool, InfraError> {
+    let vh_idx = lines
+        .iter()
+        .position(|l| l.trim_start().starts_with("VIRTUAL_HOST:"))
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                path.to_string(),
+                "no se encontró la línea VIRTUAL_HOST:".to_string(),
+            )
+        })?;
+    let indent: String = lines[vh_idx]
+        .chars()
+        .take_while(|c| c.is_whitespace())
+        .collect();
+    let current_hosts = lines[vh_idx]
+        .split_once(':')
+        .map(|x| x.1)
+        .unwrap_or("")
+        .trim()
+        .to_string();
+    let mut hosts: Vec<String> = current_hosts
+        .split(',')
+        .map(str::trim)
+        .filter(|host| !host.is_empty())
+        .map(ToOwned::to_owned)
+        .collect();
+    if hosts.iter().any(|candidate| candidate == host) {
+        return Ok(false);
+    }
+
+    hosts.push(host.to_string());
+    lines[vh_idx] = format!("{indent}VIRTUAL_HOST: {}", hosts.join(","));
+    Ok(true)
+}
+
+fn ensure_service_volume(lines: &mut Vec<String>, mount_line: &str) -> Result<bool, InfraError> {
+    if lines.iter().any(|line| line.trim() == mount_line) {
+        return Ok(false);
+    }
+
+    let svc_vol_idx = lines
+        .iter()
+        .position(|l| {
+            let t = l.trim_start();
+            t.starts_with("volumes:") && l.starts_with("    ")
+        })
+        .ok_or_else(|| {
+            InfraError::UnexpectedOutput(
+                mount_line.to_string(),
+                "no se encontró la sección volumes: del servicio".to_string(),
+            )
+        })?;
+    let mut insert_at = svc_vol_idx + 1;
+    while insert_at < lines.len() && lines[insert_at].trim_start().starts_with('-') {
+        insert_at += 1;
+    }
+    lines.insert(insert_at, format!("      {mount_line}"));
+    Ok(true)
 }
 
 fn ensure_project_extra_host(
@@ -380,6 +535,79 @@ services:
       - ./dev:/var/www/html/dev
       - ./vhost:/etc/apache2/sites-enabled"
             .to_string()
+    }
+
+    #[test]
+    fn removing_last_project_keeps_valid_root_volumes_for_every_php_version() {
+        for version in crate::models::project::PhpVersion::all() {
+            let dir = tempfile::tempdir().unwrap();
+            let path = dir.path().join("options.yml");
+            let tag = version.compose_tag();
+            let original = format!(
+                "services:\n  webserver{}:\n    environment:\n      VIRTUAL_HOST: base.dock\n      VIRTUAL_PORT: 80\n    volumes:\n      - ./dev:/var/www/html/dev\n      - ../../state/php-admin/{tag}:/var/lib/wsdd-php-admin\nnetworks:\n  retained:\n    external: true\n",
+                version.host_suffix()
+            );
+            std::fs::write(&path, original).unwrap();
+            let p = path.to_str().unwrap();
+            for domain in ["first.dock", "second.dock"] {
+                add_project_to_options_yml(p, domain, tag).unwrap();
+            }
+            remove_project_from_options_yml(p, "first.dock", tag).unwrap();
+            let remaining: serde_yaml::Value =
+                serde_yaml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            assert!(remaining["volumes"].is_mapping());
+            assert_eq!(remaining["volumes"].as_mapping().unwrap().len(), 1);
+            remove_project_from_options_yml(p, "second.dock", tag).unwrap();
+            let after = std::fs::read_to_string(&path).unwrap();
+            let document: serde_yaml::Value = serde_yaml::from_str(&after).unwrap();
+            assert!(document.get("volumes").is_none());
+            assert!(document["networks"]["retained"].is_mapping());
+            assert!(after.contains(&format!(
+                "../../state/php-admin/{tag}:/var/lib/wsdd-php-admin"
+            )));
+            remove_project_from_options_yml(p, "second.dock", tag).unwrap();
+            assert_eq!(
+                std::fs::read_to_string(&path).unwrap().trim_end(),
+                after.trim_end()
+            );
+            add_project_to_options_yml(p, "third.dock", tag).unwrap();
+            let document: serde_yaml::Value =
+                serde_yaml::from_str(&std::fs::read_to_string(&path).unwrap()).unwrap();
+            assert_eq!(document["volumes"].as_mapping().unwrap().len(), 1);
+        }
+    }
+
+    #[test]
+    fn remove_repairs_preexisting_empty_global_volumes_without_touching_other_sections() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("options.yml");
+        std::fs::write(
+            &path,
+            format!(
+                "{}\n\nvolumes:\n# keep this comment\nnetworks:\n  retained: {{}}\n",
+                sample_yml()
+            ),
+        )
+        .unwrap();
+        remove_project_from_options_yml(path.to_str().unwrap(), "absent.dock", "php83").unwrap();
+        let after = std::fs::read_to_string(path).unwrap();
+        let doc: serde_yaml::Value = serde_yaml::from_str(&after).unwrap();
+        assert!(doc.get("volumes").is_none());
+        assert!(doc["networks"].is_mapping());
+        assert!(after.contains("# keep this comment"));
+    }
+
+    #[test]
+    fn invalid_global_volumes_are_rejected_without_writing() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("options.yml");
+        let original = format!("{}\nvolumes: [invalid]\n", sample_yml());
+        std::fs::write(&path, &original).unwrap();
+        assert!(
+            remove_project_from_options_yml(path.to_str().unwrap(), "absent.dock", "php83")
+                .is_err()
+        );
+        assert_eq!(std::fs::read_to_string(path).unwrap(), original);
     }
 
     #[test]
@@ -674,5 +902,84 @@ volumes:
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(!content.contains("\"myapp.dock:host-gateway\""));
         assert!(content.contains("      - \"other.dock:host-gateway\""));
+    }
+
+    #[test]
+    fn ensure_php_admin_options_adds_domain_and_persistent_mounts() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_php_admin.yml");
+        std::fs::write(&path, sample_yml()).unwrap();
+
+        ensure_php_admin_options_yml(path.to_str().unwrap(), "phpadmin83.wsdd.dock", "php83")
+            .unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains(
+            "VIRTUAL_HOST: php83.wsdd.dock,cron83.wsdd.dock,wm83.wsdd.dock,phpadmin83.wsdd.dock"
+        ));
+        assert!(content.contains("../../state/php-admin/php83:/var/lib/wsdd-php-admin"));
+        assert!(content.contains("../../log/php-admin/php83:/var/log/wsdd-php-admin"));
+    }
+
+    #[test]
+    fn ensure_php_admin_options_is_idempotent() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_php_admin_idem.yml");
+        std::fs::write(&path, sample_yml()).unwrap();
+
+        ensure_php_admin_options_yml(path.to_str().unwrap(), "phpadmin83.wsdd.dock", "php83")
+            .unwrap();
+        let after_first = std::fs::read_to_string(&path).unwrap();
+        ensure_php_admin_options_yml(path.to_str().unwrap(), "phpadmin83.wsdd.dock", "php83")
+            .unwrap();
+        let after_second = std::fs::read_to_string(&path).unwrap();
+
+        assert_eq!(after_first, after_second);
+    }
+
+    #[test]
+    fn remove_project_preserves_php_admin_virtual_host() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_options_remove_keeps_php_admin.yml");
+        std::fs::write(&path, sample_yml()).unwrap();
+
+        ensure_php_admin_options_yml(path.to_str().unwrap(), "phpadmin83.wsdd.dock", "php83")
+            .unwrap();
+        add_project_to_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+        remove_project_from_options_yml(path.to_str().unwrap(), "myapp.dock", "php83").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("phpadmin83.wsdd.dock"));
+        assert!(!content.contains("myapp.dock"));
+    }
+
+    #[test]
+    fn ensure_php_admin_vhost_adds_proxy_inside_managed_block() {
+        let dir = std::env::temp_dir();
+        let path = dir.join("test_vhost_php_admin.conf");
+        std::fs::write(
+            &path,
+            "\
+### DO NOT TOUCH ###
+<VirtualHost *:80>
+    ServerName wm83.wsdd.dock
+</VirtualHost>
+### DO NOT TOUCH ###
+### PERSONAL PROJECTS ###
+### PERSONAL PROJECTS ###
+",
+        )
+        .unwrap();
+
+        ensure_php_admin_vhost_conf(path.to_str().unwrap(), "phpadmin83.wsdd.dock").unwrap();
+
+        let content = std::fs::read_to_string(&path).unwrap();
+        assert!(content.contains("ServerName phpadmin83.wsdd.dock"));
+        assert!(content.contains("ProxyPass / http://127.0.0.1:8989/"));
+        assert!(content.contains("/var/log/wsdd-php-admin/phpadmin83.wsdd.dock_access.log"));
+        assert!(
+            content.find("ServerName phpadmin83.wsdd.dock").unwrap()
+                < content.find("### PERSONAL PROJECTS ###").unwrap()
+        );
     }
 }

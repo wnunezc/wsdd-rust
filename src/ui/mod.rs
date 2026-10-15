@@ -17,6 +17,7 @@
 pub mod about;
 pub mod add_project;
 pub mod containers_panel;
+pub(crate) mod deploy_php;
 pub mod helps;
 pub mod loader;
 pub mod main_window;
@@ -73,5 +74,6 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         }
     }
 
+    deploy_php::render(ctx, app);
     credential_dialogs::render(ctx, app);
 }
