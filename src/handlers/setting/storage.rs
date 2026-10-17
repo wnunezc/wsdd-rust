@@ -158,6 +158,7 @@ impl AppSettings {
             normalize_webmin_credentials(&mut settings.webmin_credentials);
         }
 
+        crate::handlers::diagnostics::register_settings(&settings);
         Ok(settings)
     }
 
@@ -166,6 +167,7 @@ impl AppSettings {
     /// # Errors
     /// Returns [`InfraError`] when serialization or filesystem writes fail.
     pub fn save(&self) -> Result<(), InfraError> {
+        crate::handlers::diagnostics::register_settings(self);
         let path = path_config().config_file();
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;

@@ -42,7 +42,10 @@ impl WsddApp {
         let event_tx = self.job_event_tx.clone();
         let ctx = ctx.clone();
         self.job_runtime.spawn(async move {
-            let error = future.await.err();
+            let error = future
+                .await
+                .err()
+                .map(|text| crate::handlers::diagnostics::redact(&text));
             let _ = event_tx.send(BackgroundJobEvent::Finished { key, error });
             ctx.request_repaint();
         });

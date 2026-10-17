@@ -117,6 +117,7 @@ impl LogLine {
 }
 
 fn normalize_text(level: LogLevel, text: String) -> String {
+    let text = crate::handlers::diagnostics::redact(&text);
     if text.trim().is_empty() {
         return text;
     }

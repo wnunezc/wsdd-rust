@@ -9,6 +9,7 @@ impl WsddApp {
 
         while let Ok(event) = self.job_event_rx.try_recv() {
             let BackgroundJobEvent::Finished { key, error } = event;
+            let error = error.map(|text| crate::handlers::diagnostics::redact(&text));
             if let Some(job) = self.jobs.get_mut(&key) {
                 job.status = if error.is_some() {
                     BackgroundJobStatus::Failed
@@ -42,7 +43,8 @@ impl WsddApp {
             }
         }
 
-        while let Ok(line) = self.main_log_rx.try_recv() {
+        while let Ok(mut line) = self.main_log_rx.try_recv() {
+            line.text = crate::handlers::diagnostics::redact(&line.text);
             if let Some(ref key) = line.key.clone() {
                 if let Some(existing) = self
                     .main_log

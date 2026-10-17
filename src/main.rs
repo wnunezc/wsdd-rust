@@ -20,6 +20,7 @@ fn main() -> Result<()> {
     // Inicializar tracing (reemplaza env_logger)
     // RUST_LOG=wsdd=debug activa logs de debug; por defecto solo warn+
     tracing_subscriber::fmt()
+        .with_writer(|| handlers::diagnostics::DiagnosticWriter::new(std::io::stderr()))
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
                 .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("wsdd=info,warn")),

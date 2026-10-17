@@ -27,6 +27,8 @@ Este archivo enruta la documentacion de `WSDD` para mantener el contexto calient
 - `MIGRATION.md` - mapa C# -> Rust
 - `REMEDIATION_PLAN.md` - cierre historico de `WP-01` a `WP-10`
 - `README.md` - overview tecnico y estructura de entorno
+- `docs/development-credentials.md` - contrato AS-IS, cambios manuales por escenario, relaciones del stack y limites de supresion en diagnosticos
+- `docs/maintenance/development-credentials-and-log-suppression-2026-10-17.md` - alcance implementado, pruebas y limites de la supresion posterior a 2.1.3
 - `docs/release/` - drafts/notas de release cuando la tarea toca RCs o versionado
 - `docs/release/2.1.3-validation.md` - publicacion estable, CI, assets y checksum verificados
 - `docs/maintenance/php80-php85-and-php-admin-wsdd-desktop-plan-2026-10-11.md` - plan de cambios WSDD Desktop para PHP 8.0, PHP 8.5 y futura integracion WSDD-PHP-Admin

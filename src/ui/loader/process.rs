@@ -47,7 +47,8 @@ pub(super) fn start_requirements(ctx: &egui::Context, app: &mut WsddApp) {
 /// Drains pending log lines, replacing keyed progress lines in place.
 pub(super) fn drain_log(app: &mut WsddApp) {
     if let Some(rx) = &app.requirement_rx {
-        while let Ok(line) = rx.try_recv() {
+        while let Ok(mut line) = rx.try_recv() {
+            line.text = crate::handlers::diagnostics::redact(&line.text);
             if let Some(key) = line.key.clone() {
                 if let Some(existing) = app
                     .ui

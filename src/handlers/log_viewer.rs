@@ -25,5 +25,7 @@ pub fn get_logs(container_name: &str, tail: usize) -> Result<String> {
     let output = Command::new(env_config().docker_exe())
         .args(["logs", "--tail", &tail.to_string(), container_name])
         .output()?;
-    Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    Ok(crate::handlers::diagnostics::redact(
+        &String::from_utf8_lossy(&output.stdout),
+    ))
 }

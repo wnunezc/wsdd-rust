@@ -17,6 +17,7 @@
 pub mod backup;
 pub mod chocolatey;
 pub mod deploy;
+pub mod diagnostics;
 pub mod docker;
 pub mod docker_deploy;
 pub mod external_app;

@@ -133,6 +133,7 @@ const NGROK_SERVICE_TEMPLATE: &str = include_str!(concat!(
 
 /// Renders the base `init.yml` with installation-specific credentials.
 pub(super) fn render_init_yml(credentials: &PrereqCredentials) -> String {
+    crate::handlers::diagnostics::register_credentials(credentials, &[], "");
     INIT_YML_TEMPLATE
         .replace(
             "__WSDD_MYSQL_ROOT_PASSWORD__",
@@ -163,6 +164,12 @@ pub(super) fn render_webserver_yml(
     php_version: &PhpVersion,
     credentials: &WebminCredentials,
 ) -> String {
+    crate::handlers::diagnostics::register_settings(settings);
+    crate::handlers::diagnostics::register_credentials(
+        &PrereqCredentials::default(),
+        std::slice::from_ref(credentials),
+        "",
+    );
     webserver_template(php_version)
         .replace(
             "__WSDD_WEBMIN_USER__",
@@ -243,6 +250,7 @@ pub(super) fn render_memcached_yml(settings: &AppSettings) -> String {
 
 /// Renders the optional ngrok compose file from saved settings and secrets.
 pub(super) fn render_ngrok_yml(settings: &AppSettings) -> String {
+    crate::handlers::diagnostics::register_settings(settings);
     NGROK_SERVICE_TEMPLATE
         .replace(
             "__WSDD_NGROK_RESTART__",

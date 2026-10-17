@@ -81,7 +81,7 @@ impl ScriptRunner for PsRunner {
         work_dir: Option<&Path>,
         tx: Option<&OutputSender>,
     ) -> Result<ProcOutput, InfraError> {
-        tracing::debug!(command = %command, "Running PowerShell command");
+        tracing::debug!(command = %crate::handlers::diagnostics::redact(command), "Running PowerShell command");
 
         let policy = "Set-ExecutionPolicy -Scope Process -ExecutionPolicy Unrestricted -Force";
         let ps_arg = format!("{policy} ; {command}");
@@ -95,7 +95,11 @@ impl ScriptRunner for PsRunner {
         work_dir: Option<&Path>,
         tx: Option<&OutputSender>,
     ) -> Result<ProcOutput, InfraError> {
-        tracing::debug!(program = program, ?args, "Running direct process");
+        let safe_args: Vec<_> = args
+            .iter()
+            .map(|arg| crate::handlers::diagnostics::redact(arg))
+            .collect();
+        tracing::debug!(program = program, args = ?safe_args, "Running direct process");
 
         let args_owned: Vec<String> = args.iter().map(|s| s.to_string()).collect();
         exec_direct(program, &args_owned, work_dir, tx)

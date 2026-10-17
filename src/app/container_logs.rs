@@ -26,7 +26,8 @@ impl WsddApp {
                 .insert(name, Instant::now() + WATCHER_RETRY_DELAY);
         }
 
-        while let Ok(line) = self.container_log_rx.try_recv() {
+        while let Ok(mut line) = self.container_log_rx.try_recv() {
+            line.text = crate::handlers::diagnostics::redact(&line.text);
             let is_dup = self.container_logs.last().is_some_and(|last| {
                 last.container_name == line.container_name && last.text == line.text
             });
@@ -205,7 +206,7 @@ fn flush_container_log_segment(
 
     let _ = tx.send(ContainerLogEntry {
         container_name: container_name.to_string(),
-        text: clean,
+        text: crate::handlers::diagnostics::redact(&clean),
     });
     ctx.request_repaint();
 }

@@ -57,7 +57,7 @@ pub(super) fn render(ctx: &egui::Context, app: &mut WsddApp) {
                         .show(ui, |ui| {
                             for line in &app.ui.requirement_log {
                                 ui.label(
-                                    RichText::new(&line.text)
+                                    RichText::new(crate::handlers::diagnostics::redact(&line.text))
                                         .color(level_color(&line.level, dark))
                                         .font(egui::FontId::monospace(TERMINAL_FONT_SIZE)),
                                 );
@@ -109,7 +109,7 @@ fn render_copy_button(ui: &mut egui::Ui, app: &mut WsddApp, copy_label: &str) {
             .map(|l| l.text.as_str())
             .collect::<Vec<_>>()
             .join("\n");
-        ui.output_mut(|o| o.copied_text = text);
+        ui.output_mut(|o| o.copied_text = crate::handlers::diagnostics::redact(&text));
     }
 }
 

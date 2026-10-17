@@ -155,6 +155,7 @@ impl WsddApp {
         let (container_log_done_tx, container_log_done_rx) = mpsc::channel::<String>();
         let (ngrok_publication_tx, ngrok_publication_rx) = mpsc::channel::<NgrokPublicationEvent>();
         let (job_event_tx, job_event_rx) = mpsc::channel::<BackgroundJobEvent>();
+        crate::handlers::diagnostics::register_settings(&settings);
 
         Self {
             first_run,

@@ -1,11 +1,22 @@
 $ErrorActionPreference = 'Stop'
+try {
+  . (Join-Path $PSScriptRoot 'wsdd-diagnostic-filter.ps1')
+  Initialize-WsddDiagnosticFilter -EnvironmentRoot 'C:\WSDD-Environment'
+} catch {
+  function Protect-WsddDiagnosticText { param([string]$Text) '[Diagnostic suppressed: credential filter unavailable]' }
+}
 
 $logDir  = "C:\WSDD-Environment\logs"
 $logFile = "$logDir\dd-setting.log"
 if (-not (Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir -Force | Out-Null }
 "$(Get-Date -Format 'HH:mm:ss') START dd-setting.ps1" | Set-Content $logFile
 
-function Log { param($msg) "$(Get-Date -Format 'HH:mm:ss') $msg" | Add-Content $logFile; Write-Output $msg }
+function Log {
+  param($msg)
+  $safe = Protect-WsddDiagnosticText -Text $msg
+  "$(Get-Date -Format 'HH:mm:ss') $safe" | Add-Content $logFile
+  Write-Output $safe
+}
 
 Log "STEP 1: Iniciado"
 

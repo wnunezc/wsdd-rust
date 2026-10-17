@@ -1,5 +1,20 @@
 # WebStack Deployer for Docker (WSDD)
 
+## Credenciales De Desarrollo
+
+WSDD es un stack de desarrollo local **AS-IS**, no una plataforma LAMP endurecida
+para produccion. Puede utilizar credenciales genericas; el fallback legacy de
+Webmin es `admin` / `admin`. Utiliza datos de prueba no sensibles y cambia las
+credenciales genericas/reutilizadas antes de trabajar con datos confidenciales,
+compartir acceso o exponer servicios. El desarrollador administra su entorno;
+cambiar contrasenas no garantiza por si solo la seguridad de los datos.
+
+La [guia por escenario y relaciones del stack](../development-credentials.md)
+explica MySQL, phpMyAdmin, Webmin por PHP, aplicaciones y ngrok. No se agrega
+rotacion automatica ni otra mecanica de autenticacion. La supresion de
+credenciales en diagnosticos corresponde al codigo fuente posterior a 2.1.3,
+no al MSI 2.1.3 ya publicado; no modifica logs antiguos ni los propios de Docker.
+
 Aplicacion de escritorio Windows que automatiza la configuracion de un entorno de desarrollo web
 local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin, gestion de hosts,
 Xdebug y servicios opcionales Redis/Memcached/Mailpit.

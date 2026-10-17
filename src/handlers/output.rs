@@ -25,6 +25,6 @@ pub fn new_buffer() -> TerminalBuffer {
 
 pub fn append(buffer: &TerminalBuffer, line: impl Into<String>) {
     if let Ok(mut buf) = buffer.lock() {
-        buf.push(line.into());
+        buf.push(crate::handlers::diagnostics::redact(&line.into()));
     }
 }

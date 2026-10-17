@@ -10,6 +10,12 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+try {
+  . (Join-Path $PSScriptRoot 'wsdd-diagnostic-filter.ps1')
+  Initialize-WsddDiagnosticFilter -EnvironmentRoot $EnvironmentRoot
+} catch {
+  function Protect-WsddDiagnosticText { param([string]$Text) '[Diagnostic suppressed: credential filter unavailable]' }
+}
 $script:LogPath = Join-Path $EnvironmentRoot 'logs\wsl-runtime-recovery.log'
 $script:StatePath = Join-Path $EnvironmentRoot 'state\wsl-runtime-recovery.json'
 $script:Mutex = $null
@@ -35,7 +41,8 @@ function Write-RecoveryLog {
     [string]$Level,
     [string]$Message
   )
-  $line = '{0} [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $Level, $Message
+  $safe = Protect-WsddDiagnosticText -Text $Message
+  $line = '{0} [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss.fff'), $Level, $safe
   Add-Content -LiteralPath $script:LogPath -Value $line -Encoding UTF8
 }
 

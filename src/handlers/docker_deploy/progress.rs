@@ -19,6 +19,7 @@ use std::ops::Deref;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 
+#[cfg(not(test))]
 use crate::config::environment::path_config;
 use crate::errors::InfraError;
 use crate::handlers::log_types::{LogLine, LogSender};
@@ -28,8 +29,9 @@ static NEXT_OPERATION: AtomicU64 = AtomicU64::new(1);
 
 pub struct LogBridge {
     sender: Option<OutputSender>,
-    worker: Option<std::thread::JoinHandle<()>>,
+    worker: Option<std::thread::JoinHandle<bool>>,
     log_path: Option<PathBuf>,
+    log_tx: LogSender,
 }
 
 impl Deref for LogBridge {
@@ -43,7 +45,16 @@ impl LogBridge {
     fn drain(&mut self) {
         self.sender.take();
         if let Some(worker) = self.worker.take() {
-            let _ = worker.join();
+            match worker.join() {
+                Ok(true) => {}
+                Ok(false) => self.log_path = None,
+                Err(_) => {
+                    self.log_path = None;
+                    let _ = self.log_tx.send(LogLine::warn(
+                        "Diagnostico incompleto: el worker de log no termino correctamente.",
+                    ));
+                }
+            }
         }
     }
 
@@ -60,7 +71,7 @@ impl LogBridge {
         }
         let details = match &self.log_path {
             Some(path) => format!("Salida ya mostrada. Log completo: {}", path.display()),
-            None => "Salida ya mostrada; no se pudo guardar el archivo de diagnostico.".into(),
+            None => "Salida ya mostrada; no se pudo guardar el diagnostico completo.".into(),
         };
         Err(InfraError::StreamedProcessFailed {
             command: command.into(),
@@ -82,13 +93,24 @@ pub fn make_log_bridge(tx: &LogSender) -> LogBridge {
 
 /// Returns the daily deploy log path.
 pub(super) fn deploy_log_path() -> std::path::PathBuf {
-    let log_dir = path_config().logs_dir();
-    let _ = std::fs::create_dir_all(log_dir);
-    let day = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .map(|d| d.as_secs() / 86400)
-        .unwrap_or(0);
-    path_config().deploy_log_file(day)
+    #[cfg(test)]
+    {
+        static TEST_LOGS: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+        TEST_LOGS
+            .get_or_init(|| tempfile::tempdir().expect("isolated test logs"))
+            .path()
+            .join("deploy.log")
+    }
+    #[cfg(not(test))]
+    {
+        let log_dir = path_config().logs_dir();
+        let _ = std::fs::create_dir_all(log_dir);
+        let day = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs() / 86400)
+            .unwrap_or(0);
+        path_config().deploy_log_file(day)
+    }
 }
 
 /// Creates an output bridge that compacts Docker layer progress in the UI.
@@ -115,21 +137,22 @@ fn create_bridge(tx: &LogSender, path: PathBuf, compact: bool) -> LogBridge {
         }
     };
     let log_path = file.as_ref().map(|_| path);
-    if let Some(file) = &mut file {
-        let _ = writeln!(file, "\n=== process operation {scope} ===");
-    }
+    write_log_line(
+        &mut file,
+        tx,
+        &format!("\n=== process operation {scope} ==="),
+    );
 
     let worker = std::thread::spawn(move || {
         while let Ok(line) = out_rx.recv() {
-            for segment in line.split(['\r', '\n']) {
+            let safe = crate::handlers::diagnostics::redact(&line);
+            for segment in safe.split(['\r', '\n']) {
                 let trimmed = segment.trim_end();
                 if trimmed.is_empty() {
                     continue;
                 }
 
-                if let Some(file) = &mut file {
-                    let _ = writeln!(file, "{trimmed}");
-                }
+                write_log_line(&mut file, &log_tx, trimmed);
                 if let Some((hash, rest)) =
                     compact.then(|| parse_docker_layer_line(trimmed)).flatten()
                 {
@@ -150,12 +173,25 @@ fn create_bridge(tx: &LogSender, path: PathBuf, compact: bool) -> LogBridge {
                 }
             }
         }
+        file.is_some()
     });
 
     LogBridge {
         sender: Some(out_tx),
         worker: Some(worker),
         log_path,
+        log_tx: tx.clone(),
+    }
+}
+
+fn write_log_line(file: &mut Option<std::fs::File>, tx: &LogSender, line: &str) {
+    if let Some(writer) = file {
+        if writeln!(writer, "{}", crate::handlers::diagnostics::redact(line)).is_err() {
+            *file = None;
+            let _ = tx.send(LogLine::warn(
+                "Diagnostico incompleto: fallo la escritura del archivo de log; la salida de pantalla sigue redactada.",
+            ));
+        }
     }
 }
 
@@ -171,7 +207,17 @@ pub(super) fn write_deploy_log_header(label: &str) {
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
-        let _ = writeln!(f, "\n=== {label} [t={secs}] ===");
+        if writeln!(
+            f,
+            "\n=== {} [t={secs}] ===",
+            crate::handlers::diagnostics::redact(label)
+        )
+        .is_err()
+        {
+            tracing::warn!("No se pudo escribir la cabecera del diagnostico");
+        }
+    } else {
+        tracing::warn!("No se pudo abrir el archivo de diagnostico para su cabecera");
     }
 }
 
@@ -219,6 +265,86 @@ fn is_buildkit_step(value: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_and_channel_receive_only_redacted_diagnostics() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("safe.log");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let bridge = create_bridge(&tx, path.clone(), true);
+        bridge
+            .send("#6 RUN PASSWORD='fixture-bridge-secret' && USERNAME=fixture-bridge-user".into())
+            .unwrap();
+        bridge
+            .send(
+                "MYSQL_ROOT_PASSWORD=fixture-root-secret NGROK_AUTHTOKEN=fixture-ngrok-secret"
+                    .into(),
+            )
+            .unwrap();
+        bridge
+            .complete(
+                Ok(ProcOutput {
+                    text: "private internal parsing".into(),
+                    success: true,
+                }),
+                "build",
+            )
+            .unwrap();
+        let file = std::fs::read_to_string(path).unwrap();
+        let screen = rx
+            .try_iter()
+            .map(|line| line.text)
+            .collect::<Vec<_>>()
+            .join("\n");
+        assert!(!file.contains("fixture-"));
+        assert!(!screen.contains("fixture-"));
+        assert_eq!(file.matches("[REDACTED]").count(), 4);
+        assert_eq!(screen.matches("[REDACTED]").count(), 4);
+    }
+
+    #[test]
+    fn write_failure_warns_once_and_never_falls_back_to_raw_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("readonly-handle.log");
+        std::fs::write(&path, "").unwrap();
+        let mut file = Some(std::fs::File::open(&path).unwrap());
+        let (tx, rx) = std::sync::mpsc::channel();
+        write_log_line(&mut file, &tx, "PASSWORD=fixture-write-secret");
+        write_log_line(&mut file, &tx, "PASSWORD=fixture-write-secret");
+        assert!(file.is_none());
+        let warnings: Vec<_> = rx.try_iter().collect();
+        assert_eq!(warnings.len(), 1);
+        assert!(!warnings[0].text.contains("fixture-write-secret"));
+        assert!(std::fs::read_to_string(path).unwrap().is_empty());
+    }
+
+    #[test]
+    fn missing_log_file_does_not_change_process_success_or_claim_complete_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let (tx, _rx) = std::sync::mpsc::channel();
+        let bridge = create_bridge(&tx, dir.path().to_path_buf(), true);
+        assert!(bridge
+            .complete(
+                Ok(ProcOutput {
+                    text: String::new(),
+                    success: true
+                }),
+                "build"
+            )
+            .is_ok());
+        let bridge = create_bridge(&tx, dir.path().to_path_buf(), true);
+        let error = bridge
+            .complete(
+                Ok(ProcOutput {
+                    text: String::new(),
+                    success: false,
+                }),
+                "build",
+            )
+            .unwrap_err();
+        assert!(error.to_string().contains("diagnostico completo"));
+        assert!(!error.to_string().contains("Log completo:"));
+    }
 
     #[test]
     fn parses_docker_layer_line_after_progress_control_chars() {

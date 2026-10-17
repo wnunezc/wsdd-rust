@@ -37,6 +37,7 @@ zip = "2"
 # Observabilidad — reemplaza env_logger
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
+regex = "1"
 
 # Filesystem
 walkdir = "2"

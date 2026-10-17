@@ -177,7 +177,7 @@ fn flush_stream_segment(pending: &mut Vec<u8>, tx: &OutputSender, text: &mut Str
         return;
     }
 
-    let _ = tx.send(clean.clone());
+    let _ = tx.send(crate::handlers::diagnostics::redact(&clean));
     text.push_str(&clean);
     text.push('\n');
 }
@@ -218,6 +218,27 @@ fn merge_streams(stdout: String, stderr: String) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streamed_diagnostics_are_redacted_without_changing_captured_machine_output() {
+        let input = format!(
+            "{} PASSWORD=fixture-process-secret\rNGROK_AUTHTOKEN=fixture-process-token",
+            "x".repeat(4090)
+        );
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut reader = std::io::Cursor::new(input.as_bytes());
+        let captured = read_stream_to_sender(&mut reader, &tx);
+        assert!(captured.contains("fixture-process-secret"));
+        assert!(captured.contains("fixture-process-token"));
+        let diagnostic = rx.try_iter().collect::<Vec<_>>().join("\n");
+        assert!(!diagnostic.contains("fixture-process-"));
+        assert_eq!(diagnostic.matches("[REDACTED]").count(), 2);
+        let output = ProcOutput {
+            text: captured,
+            success: true,
+        };
+        assert!(!format!("{output:?}").contains("fixture-process-"));
+    }
 
     #[test]
     fn strip_ansi_removes_color_codes() {

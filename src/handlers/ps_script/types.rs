@@ -4,12 +4,21 @@ use crate::errors::InfraError;
 use crate::handlers::log_types::OutputSender;
 
 /// Complete captured output from an external process.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct ProcOutput {
     /// Combined stdout and stderr text with ANSI escapes removed.
     pub text: String,
     /// True when the process exits with code 0.
     pub success: bool,
+}
+
+impl std::fmt::Debug for ProcOutput {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcOutput")
+            .field("text", &crate::handlers::diagnostics::redact(&self.text))
+            .field("success", &self.success)
+            .finish()
+    }
 }
 
 impl ProcOutput {

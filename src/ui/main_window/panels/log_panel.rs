@@ -62,12 +62,16 @@ fn render_main_log(ui: &mut egui::Ui, app: &mut WsddApp) {
                 .map(|l| l.text.as_str())
                 .collect::<Vec<_>>()
                 .join("\n");
-            ui.output_mut(|o| o.copied_text = text);
+            ui.output_mut(|o| o.copied_text = crate::handlers::diagnostics::redact(&text));
         }
     });
     render_log_frame(ui, "main_log_scroll", |ui, dark| {
         for line in &app.main_log {
-            render_log_line(ui, &line.text, log_color(&line.level, dark));
+            render_log_line(
+                ui,
+                &crate::handlers::diagnostics::redact(&line.text),
+                log_color(&line.level, dark),
+            );
         }
     });
 }
@@ -82,7 +86,7 @@ fn render_container_log(ui: &mut egui::Ui, app: &mut WsddApp) {
         ui.add_space(4.0);
         if ui.small_button(tr("btn_copy")).clicked() {
             let text = container_log_text(&app.container_logs);
-            ui.output_mut(|o| o.copied_text = text);
+            ui.output_mut(|o| o.copied_text = crate::handlers::diagnostics::redact(&text));
         }
     });
     render_log_frame(ui, "container_log_scroll", |ui, dark| {
@@ -151,7 +155,7 @@ fn render_container_log_line(ui: &mut egui::Ui, line: &ContainerLogEntry, dark: 
         log_text_format(container_color(&line.container_name, dark)),
     );
     job.append(
-        &line.text,
+        &crate::handlers::diagnostics::redact(&line.text),
         0.0,
         log_text_format(log_color(&LogLevel::Raw, dark)),
     );
@@ -176,11 +180,12 @@ fn log_text_format(color: egui::Color32) -> egui::text::TextFormat {
 }
 
 fn container_log_text(lines: &[ContainerLogEntry]) -> String {
-    lines
+    let text = lines
         .iter()
         .map(|line| format!("[{}] {}", line.container_name, line.text))
         .collect::<Vec<_>>()
-        .join("\n")
+        .join("\n");
+    crate::handlers::diagnostics::redact(&text)
 }
 
 fn log_color(level: &LogLevel, dark: bool) -> egui::Color32 {
@@ -258,4 +263,20 @@ fn stable_name_hash(name: &str) -> u32 {
     name.bytes().fold(2_166_136_261_u32, |hash, byte| {
         (hash ^ u32::from(byte)).wrapping_mul(16_777_619)
     })
+}
+
+#[cfg(test)]
+mod diagnostic_tests {
+    use super::*;
+
+    #[test]
+    fn container_copy_text_is_redacted() {
+        let text = container_log_text(&[ContainerLogEntry {
+            container_name: "fixture-container".into(),
+            text: "PASSWORD=fixture-copy-secret".into(),
+        }]);
+        assert!(!text.contains("fixture-copy-secret"));
+        assert!(text.contains("[REDACTED]"));
+        assert!(text.contains("[fixture-container]"));
+    }
 }

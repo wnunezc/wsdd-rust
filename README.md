@@ -21,6 +21,31 @@ single desktop app.
 - **Language fallback**: English is the fallback for any missing localized UI/help content
 - **Issue reporting**: [GitHub Issues](https://github.com/wnunezc/wsdd-rust/issues/new)
 
+## Development Credentials And Responsibility
+
+WSDD provides an **AS-IS local development stack**, not a production-hardened LAMP
+platform. Generic development credentials may be used; legacy Webmin configuration
+falls back to `admin` / `admin`. MySQL credentials are supplied during setup and
+ngrok uses your own token. Do not treat these as production security defaults.
+
+Use disposable/non-sensitive development data where possible. Change generic or
+reused credentials before using confidential data, sharing access, or exposing a
+service through ngrok or a network. Changing credentials alone does not guarantee
+that data cannot be compromised. The developer is responsible for configuring
+each container and the applications that use it.
+
+See [Development credentials and stack relationships](docs/development-credentials.md)
+for first setup, existing MySQL data, phpMyAdmin dependencies, per-PHP Webmin,
+application credentials, and ngrok. WSDD does not add automatic password rotation,
+a vault, or a new authentication mechanism.
+
+The source implementation suppresses known WSDD credentials and recognized
+credential fields in WSDD diagnostics, including copied logs. It does not encrypt
+configuration, sanitize Docker's own retained logs/image metadata, or rewrite old
+logs. This source change is newer than the published 2.1.3 MSI; updating these
+sources does not change an already installed release. Review diagnostics before
+sharing them, especially output from applications with secrets unknown to WSDD.
+
 ## System Requirements
 
 - **Operating System**: Windows 10 / Windows 11
