@@ -106,3 +106,15 @@ antes de este segundo empaquetado. El comportamiento en Docker continúa
 pendiente de aceptación manual.
 
 Relacionado: [issue #16](https://github.com/wnunezc/wsdd-rust/issues/16).
+
+## Aceptación local posterior y alcance del cierre
+
+El 2026-10-19, el usuario confirmó que probó localmente la reorganización de
+Settings y Herramientas; el issue #16 se cerró como completado por su solicitud.
+La prueba local no equivale a la publicación de una nueva versión: los cambios
+siguen en commits locales posteriores a la v2.1.3 pública.
+
+Redis, Memcached y Mailpit aún no han sido probados por el usuario. Sus
+diálogos, plantillas y comandos están implementados, pero no se afirma su
+funcionamiento integral con Docker. Si aparece un fallo en alguna de esas
+herramientas, se registrará y tratará en un issue específico.

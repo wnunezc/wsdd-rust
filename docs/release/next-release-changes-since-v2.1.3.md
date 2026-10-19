@@ -15,8 +15,11 @@ reemplaza ese asset**.
 | `59bc48076b482370a7cf8f3a5588e1cad74a7662` | En `main` remoto | Sólo documenta y verifica la publicación de v2.1.3; no agrega comportamiento al programa. |
 | `0a4fad624a68b5d4b913b79e0690c2016cd6dc30` | En `main` remoto | Guía de credenciales AS-IS y supresión de credenciales conocidas en diagnósticos de Rust, PowerShell, panel, archivos y copia. |
 | `7503c5bd1d7fc977a361c95c694ad917236a8b68` | Commit local, sin push | Grupos Compose, guardas de propiedad, etapas de despliegue, seguimiento BuildKit, log por operación y corrección del falso positivo `phpadmin56.wsdd.dock`. |
+| `a086622` | Commit local, sin push | Crea este registro acumulado de cambios desde v2.1.3. |
+| `53226ea` | Commit local, sin push | Reorganiza Settings y Herramientas; agrega trazabilidad y log de despliegue para las utilidades. |
+| `9094771` | Commit local, sin push | Retira el mapa histórico `MIGRATION.md` y repara enlaces públicos; no cambia el runtime. |
 
-`origin/main` apunta a `0a4fad6`; el commit local `7503c5b` aún no forma parte
+`origin/main` apunta a `0a4fad6`; los commits locales indicados aún no forman parte
 del repositorio remoto. Al preparar una publicación, volver a comparar el tag
 `v2.1.3` con el commit elegido para la release e incorporar aquí cualquier
 commit posterior. Este inventario no implica que los cambios locales estén
@@ -82,12 +85,21 @@ disponibles en el MSI público actual.
   La ronda local de formato, compilación, Clippy y 222 pruebas pasó. Se generó
   un MSI local posterior para probar este cambio, detallado en
   `../maintenance/settings-tools-reorganization-2026-10-19.md`.
+- El usuario confirmó el 2026-10-19 que probó localmente la reorganización y
+  el [issue #16](https://github.com/wnunezc/wsdd-rust/issues/16) se cerró como
+  completado por su solicitud.
+  Esta aceptación no cubre Redis, Memcached ni Mailpit: si aparece un fallo al
+  probarlos, se tratará en un issue específico. La próxima release debe incluir
+  los cambios de Settings/Herramientas y la trazabilidad de despliegue de
+  utilidades; el cierre del issue no publica esos commits ni valida esas tres
+  herramientas en Docker real.
 
 ## Evidencia disponible y límite de distribución
 
 - El commit `0a4fad6` pasó CI remoto con 211 pruebas. Los cambios locales
   posteriores pasaron formato, `cargo check`, Clippy con advertencias denegadas
-  y 218 pruebas del workspace. Los ZIP embebidos coinciden por SHA-256 con sus
+  y 218 pruebas inicialmente; tras Settings/Herramientas pasaron 222 pruebas
+  del workspace. Los ZIP embebidos coinciden por SHA-256 con sus
   fuentes: 92 archivos Docker y 13 PowerShell.
 - Se generó un MSI **local** que combina estos cambios:
   `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-pre-settings-2026-10-19-x86_64.msi`,
