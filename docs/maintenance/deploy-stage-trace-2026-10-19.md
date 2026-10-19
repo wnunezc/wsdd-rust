@@ -9,6 +9,17 @@ stage is combined for projects because its existing Compose invocation performs
 `up --build --force-recreate` in one process. No Docker command or rollback
 order changes were needed for stage reporting.
 
+The later Tools redesign now registers Deploy of ngrok, Redis, Memcached, and
+Mailpit through the same operation trace and per-operation log. It reports
+service preparation, Compose image download/start, container running, and for
+ngrok, Agent API response. These services use published images; their Compose
+output may contain pull progress, but there is no PHP-style BuildKit image
+construction stage to report. The Tools dialog also shows these measured
+stages and offers Open/Copy for its log. Stop and the read-only ngrok API check
+remain separate background actions. This addition was not in the earlier MSI
+documented below; see `settings-tools-reorganization-2026-10-19.md` for the
+newer local build and its acceptance limit.
+
 Each started deployment gets a unique `wsdd-operation-*.log` in the environment
 logs directory. The per-operation writer receives the same redacted output
 stream as the UI before progress lines are compacted in the on-screen buffer.

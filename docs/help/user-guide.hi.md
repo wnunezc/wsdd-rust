@@ -102,7 +102,7 @@ Optional services:
   - `WSDD-Memcached-Server`
   - `WSDD-Mailpit-Server`
 
-Optional services stay disabled until enabled and saved in Settings.
+Optional services are configured in their Tools dialogs. Save stores options; Deploy applies the selected service.
 
 ## Project management
 
@@ -181,69 +181,19 @@ Safety:
 
 ## WSDD Settings
 
-Access: Tools → Settings
+Tools → Settings अब केवल भाषा बदलता है। Save सार्वजनिक WSDD कॉन्फ़िगरेशन सहेजता है; Docker, WSL और संग्रहीत secrets को नहीं बदलता।
 
-General:
-  - Projects path — new projects का base directory.
-  - Docker Desktop path — Docker Desktop executable path.
-  - WSL distro — active WSL2 distribution.
-  - Max log lines — log panel limit.
-  - Auto-start containers — app launch पर WSDD containers start करना।
+Tools → ngrok, Redis, Memcached या Mailpit में प्रत्येक सेवा का अलग डायलॉग है। Save विकल्प सहेजता है और deploy नहीं करता; Deploy चुनी हुई सेवा लागू करता है; Stop वॉल्यूम मिटाए बिना कंटेनर रोकता है; Cancel बिना सहेजे बदलाव छोड़ता है। ngrok Agent API जांच सकता है। Redis, Memcached और Mailpit का वास्तविक इंस्टॉलेशन पर पूर्ण परीक्षण अभी बाकी है।
 
-PHP containers:
-  - `memory_limit`
-  - `upload_max_filesize`
-  - PHP timezone
-  - Xdebug
+WSDD स्टोरेज और रिकवरी विकल्प Tools → WSL Settings में अलग Save बटन के साथ हैं। पुराने PHP/Xdebug मान और MySQL/Webmin credentials सुरक्षित हैं, लेकिन Settings में संपादित नहीं होते। अनुपस्थित credentials संबंधित पहले deploy पर मांगे जाते हैं। संग्रहीत credentials बदलने से मौजूदा कंटेनर के उपयोगकर्ता नहीं बदलते।
 
-Xdebug:
-  - New/rebuilt PHP containers में default enabled.
-  - PHP 8.x uses Xdebug 3.
-  - Mode: `debug,develop`.
-  - Host: `host.docker.internal`.
-  - Port: `9003`.
-  - Start mode: trigger-based.
-  - PHP 5.6/7.x Xdebug 2 equivalent trigger config use करता है।
-
-IDE / agent debugging:
-  - VS Code, PHPStorm या कोई DBGp listener port `9003` पर configure करें।
-  - Windows project path को `/var/www/html/{project-domain}` से map करें।
-  - AI agents भी listen कर सकते हैं अगर वे Windows host पर DBGp/Xdebug-compatible listener चला रहे हों।
-
-Optional services:
-  - Redis, Memcached और Mailpit default से disabled हैं।
-  - Base stack के साथ deploy नहीं होते।
-  - Settings में enable करके ports/auto-start review करें, फिर save करें।
-  - Save के बाद WSDD service को उसकी isolated compose file से deploy करता है।
-
-Service details:
-  - Redis: host `redis`, container `WSDD-Redis-Server`, port `6379`, volume `wsdd-redis-data`.
-  - Memcached: host `memcached`, container `WSDD-Memcached-Server`, port `11211`, volatile cache.
-  - Mailpit: SMTP host `mailpit`, container `WSDD-Mailpit-Server`, SMTP port `1025`, UI port `8025`, UI `http://mailpit.wsdd.dock`.
-
-Framework examples:
-  - Redis: `REDIS_HOST=redis`, `REDIS_PORT=6379`
-  - Memcached: `MEMCACHED_HOST=memcached`, `MEMCACHED_PORT=11211`
-  - Mailpit: `MAIL_HOST=mailpit`, `MAIL_PORT=1025`, `MAIL_MAILER=smtp`
-
-Prerequisites:
-  - MySQL/phpMyAdmin credentials first base deploy से पहले request होते हैं अगर missing हों।
-  - Secrets `C:\WSDD-Environment\wsdd-secrets.json` में save होते हैं।
-
-Tools:
-  - Webmin package source — PHP containers image build ke dauran official Webmin APT repository se Webmin install karte hain.
-  - Webmin credentials per PHP version.
-  - Existing container के अंदर credentials automatic rotate नहीं होते; next WSDD-managed rebuild पर apply होते हैं।
-
-Settings file:
-  - `C:\WSDD-Environment\wsdd-config.json`
+सार्वजनिक कॉन्फ़िगरेशन: C:\WSDD-Environment\wsdd-config.json। Secrets: C:\WSDD-Environment\wsdd-secrets.json।
 
 ## WSL2 Settings
 
 Access: Tools → WSL Settings
 
-This edits:
-  - `%USERPROFILE%\.wslconfig`
+WSDD स्टोरेज के लिए अलग Save बटन project path, distro और managed storage को `wsdd-config.json` में सहेजता है। वैश्विक WSL Save केवल बदलाव होने पर `%USERPROFILE%\.wslconfig` लिखता है।
 
 Options:
   - CPU cores
@@ -325,8 +275,8 @@ Xdebug not connecting:
   - Path mapping `/var/www/html/{project-domain}` से match करे।
 
 Optional service missing:
-  - Settings में service enable करें।
-  - Save करें।
+  - Tools में संबंधित सेवा का डायलॉग खोलें।
+  - Deploy दबाएँ।
   - Container panel refresh करें।
 
 ## Frequently Asked Questions (FAQ)
@@ -338,7 +288,7 @@ Q: क्या Docker Desktop automatic install होता है?
 A: नहीं. User को Docker Desktop install करना चाहिए. WSDD verify/configuration flow संभालता है।
 
 Q: क्या optional services base stack के साथ start होते हैं?
-A: नहीं. Redis, Memcached और Mailpit disabled by default हैं और Settings में enable/save करने पर deploy होते हैं।
+A: नहीं. Redis, Memcached और Mailpit default से disabled हैं; इनके Tools डायलॉग में Deploy करने पर ही सेवा लागू होती है।
 
 Q: क्या WSDD MySQL TLS force करता है?
 A: नहीं. phpMyAdmin HTTPS browser traffic secure करता है, लेकिन internal MySQL TLS project-level hardening है।
@@ -348,8 +298,8 @@ A: App UI में general log और container live log panels हैं. Deta
 
 Q: Kya ngrok sirf browser login se chalega?
 A: Nahin. Browser login aapka ngrok account kholta hai, lekin Docker agent ko
-   authtoken chahiye. Settings me ngrok enable karein, dashboard kholein,
-   authtoken copy karein aur WSDD me save karein. WSDD ise wsdd-secrets.json me rakhta hai.
+   authtoken chahiye. Tools → ngrok me dashboard se token lekar Save karein,
+   phir Deploy dabayein. WSDD ise wsdd-secrets.json me rakhta hai.
 
 Q: Kaunsa project storage mode chunna chahiye?
 A: Classic Bind current Windows bind-mount workflow rakhta hai. Fast Sync

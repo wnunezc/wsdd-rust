@@ -188,7 +188,18 @@ pub fn deploy_optional_service_sync(
     kind: OptionalServiceKind,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
-    optional_services::deploy_service_sync(runner, settings, kind, tx)
+    optional_services::deploy_service_sync(runner, settings, kind, tx, None)
+}
+
+/// Deploys one optional service with measured stages for the operation panel.
+pub fn deploy_optional_service_traced_sync(
+    runner: &PsRunner,
+    settings: &AppSettings,
+    kind: OptionalServiceKind,
+    tx: &LogSender,
+    trace: &crate::handlers::deploy_trace::TraceHandle,
+) -> Result<(), InfraError> {
+    optional_services::deploy_service_sync(runner, settings, kind, tx, Some(trace))
 }
 
 /// Stops one optional developer service without deleting its data volume.

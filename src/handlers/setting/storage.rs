@@ -167,6 +167,17 @@ impl AppSettings {
     /// # Errors
     /// Returns [`InfraError`] when serialization or filesystem writes fail.
     pub fn save(&self) -> Result<(), InfraError> {
+        self.save_public_config()?;
+        secrets::save(
+            &self.prereq_credentials,
+            &self.webmin_credentials,
+            &self.ngrok_authtoken,
+        )?;
+        Ok(())
+    }
+
+    /// Saves public preferences without rewriting the secrets file.
+    pub fn save_public_config(&self) -> Result<(), InfraError> {
         crate::handlers::diagnostics::register_settings(self);
         let path = path_config().config_file();
         if let Some(parent) = path.parent() {
@@ -179,12 +190,6 @@ impl AppSettings {
             .enabled = normalized.managed_native_linux_storage_enabled;
         let content = serde_json::to_string_pretty(&AppSettingsDisk::from(&normalized))?;
         std::fs::write(&path, content)?;
-
-        secrets::save(
-            &self.prereq_credentials,
-            &self.webmin_credentials,
-            &self.ngrok_authtoken,
-        )?;
         Ok(())
     }
 
@@ -370,6 +375,22 @@ mod tests {
         assert_eq!(settings.config_version, CURRENT_CONFIG_VERSION);
         assert!(settings.xdebug_enabled);
         assert!(!settings.managed_native_linux_storage_enabled);
+    }
+
+    #[test]
+    fn language_round_trips_without_dropping_existing_configuration() {
+        let mut settings = AppSettings::default();
+        settings.language = Language::Es;
+        settings.optional_services.redis.host_port = 6381;
+        settings.projects_path = r"D:\Projects".into();
+
+        let serialized = serde_json::to_string(&AppSettingsDisk::from(&settings))
+            .expect("serialize public config");
+        let restored: AppSettings =
+            serde_json::from_str(&serialized).expect("deserialize public config");
+        assert_eq!(restored.language, Language::Es);
+        assert_eq!(restored.optional_services.redis.host_port, 6381);
+        assert_eq!(restored.projects_path, r"D:\Projects");
     }
 
     #[test]

@@ -37,7 +37,7 @@ WSDD 是面向 Windows 的本地 PHP + Docker 开发 stack 管理器。
 3. **管理 Web 项目**: 为每个 PHP 版本创建带 Apache + Xdebug 的容器
 4. **自动本地 SSL**: 为每个域名生成 MKCert 证书，无浏览器警告
 5. **自动 hosts**: 自动修改 `C:\Windows\System32\drivers\etc\hosts`
-6. **可选服务**: Redis、Memcached 和 Mailpit 默认关闭，只在 Settings 中启用并保存后部署
+6. **可选服务**: ngrok、Redis、Memcached 和 Mailpit 在 Tools 中有独立对话框。Save 仅保存选项，Deploy 才应用所选服务。Redis、Memcached 和 Mailpit 尚需在实际安装中完成端到端验证。
 
 ## Docker 栈容器
 

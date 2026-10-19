@@ -30,8 +30,8 @@ Configuracion de instalacion: `C:\WSDD-Environment\wsdd-config.json` y
 `wsdd-secrets.json`. Este ultimo almacena valores en JSON, **no es un vault cifrado**.
 WSDD renderiza las credenciales en `Docker-Structure\init.yml`, los compose PHP y
 `services\ngrok.yml`. Esos archivos son configuracion operativa, no logs redactados.
-Cambios manuales en archivos administrados pueden ser reemplazados por Settings,
-Deploy o sincronizacion al arrancar. Mantener los valores de WSDD coherentes con
+Cambios manuales en archivos administrados pueden ser reemplazados por Deploy
+o sincronizacion al arrancar. Guardar Idioma en Settings no los regenera. Mantener los valores de WSDD coherentes con
 los del servicio; no tratar una edicion del compose generado como una migracion.
 
 ## Escenario 1: Primera Configuracion / Base De Datos Vacia
@@ -39,8 +39,8 @@ los del servicio; no tratar una edicion del compose generado como una migracion.
 1. Introducir las credenciales MySQL en la configuracion inicial de WSDD; elegir
    datos de prueba y valores apropiados al uso local. No hay una contrasena MySQL
    universal que esta guia deba dar por supuesta.
-2. Configurar Webmin por version PHP en Settings o al solicitarlo el dialogo
-   Deploy PHP. Si se conservan valores genericos, conocer su alcance y limitaciones.
+2. Configurar Webmin por version PHP cuando lo solicite el dialogo Deploy PHP.
+   Si se conservan valores genericos, conocer su alcance y limitaciones.
 3. Desplegar mediante las acciones de WSDD y comprobar acceso al servicio real.
 4. Configurar cada aplicacion para conectar a MySQL por `database:3306` dentro de
    la red Docker; desde Windows el compose actual publica `127.0.0.1:3306`.
@@ -58,8 +58,10 @@ para una base nueva. No confundirla con cambiar cuentas de una base ya existente
    del servidor y sus permisos. No asumir un host de cuenta ni renombrar una
    cuenta sin revisar grants y clientes. El Dockerfile usa `mysql:latest`; verificar
    la version efectiva, no inferirla del nombre del contenedor.
-3. Actualizar los valores correspondientes en Settings de WSDD. Guardar regenera
-   configuracion, **no ejecuta ALTER USER ni cambia cuentas en los datos persistidos**.
+3. Alinear los valores correspondientes en la configuracion persistida de WSDD
+   mediante un procedimiento controlado. La nueva pantalla Settings no edita
+   credenciales; cambiar el JSON **no ejecuta ALTER USER ni cambia cuentas en
+   los datos persistidos**.
 4. Aplicar de forma controlada la configuracion de los clientes afectados. Si cambia
    root, phpMyAdmin tambien necesita el nuevo valor; si cambia el usuario de la
    aplicacion, actualizar su `.env`/configuracion y refrescar su cache de configuracion
@@ -75,7 +77,7 @@ coordina el estado del servidor, sus clientes y los valores que WSDD regenera.
 
 No buscar una contrasena independiente del panel en WSDD: la plantilla conecta
 como root con la clave MySQL guardada. Alinear el password real de esa cuenta,
-`mysql_root_password` y el environment aplicado a phpMyAdmin. Guardar Settings o
+`mysql_root_password` y el environment aplicado a phpMyAdmin. Guardar Idioma o
 reiniciar un contenedor antiguo no garantiza que su environment haya cambiado.
 La recuperacion base conserva contenedores existentes; no fuerza su recreacion.
 Una autenticacion fallida debe comprobarse en esos tres puntos, no resolverse
@@ -83,10 +85,12 @@ eliminando la carpeta de datos MySQL.
 
 ## Escenario 4: Webmin Por Version PHP
 
-Cambiar el par de la version afectada en Settings de WSDD y aplicar una
+Las credenciales Webmin existentes se conservan en `wsdd-secrets.json`. La nueva
+pantalla Settings no las edita ni ofrece rotacion. Un cambio coordinado del par
+requiere actualizar el valor persistido y aplicar una
 reconstruccion/recreacion controlada del runtime PHP, por ejemplo con Deploy de
 un proyecto de esa version. El boton Deploy PHP crea runtimes ausentes: no sustituye
-uno existente. Guardar Settings o simplemente Restart no ejecuta el RUN del build.
+uno existente. Guardar Idioma o simplemente Restart no ejecuta el RUN del build.
 
 Actualmente las credenciales Webmin se pasan como build args y se aplican durante
 el build. Esta tarea no cambia esa mecanica ni introduce BuildKit secrets.
@@ -109,8 +113,8 @@ su propio protocolo o autenticacion, seguir la documentacion de ese proyecto.
 
 ## Escenario 6: ngrok / Acceso Compartido
 
-Configurar el token propio en Settings; al cambiar el token de un servicio ngrok
-habilitado, el codigo solicita aplicar el cambio al servicio. Comprobar la cuenta
+Configurar el token propio en Herramientas → ngrok. Guardar conserva el token sin
+recrear el contenedor; Deploy aplica la configuracion y comprueba Agent API. Comprobar la cuenta
 y los tuneles efectivos. Si un token se divulgo, el desarrollador lo revoca/reemplaza
 en su proveedor y actualiza WSDD. No publicar paneles administrativos o datos
 confidenciales por considerar que una URL de desarrollo es privada.

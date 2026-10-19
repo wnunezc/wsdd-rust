@@ -15,6 +15,9 @@
 //! WSL2 settings modal renderer.
 
 use crate::app::WsddApp;
+use crate::config::environment::path_config;
+use crate::handlers::managed_storage;
+use crate::handlers::setting::AppSettings;
 use crate::handlers::wsl::{self, MemoryReclaim, NetworkingMode, WslConfig};
 use crate::i18n::tr;
 use crate::ui::ActiveView;
@@ -27,15 +30,21 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
 
     if app.ui.wsl_draft.is_none() {
         app.ui.wsl_draft = Some(match wsl::read() {
-            Ok(cfg) => cfg,
+            Ok(cfg) => {
+                app.ui.wsl_initial = Some(cfg.clone());
+                cfg
+            }
             Err(e) => {
-                tracing::warn!("Unable to read .wslconfig: {e}. Using defaults.");
+                app.ui.wsl_config_error = Some(format!("No se pudo leer .wslconfig: {e}"));
                 WslConfig::default()
             }
         });
+        app.ui.wsl_storage_draft = Some(app.settings.clone());
+        app.ui.wsl_recovery_status = Some(recovery_task_status(app));
     }
 
     let mut save = false;
+    let mut save_storage = false;
     let mut cancel = false;
     let mut open = true;
     let cpu_max = std::thread::available_parallelism()
@@ -55,16 +64,34 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         .min_height(520.0)
         .open(&mut open)
         .show(ctx, |ui| {
+            let storage_error = app.ui.wsl_storage_error.clone();
+            let storage_notice = app.ui.wsl_storage_notice.clone();
+            let recovery_status = app.ui.wsl_recovery_status.clone();
+            let config_error = app.ui.wsl_config_error.clone();
             let Some(draft) = app.ui.wsl_draft.as_mut() else {
                 return;
             };
 
-            render_header(ui, &mut save, &mut cancel);
+            render_header(ui, &mut save, &mut cancel, app.ui.wsl_initial.is_some());
+            if let Some(error) = &config_error {
+                ui.colored_label(ui.visuals().error_fg_color, error);
+            }
             render_config_path(ui, &copy);
             ui.separator();
             ui.add_space(6.0);
 
             egui::ScrollArea::vertical().show(ui, |ui| {
+                if let Some(storage_draft) = app.ui.wsl_storage_draft.as_mut() {
+                    render_storage_section(
+                        ui,
+                        storage_draft,
+                        recovery_status.as_deref(),
+                        storage_error.as_deref(),
+                        storage_notice.as_deref(),
+                        &mut save_storage,
+                    );
+                    ui.add_space(8.0);
+                }
                 render_resource_section(ui, draft, &copy, cpu_max);
                 ui.add_space(8.0);
                 render_performance_section(ui, draft, &copy, app.settings.language);
@@ -80,20 +107,25 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         cancel = true;
     }
 
-    if save {
-        if let Some(draft) = app.ui.wsl_draft.take() {
-            if let Err(e) = wsl::write(&draft) {
-                tracing::error!("Error escribiendo .wslconfig: {e}");
+    if save_storage {
+        save_storage_settings(app);
+    } else if save {
+        if let (Some(draft), Some(initial)) = (&app.ui.wsl_draft, &app.ui.wsl_initial) {
+            if draft != initial {
+                if let Err(error) = wsl::write(draft) {
+                    app.ui.wsl_config_error =
+                        Some(format!("Error escribiendo .wslconfig: {error}"));
+                    return;
+                }
             }
         }
-        app.ui.active = ActiveView::Main;
+        close(app);
     } else if cancel {
-        app.ui.wsl_draft = None;
-        app.ui.active = ActiveView::Main;
+        close(app);
     }
 }
 
-fn render_header(ui: &mut egui::Ui, save: &mut bool, cancel: &mut bool) {
+fn render_header(ui: &mut egui::Ui, save: &mut bool, cancel: &mut bool, can_save: bool) {
     ui.horizontal(|ui| {
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button(format!("  {}  ", tr("btn_cancel"))).clicked() {
@@ -101,8 +133,9 @@ fn render_header(ui: &mut egui::Ui, save: &mut bool, cancel: &mut bool) {
             }
             ui.add_space(4.0);
             if ui
-                .add(
-                    egui::Button::new(format!("  {}  ", tr("btn_save")))
+                .add_enabled(
+                    can_save,
+                    egui::Button::new(format!("  {}  ", tr("wsl_save_config")))
                         .fill(egui::Color32::from_rgb(34, 139, 34)),
                 )
                 .clicked()
@@ -111,6 +144,192 @@ fn render_header(ui: &mut egui::Ui, save: &mut bool, cancel: &mut bool) {
             }
         });
     });
+}
+
+fn render_storage_section(
+    ui: &mut egui::Ui,
+    draft: &mut AppSettings,
+    recovery_status: Option<&str>,
+    error: Option<&str>,
+    notice: Option<&str>,
+    save: &mut bool,
+) {
+    egui::CollapsingHeader::new(tr("wsl_storage_section"))
+        .default_open(true)
+        .show(ui, |ui| {
+            ui.label(tr("wsl_storage_save_note"));
+            if let Some(error) = error {
+                ui.colored_label(ui.visuals().error_fg_color, error);
+            }
+            if let Some(notice) = notice {
+                ui.label(notice);
+            }
+            egui::Grid::new("wsl_storage_settings")
+                .num_columns(2)
+                .spacing([12.0, 8.0])
+                .show(ui, |ui| {
+                    ui.label(tr("settings_wsl_distro"));
+                    let distro = draft.wsl_distro.get_or_insert_with(String::new);
+                    ui.add(egui::TextEdit::singleline(distro).desired_width(210.0));
+                    ui.end_row();
+
+                    ui.label(tr("settings_managed_storage_enabled"));
+                    ui.checkbox(&mut draft.managed_native_linux_storage_enabled, "");
+                    ui.end_row();
+
+                    ui.label(tr("wsl_projects_alias_root"));
+                    ui.add(
+                        egui::TextEdit::singleline(&mut draft.projects_path)
+                            .desired_width(300.0)
+                            .hint_text(path_config().default_projects_root().display().to_string()),
+                    );
+                    ui.end_row();
+
+                    ui.label(tr("settings_recovery_task"));
+                    ui.label(recovery_status.unwrap_or("-"));
+                    ui.end_row();
+                });
+            *save = ui.button(tr("wsl_save_storage")).clicked();
+        });
+}
+
+fn save_storage_settings(app: &mut WsddApp) {
+    app.ui.wsl_storage_error = None;
+    app.ui.wsl_storage_notice = None;
+    let Some(draft) = app.ui.wsl_storage_draft.as_ref() else {
+        return;
+    };
+    let next = updated_storage_settings(&app.settings, draft);
+
+    let task_change = next.managed_native_linux_storage_enabled
+        != app.settings.managed_native_linux_storage_enabled
+        || next.wsl_distro != app.settings.wsl_distro;
+    let storage_change = task_change || next.projects_path != app.settings.projects_path;
+    if !storage_change && !app.ui.wsl_storage_task_retry {
+        app.ui.wsl_storage_error = None;
+        app.ui.wsl_storage_notice = Some(tr("wsl_storage_no_changes"));
+        return;
+    }
+
+    if next.managed_native_linux_storage_enabled
+        && !app.settings.managed_native_linux_storage_enabled
+    {
+        if let Err(error) =
+            managed_storage::provision_managed_storage(&app.runner, &app.main_log_tx)
+        {
+            app.ui.wsl_storage_error = Some(error.to_string());
+            return;
+        }
+    }
+    if task_change && next.managed_native_linux_storage_enabled {
+        if let Err(error) = crate::handlers::scheduled_task::reconcile(&app.runner, &next) {
+            app.ui.wsl_storage_error = Some(error.to_string());
+            return;
+        }
+    }
+    if let Err(error) = next.save_public_config() {
+        app.ui.wsl_storage_error = Some(error.to_string());
+        return;
+    }
+    app.settings = next.clone();
+    app.ui.wsl_storage_draft = Some(next);
+    app.ui.wsl_storage_error = None;
+    app.ui.wsl_storage_notice = Some(tr("wsl_storage_saved"));
+
+    if (task_change || app.ui.wsl_storage_task_retry)
+        && !app.settings.managed_native_linux_storage_enabled
+    {
+        if let Err(error) = crate::handlers::scheduled_task::reconcile(&app.runner, &app.settings) {
+            app.ui.wsl_storage_error = Some(format!("{}: {error}", tr("wsl_storage_task_pending")));
+            app.ui.wsl_storage_task_retry = true;
+        } else {
+            app.ui.wsl_storage_task_retry = false;
+        }
+    }
+    app.ui.wsl_recovery_status = Some(recovery_task_status(app));
+}
+
+fn updated_storage_settings(current: &AppSettings, draft: &AppSettings) -> AppSettings {
+    let mut next = current.clone();
+    next.projects_path = draft.projects_path.trim().to_string();
+    if next.projects_path.is_empty() {
+        next.projects_path = path_config().default_projects_root().display().to_string();
+    }
+    next.wsl_distro = draft
+        .wsl_distro
+        .as_ref()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty());
+    next.managed_native_linux_storage_enabled = draft.managed_native_linux_storage_enabled;
+    next.optional_services.managed_native_linux_storage.enabled =
+        next.managed_native_linux_storage_enabled;
+    next
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn wsl_storage_edit_preserves_other_preferences_and_credentials() {
+        let mut current = AppSettings::default();
+        current.ngrok_authtoken = "saved-token".into();
+        current.optional_services.redis.host_port = 6380;
+        current.php_timezone = "America/Panama".into();
+        let mut draft = current.clone();
+        draft.projects_path = "  D:\\Projects  ".into();
+        draft.wsl_distro = Some("  Ubuntu  ".into());
+        draft.managed_native_linux_storage_enabled = true;
+        draft.ngrok_authtoken = "unrelated-edit".into();
+
+        let next = updated_storage_settings(&current, &draft);
+        assert_eq!(next.projects_path, "D:\\Projects");
+        assert_eq!(next.wsl_distro.as_deref(), Some("Ubuntu"));
+        assert!(next.managed_native_linux_storage_enabled);
+        assert!(next.optional_services.managed_native_linux_storage.enabled);
+        assert_eq!(next.ngrok_authtoken, "saved-token");
+        assert_eq!(next.optional_services.redis.host_port, 6380);
+        assert_eq!(next.php_timezone, "America/Panama");
+    }
+}
+
+fn recovery_task_status(app: &WsddApp) -> String {
+    let projects = match crate::handlers::project::list_all() {
+        Ok(projects) => projects,
+        Err(error) => return format!("{}: {error}", tr("status_error")),
+    };
+    let required = crate::handlers::scheduled_task::recovery_task_decision(
+        app.settings.managed_native_linux_storage_enabled,
+        &projects,
+        app.settings.wsl_distro.as_deref(),
+    ) != crate::handlers::scheduled_task::RecoveryTaskDecision::Remove;
+    match crate::handlers::scheduled_task::status(&app.runner, required) {
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::Installed) => {
+            tr("settings_recovery_task_installed")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::Missing) => {
+            tr("settings_recovery_task_missing")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::NotRequired) => {
+            tr("settings_recovery_task_not_required")
+        }
+        Ok(crate::handlers::scheduled_task::RecoveryTaskStatus::NeedsUpdate) => {
+            tr("settings_recovery_task_needs_update")
+        }
+        Err(error) => format!("{}: {error}", tr("status_error")),
+    }
+}
+
+fn close(app: &mut WsddApp) {
+    app.ui.wsl_draft = None;
+    app.ui.wsl_initial = None;
+    app.ui.wsl_config_error = None;
+    app.ui.wsl_storage_draft = None;
+    app.ui.wsl_storage_error = None;
+    app.ui.wsl_storage_notice = None;
+    app.ui.wsl_storage_task_retry = false;
+    app.ui.wsl_recovery_status = None;
+    app.ui.active = ActiveView::Main;
 }
 
 fn render_config_path(ui: &mut egui::Ui, copy: &copy::WslCopy) {

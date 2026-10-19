@@ -16,11 +16,11 @@
 
 | Propiedad | Valor |
 | --- | --- |
-| Ruta | `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-x86_64.msi` |
+| Ruta preservada | `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-pre-settings-2026-10-19-x86_64.msi` |
 | Tamaño | 26 951 680 bytes |
 | SHA-256 | `35FD5EAC959EF13A2327FBA3D52D74883FCE1119DACA1405B7AE1390ACEF02F1` |
 | ProductVersion en MSI | `2.1.3` |
-| Checksum adjunto | `wsdd-2.1.3-x86_64.msi.sha256.txt`, actualizado y cotejado con el MSI |
+| Checksum adjunto | `wsdd-2.1.3-pre-settings-2026-10-19-x86_64.msi.sha256.txt`, cotejado con la copia preservada |
 
 La comparación SHA-256 de cada entrada con su archivo fuente verificó
 `docker-structure.zip` (92/92 archivos) y `ps-script.zip` (13/13 archivos),
@@ -32,7 +32,9 @@ de release y 6 del launcher.
 
 ## Estado y validación manual
 
-Este MSI **no es** el asset publicado de v2.1.3 en GitHub, aunque conserva la
+Esta compilación anterior fue preservada con otro nombre antes de generar el
+MSI local de Settings/Herramientas. Su checksum y tamaño originales se
+verificaron antes y después de la copia. Este MSI **no es** el asset publicado de v2.1.3 en GitHub, aunque conserva la
 misma versión de producto. Se distingue por el SHA-256 anterior. No se instaló,
 no se modificó `C:\WSDD-Environment`, no se ejecutó Docker y no se publicó una
 release durante esta validación.

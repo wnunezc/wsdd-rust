@@ -63,6 +63,26 @@ disponibles en el MSI público actual.
   Compose ejecuta `up --build` como una sola operación. No cambian la semántica
   de Deploy ni el orden de rollback.
 
+### Configuración y herramientas (trabajo local posterior)
+
+- Settings muestra únicamente Idioma. Guardar conserva la configuración previa
+  y no reescribe secretos, Compose ni `.wslconfig`.
+- ngrok, Redis, Memcached y Mailpit pasan a diálogos propios en Herramientas:
+  Guardar persiste opciones sin desplegar, Deploy aplica el servicio elegido y
+  Detener para su contenedor sin borrar volúmenes. ngrok comprueba Agent API.
+  Deploy muestra etapas medidas, log propio y acciones para abrirlo o copiarlo.
+- Los ajustes de almacenamiento y recuperación WSDD pasan a Configuración WSL
+  con guardado separado de `.wslconfig`.
+- Se retiran de la UI los controles globales PHP/Xdebug, decorativos y matrices
+  de credenciales MySQL/Webmin; las claves y los valores previos permanecen
+  disponibles para los flujos existentes. Detalle campo por campo:
+  `../maintenance/settings-tools-reorganization-2026-10-19.md`.
+- Redis, Memcached y Mailpit aún carecen de validación integral en Docker real.
+  Estas modificaciones locales no forman parte del MSI público 2.1.3.
+  La ronda local de formato, compilación, Clippy y 222 pruebas pasó. Se generó
+  un MSI local posterior para probar este cambio, detallado en
+  `../maintenance/settings-tools-reorganization-2026-10-19.md`.
+
 ## Evidencia disponible y límite de distribución
 
 - El commit `0a4fad6` pasó CI remoto con 211 pruebas. Los cambios locales
@@ -70,10 +90,19 @@ disponibles en el MSI público actual.
   y 218 pruebas del workspace. Los ZIP embebidos coinciden por SHA-256 con sus
   fuentes: 92 archivos Docker y 13 PowerShell.
 - Se generó un MSI **local** que combina estos cambios:
-  `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-x86_64.msi`,
+  `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-pre-settings-2026-10-19-x86_64.msi`,
   SHA-256 `35FD5EAC959EF13A2327FBA3D52D74883FCE1119DACA1405B7AE1390ACEF02F1`.
   Sus detalles están en `../maintenance/local-msi-validation-2026-10-19.md`.
   No se instaló ni publicó como nueva release.
+- Para Settings/Herramientas se generó otro MSI **local**, también con
+  ProductVersion 2.1.3, preservado como
+  `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-settings-tools-pre-trace-2026-10-19-x86_64.msi`,
+  SHA-256 `3D2369FC3055E6041843C97174E5D7E0C80183B1F252BB49EECD3E4FB7930532`.
+  No incluye las etapas añadidas después para Deploy de herramientas.
+- MSI **local actual** con esa trazabilidad:
+  `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-x86_64.msi`,
+  SHA-256 `346A2BF679D581C1EF9DC13210C37854FCD6640E5A29DDA7B45FB5D6331586BC`.
+  Es el archivo para las nuevas pruebas; no es una publicación.
 - El [issue #15](https://github.com/wnunezc/wsdd-rust/issues/15) se cerró por
   el alcance acordado. Desgloses adicionales, resumen específico de hosts y
   otras mejoras propuestas allí no están planificados para la próxima versión.

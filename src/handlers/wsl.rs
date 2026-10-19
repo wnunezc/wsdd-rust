@@ -62,7 +62,7 @@ impl NetworkingMode {
 
 /// Configuración de rendimiento WSL2 representada como struct tipado.
 /// Se persiste en `%USERPROFILE%\.wslconfig` formato INI.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct WslConfig {
     /// Núcleos de CPU virtuales asignados a WSL2.
     /// `None` = sin límite (usa todos los disponibles).

@@ -192,63 +192,19 @@ REMOVE 流程:
 
 ## WSDD 设置
 
-访问方式: 工具 → 设置
+Tools → Settings 现在只修改语言。Save 写入 WSDD 公共配置，不更改 Docker、WSL 或已保存的密钥。
 
-常规:
-  - 项目路径    — 新项目的基础目录（默认: C:\WSDD-Projects）
-  - Docker Desktop 路径  — Docker Desktop 可执行文件路径（可选，用于重新启动）
-  - WSL 发行版           — 当前 WSL2 发行版（例如 Ubuntu-22.04）
-  - 最大日志行数    — 日志面板保留的行数限制（100-10000）
-  - 自动启动容器 — 应用启动时启动 WSDD 容器
+Tools → ngrok、Redis、Memcached 或 Mailpit 分别打开专用对话框。Save 仅保存选项；Deploy 保存并应用所选服务；Stop 停止容器但不删除卷；Cancel 放弃未保存的字段。ngrok 还可检查 Agent API。Redis、Memcached 和 Mailpit 尚未在实际安装中完成端到端验证。
 
-PHP (Docker 容器):
-  这些值在生成新容器时应用。
-  它们不会影响已经存在的容器（需要 redeploy）。
-  - memory_limit              — PHP RAM 限制
-  - upload_max_filesize       — 最大上传文件大小
-  - Timezone                  — PHP 时区
-  - Xdebug                    — 对新的或重建的 PHP 容器默认启用。
-    PHP 8.x 使用 Xdebug 3，模式为 debug,develop，host.docker.internal，
-    端口 9003，并使用 trigger 启动。PHP 5.6/7.x 使用 Xdebug 2 的等效
-    trigger 配置，host/port 相同。
+WSDD 存储与恢复选项位于 Tools → WSL Settings，使用独立的 Save 按钮。已有 PHP/Xdebug 参数以及 MySQL/Webmin 凭据会保留，但不再在 Settings 中编辑。缺少的凭据在对应的首次部署流程中请求。修改已保存的凭据不会轮换现有容器中的账号。
 
-IDE / agent 调试:
-  - 在 VS Code、PHPStorm 或其他 DBGp listener 中监听端口 9003。
-  - 将 Windows 项目路径映射到 /var/www/html/{project-domain}。
-  - AI agents 也可以监听，只要它们在 Windows host 上运行兼容 DBGp/Xdebug
-    的 listener；WSDD 只负责配置 PHP 容器回连。
-
-可选服务:
-  Redis、Memcached 和 Mailpit 默认关闭，不会随基础 stack 部署。
-  在 Settings 中启用服务，检查端口/auto-start 选项，然后保存以部署。
-  - Redis: 容器 host redis / WSDD-Redis-Server，内部端口 6379，
-    默认 host 端口 6379，持久卷 wsdd-redis-data。
-  - Memcached: 容器 host memcached / WSDD-Memcached-Server，内部端口
-    11211，默认 host 端口 11211，易失缓存。
-  - Mailpit: SMTP host mailpit / WSDD-Mailpit-Server，内部 SMTP 端口 1025，
-    UI 端口 8025，默认本地 UI http://mailpit.wsdd.dock。
-  - Framework 示例:
-    Redis: REDIS_HOST=redis, REDIS_PORT=6379.
-    Memcached: MEMCACHED_HOST=memcached, MEMCACHED_PORT=11211.
-    Mailpit: MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_MAILER=smtp.
-
-先决条件:
-  - MySQL/phpMyAdmin 凭据 — 当配置中还不存在时，会在首次部署基础环境前请求。
-  - 这些凭据会保存在 wsdd-secrets.json 中，并在后续启动时重复使用。
-
-工具:
-  - Webmin 软件包来源 — PHP 容器会在镜像构建期间从 Webmin 官方 APT 仓库安装 Webmin
-  - 按 PHP 版本保存的 Webmin 凭据 — 仅在该版本首次部署且容器尚不存在时请求一次。
-  - 之后修改这些凭据不会自动轮换现有容器中的用户；它们会在下一次由 WSDD 管理的 rebuild 中生效。
-
-更改保存到: C:\WSDD-Environment\wsdd-config.json
-Secrets 保存到: C:\WSDD-Environment\wsdd-secrets.json
+公共配置：C:\WSDD-Environment\wsdd-config.json。密钥：C:\WSDD-Environment\wsdd-secrets.json。
 
 ## WSL2 设置
 
 访问方式: 工具 → WSL 设置
 
-修改: %USERPROFILE%\.wslconfig
+WSDD 存储区域的独立 Save 按钮将项目路径、发行版及托管存储保存到 `wsdd-config.json`。全局 WSL Save 仅在配置更改时写入 `%USERPROFILE%\.wslconfig`。
 
 系统资源:
   - CPU 核心    — 限制分配给 WSL2 的核心数。
@@ -359,8 +315,8 @@ phpMyAdmin 和 MySQL SSL:
 
 问: ngrok 只用浏览器登录可以吗？
 答: 不可以。浏览器登录只会打开你的 ngrok 账号；Docker agent 仍然需要
-   authtoken。在 Settings 中启用 ngrok，打开 dashboard，复制 authtoken
-   并保存到 WSDD。WSDD 会把它保存到 wsdd-secrets.json。
+   authtoken。在 Tools → ngrok 中打开 dashboard、复制 authtoken 并按 Save，
+   再按 Deploy 应用。WSDD 将它保存在 wsdd-secrets.json。
 
 问: 应该选择哪个项目存储模式？
 答: Classic Bind 保持当前 Windows bind-mount 流程。Fast Sync 以 Windows

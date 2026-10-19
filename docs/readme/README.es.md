@@ -56,7 +56,7 @@ operaciones de contenedores/proyectos en una sola app de escritorio.
 3. **Gestiona proyectos web**: Crea contenedores PHP por version con Apache + Xdebug
 4. **SSL local automatico**: Certificados MKCert por dominio, sin advertencias del navegador
 5. **Hosts automaticos**: Modifica `C:\Windows\System32\drivers\etc\hosts` por ti
-6. **Servicios opcionales**: Redis, Memcached y Mailpit estan desactivados por defecto y se despliegan solo al activarlos en Settings
+6. **Servicios opcionales**: ngrok, Redis, Memcached y Mailpit tienen dialogos separados en Herramientas. Guardar almacena opciones; Deploy aplica el servicio elegido. Redis, Memcached y Mailpit aun requieren validacion integral en una instalacion real.
 
 ## Contenedores Docker del stack
 

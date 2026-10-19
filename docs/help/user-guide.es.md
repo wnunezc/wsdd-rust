@@ -227,68 +227,19 @@ IMPORTANTE:
 
 ## Configuracion de WSDD (Settings)
 
-Acceder via: Herramientas → Configuracion
+Acceso: Herramientas → Configuracion. Este dialogo solo cambia el idioma. Guardar escribe la configuracion publica de WSDD sin modificar Docker, WSL ni los secretos guardados.
 
-GENERAL:
-  - Ruta de proyectos    — Directorio base para nuevos proyectos (default: C:\WSDD-Projects)
-  - Docker Desktop path  — Ruta al ejecutable de Docker Desktop (opcional, para relanzarlo)
-  - WSL Distro           — Distribucion WSL2 activa (ej: Ubuntu-22.04)
-  - Max lineas en log    — Limite de lineas conservadas en el panel de log (100-10000)
-  - Auto-iniciar contenedores — Inicia los contenedores WSDD al abrir la aplicacion
+Herramientas → ngrok, Redis, Memcached o Mailpit abre un dialogo propio. Guardar almacena opciones sin desplegar; Deploy guarda y aplica el servicio elegido; Detener para su contenedor sin borrar volumenes; Cancelar descarta campos sin guardar. ngrok permite comprobar su Agent API. Redis, Memcached y Mailpit aun no tienen validacion integral en una instalacion WSDD real.
 
-PHP (contenedores Docker):
-  Estos valores se aplican al GENERAR nuevos contenedores.
-  No afectan contenedores ya existentes (necesitan redeploy).
-  - memory_limit              — Limite de RAM para PHP (ej: 512M)
-  - upload_max_filesize       — Tamano maximo de archivos subidos (ej: 256M)
-  - Timezone                  — Zona horaria PHP (ej: America/Mexico_City, UTC)
-  - Xdebug                    — Activo por defecto en contenedores PHP nuevos
-    o reconstruidos. PHP 8.x usa Xdebug 3 con modo debug,develop,
-    host.docker.internal, puerto 9003 e inicio por trigger. PHP 5.6/7.x usa el
-    equivalente de trigger de Xdebug 2 en el mismo host/puerto.
+Herramientas → Configuracion WSL contiene el almacenamiento y la recuperacion WSDD, con un Guardar separado. Los valores previos de PHP/Xdebug y las credenciales MySQL/Webmin se conservan, pero ya no se editan en Settings. Las credenciales ausentes se solicitan en el primer despliegue correspondiente. Cambiar valores guardados no rota usuarios de contenedores existentes.
 
-Debug con IDE / agentes:
-  - Configurar VS Code, PHPStorm u otro listener DBGp en el puerto 9003.
-  - Mapear la ruta Windows del proyecto a /var/www/html/{dominio-del-proyecto}.
-  - Las IA/agentes tambien pueden escuchar si ejecutan un listener compatible
-    con DBGp/Xdebug en el host Windows; WSDD solo configura el contenedor PHP
-    para conectarse de vuelta.
-
-SERVICIOS OPCIONALES:
-  Redis, Memcached y Mailpit estan desactivados por defecto y no se despliegan con el
-  stack base. Activa el servicio en Settings, revisa puertos/autoarranque y
-  guarda para desplegarlo.
-  - Redis: host de contenedor redis / WSDD-Redis-Server, puerto interno 6379,
-    puerto host por defecto 6379, volumen persistente wsdd-redis-data.
-  - Memcached: host de contenedor memcached / WSDD-Memcached-Server, puerto
-    interno 11211, puerto host por defecto 11211, cache volatil.
-  - Mailpit: host SMTP mailpit / WSDD-Mailpit-Server, puerto SMTP interno 1025,
-    UI en puerto 8025, UI local por defecto http://mailpit.wsdd.dock.
-  - Ejemplos para frameworks:
-    Redis: REDIS_HOST=redis, REDIS_PORT=6379.
-    Memcached: MEMCACHED_HOST=memcached, MEMCACHED_PORT=11211.
-    Mailpit: MAIL_HOST=mailpit, MAIL_PORT=1025, MAIL_MAILER=smtp.
-
-PREREQUISITOS:
-  - Credenciales de MySQL/phpMyAdmin — se solicitan antes del primer deploy
-    del entorno base si todavia no existen en la configuracion.
-  - Se guardan en wsdd-secrets.json y se reutilizan en siguientes arranques.
-
-HERRAMIENTAS:
-  - Origen del paquete Webmin — Los contenedores PHP instalan Webmin desde el repositorio APT oficial de Webmin durante el build de la imagen
-  - Credenciales de Webmin por version PHP — se solicitan solo la primera vez
-    que se despliega una version cuyo contenedor aun no existe.
-  - Cambiarlas despues no rota automaticamente el usuario ya existente dentro
-    del contenedor; aplican al siguiente rebuild administrado por WSDD.
-
-Los ajustes se guardan en: C:\WSDD-Environment\wsdd-config.json
-Los secretos se guardan en: C:\WSDD-Environment\wsdd-secrets.json
+Configuracion publica: C:\WSDD-Environment\wsdd-config.json. Secretos: C:\WSDD-Environment\wsdd-secrets.json.
 
 ## Configuracion de WSL2 (WSL Settings)
 
 Acceder via: Herramientas → Configuracion WSL
 
-Modifica: %USERPROFILE%\.wslconfig
+La seccion de almacenamiento WSDD guarda ruta, distro y almacenamiento administrado en `wsdd-config.json`. El otro boton Guardar escribe `%USERPROFILE%\.wslconfig` solo si cambian sus valores globales.
 
 RECURSOS DEL SISTEMA:
   - Nucleos de CPU    — Limitar los nucleos asignados a WSL2.
@@ -453,8 +404,9 @@ R: Respaldar el directorio completo de tu codigo fuente (la ruta de trabajo)
 
 P: ¿ngrok funciona solo con login en navegador?
 R: No. El login del navegador abre tu cuenta de ngrok, pero el agente Docker
-   necesita un authtoken. En Configuracion, habilita ngrok, abre el dashboard,
-   copia el authtoken y guardalo en WSDD. WSDD lo guarda en wsdd-secrets.json.
+   necesita un authtoken. En Herramientas → ngrok, abre el dashboard, copia el
+   authtoken y pulsa Guardar; pulsa Deploy para aplicarlo. WSDD guarda el token
+   en wsdd-secrets.json.
 
 P: ¿Que modo de almacenamiento de proyecto debo elegir?
 R: Bind clasico mantiene el flujo actual con bind mount de Windows. Workspace

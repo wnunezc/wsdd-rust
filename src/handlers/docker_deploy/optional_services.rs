@@ -6,9 +6,11 @@ use super::progress::make_docker_progress_bridge;
 use super::templates;
 use crate::config::environment::{env_config, path_config};
 use crate::errors::InfraError;
+use crate::handlers::deploy_trace::TraceHandle;
 use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_TOOLS_PROJECT};
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
+use crate::handlers::ngrok;
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 use crate::handlers::setting::AppSettings;
 
@@ -25,7 +27,7 @@ pub enum OptionalServiceKind {
 }
 
 impl OptionalServiceKind {
-    fn service_name(self) -> &'static str {
+    pub(crate) fn service_name(self) -> &'static str {
         match self {
             Self::Redis => "redis",
             Self::Mailpit => "mailpit",
@@ -34,7 +36,7 @@ impl OptionalServiceKind {
         }
     }
 
-    fn container_name(self) -> &'static str {
+    pub(crate) fn container_name(self) -> &'static str {
         match self {
             Self::Redis => "WSDD-Redis-Server",
             Self::Mailpit => "WSDD-Mailpit-Server",
@@ -82,16 +84,19 @@ pub(super) fn deploy_service_sync(
     settings: &AppSettings,
     kind: OptionalServiceKind,
     tx: &LogSender,
+    trace: Option<&TraceHandle>,
 ) -> Result<(), InfraError> {
-    settings.validate_optional_services()?;
-    docker::require_container_project(runner, kind.container_name(), WSDD_TOOLS_PROJECT)?;
-
-    ensure_network_sync(runner, tx)?;
-    if kind == OptionalServiceKind::Mailpit {
-        let host = settings.optional_services.mailpit.virtual_host.as_str();
-        hosts::update_host(Some(&[host]), tx)
-            .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))?;
-    }
+    traced_stage(trace, "Preparación del servicio", tx, || {
+        settings.validate_optional_services()?;
+        docker::require_container_project(runner, kind.container_name(), WSDD_TOOLS_PROJECT)?;
+        ensure_network_sync(runner, tx)?;
+        if kind == OptionalServiceKind::Mailpit {
+            let host = settings.optional_services.mailpit.virtual_host.as_str();
+            hosts::update_host(Some(&[host]), tx)
+                .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))?;
+        }
+        sync_resources_sync(settings)
+    })?;
 
     let compose_files = [
         path_config().redis_yml(),
@@ -99,10 +104,6 @@ pub(super) fn deploy_service_sync(
         path_config().mailpit_yml(),
         path_config().ngrok_yml(),
     ];
-    if compose_files.iter().any(|path| !path.is_file()) {
-        sync_resources_sync(settings)?;
-    }
-
     let docker_dir = path_config().docker_structure_dir();
     let command = format!(
         "{} -p {WSDD_TOOLS_PROJECT} {} up -d --no-deps {}",
@@ -115,24 +116,42 @@ pub(super) fn deploy_service_sync(
         kind.service_name()
     );
 
-    let _ = tx.send(LogLine::info(format!(
-        "Desplegando servicio opcional {}...",
-        kind.display_name()
-    )));
-    let bridge = make_docker_progress_bridge(tx);
-    let result = runner.run_ps_sync(&command, Some(&docker_dir), Some(&bridge));
-    bridge.complete(
-        result,
-        &format!("docker-compose up {}", kind.service_name()),
-    )?;
+    traced_stage(trace, "Descarga e inicio con Compose", tx, || {
+        let bridge = make_docker_progress_bridge(tx);
+        let result = runner.run_ps_sync(&command, Some(&docker_dir), Some(&bridge));
+        bridge
+            .complete(
+                result,
+                &format!("docker-compose up {}", kind.service_name()),
+            )
+            .map(|_| ())
+    })?;
 
-    if !wait_until_sync(READY_TIMEOUT, READY_POLL_INTERVAL, || {
-        container_running_sync(runner, kind.container_name())
-    })? {
-        return Err(InfraError::UnexpectedOutput(
-            format!("docker-compose up {}", kind.service_name()),
-            format!("{} no alcanzo estado running", kind.container_name()),
-        ));
+    traced_stage(trace, "Verificación del contenedor", tx, || {
+        if wait_until_sync(READY_TIMEOUT, READY_POLL_INTERVAL, || {
+            container_running_sync(runner, kind.container_name())
+        })? {
+            Ok(())
+        } else {
+            Err(InfraError::UnexpectedOutput(
+                format!("docker-compose up {}", kind.service_name()),
+                format!("{} no alcanzo estado running", kind.container_name()),
+            ))
+        }
+    })?;
+
+    if kind == OptionalServiceKind::Ngrok {
+        traced_stage(trace, "Verificación de Agent API", tx, || {
+            if wait_until_sync(READY_TIMEOUT, READY_POLL_INTERVAL, || {
+                ngrok::agent_status(settings, runner).map(|status| status.api_reachable)
+            })? {
+                Ok(())
+            } else {
+                Err(InfraError::PrerequisiteNotMet(crate::i18n::tr(
+                    "tool_ngrok_api_unreachable",
+                )))
+            }
+        })?;
     }
 
     let _ = tx.send(LogLine::success(format!(
@@ -140,6 +159,18 @@ pub(super) fn deploy_service_sync(
         kind.display_name()
     )));
     Ok(())
+}
+
+fn traced_stage<T>(
+    trace: Option<&TraceHandle>,
+    label: &'static str,
+    tx: &LogSender,
+    task: impl FnOnce() -> Result<T, InfraError>,
+) -> Result<T, InfraError> {
+    match trace {
+        Some(trace) => trace.stage(label, tx, task),
+        None => task(),
+    }
 }
 
 /// Stops one optional service without deleting data volumes.

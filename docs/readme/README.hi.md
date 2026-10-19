@@ -38,7 +38,7 @@ container/project operations को एक desktop app में centralize क�
 3. **वेब प्रोजेक्ट प्रबंधित करती है**: Apache + Xdebug के साथ प्रति संस्करण PHP कंटेनर बनाती है
 4. **स्वचालित लोकल SSL**: प्रति डोमेन MKCert प्रमाणपत्र, बिना ब्राउज़र चेतावनी
 5. **स्वचालित hosts**: आपके लिए `C:\Windows\System32\drivers\etc\hosts` संशोधित करती है
-6. **वैकल्पिक सेवाएँ**: Redis, Memcached और Mailpit डिफ़ॉल्ट रूप से बंद रहते हैं और Settings में सक्रिय करने पर ही deploy होते हैं
+6. **वैकल्पिक सेवाएँ**: ngrok, Redis, Memcached और Mailpit के अलग Tools डायलॉग हैं। Save विकल्प सहेजता है; Deploy चुनी हुई सेवा लागू करता है। Redis, Memcached और Mailpit का वास्तविक इंस्टॉलेशन पर पूर्ण परीक्षण अभी बाकी है।
 
 ## Docker स्टैक कंटेनर
 

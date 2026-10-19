@@ -16,6 +16,7 @@
 
 use crate::app::WsddApp;
 use crate::config::environment::{env_config, path_config, path_to_string};
+use crate::handlers::docker_deploy::OptionalServiceKind;
 use crate::handlers::external_app;
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ps_script::{launch, launch_url};
@@ -85,6 +86,19 @@ pub(super) fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                         });
 
                         ui.menu_button(menu_tools, |ui| {
+                            for kind in [
+                                OptionalServiceKind::Ngrok,
+                                OptionalServiceKind::Redis,
+                                OptionalServiceKind::Memcached,
+                                OptionalServiceKind::Mailpit,
+                            ] {
+                                if ui.button(kind.display_name()).clicked() {
+                                    app.ui.optional_service_draft = None;
+                                    app.ui.active = ActiveView::OptionalService(kind);
+                                    ui.close_menu();
+                                }
+                            }
+                            ui.separator();
                             if ui.button(&backup_environment).clicked() {
                                 actions::start_environment_backup(ctx, app);
                                 ui.close_menu();

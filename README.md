@@ -64,7 +64,7 @@ sharing them, especially output from applications with secrets unknown to WSDD.
 3. **Manages web projects**: Creates PHP containers per version with Apache + Xdebug
 4. **Automatic local SSL**: MKCert certificates per domain, no browser warnings
 5. **Automatic hosts**: Modifies `C:\Windows\System32\drivers\etc\hosts` for you
-6. **Optional developer services**: Redis, Memcached, Mailpit, and ngrok are disabled by default and deploy only after explicit activation in Settings
+6. **Optional developer services**: Configure ngrok, Redis, Memcached, and Mailpit in their separate Tools dialogs. Save stores options; Deploy applies the selected service through Docker. Redis, Memcached, and Mailpit still need end-to-end validation on a live WSDD installation.
 7. **Linux-native project storage**: Optional managed WSL storage provides Linux filesystem performance while preserving a Windows-accessible project alias
 8. **WSL runtime recovery**: A hidden scheduled task repairs Docker Desktop WSL mount relays after Windows or Docker restarts
 

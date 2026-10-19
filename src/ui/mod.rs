@@ -21,6 +21,7 @@ pub(crate) mod deploy_php;
 pub mod helps;
 pub mod loader;
 pub mod main_window;
+pub mod optional_service;
 pub mod projects_panel;
 pub mod settings;
 pub mod theme;
@@ -50,6 +51,10 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         ActiveView::Settings => {
             main_window::render(ctx, app);
             settings::render(ctx, app);
+        }
+        ActiveView::OptionalService(kind) => {
+            main_window::render(ctx, app);
+            optional_service::render(ctx, app, *kind);
         }
         ActiveView::About => {
             main_window::render(ctx, app);

@@ -1,6 +1,7 @@
 use std::collections::BTreeSet;
 use std::sync::mpsc;
 
+use crate::handlers::docker_deploy::OptionalServiceKind;
 use crate::handlers::log_types::LogLine;
 use crate::handlers::setting::{AppSettings, PrereqCredentials};
 use crate::handlers::wsl::WslConfig;
@@ -13,6 +14,7 @@ pub enum ActiveView {
     Loader,
     Main,
     Settings,
+    OptionalService(OptionalServiceKind),
     AddProject,
     About,
     Helps,
@@ -79,8 +81,17 @@ pub struct UiState {
     pub folder_pick_rx: Option<mpsc::Receiver<Option<String>>>,
     pub settings_draft: Option<AppSettings>,
     pub settings_error: Option<String>,
-    pub settings_recovery_task_status: Option<String>,
+    pub optional_service_draft: Option<AppSettings>,
+    pub optional_service_error: Option<String>,
+    pub optional_service_notice: Option<String>,
     pub wsl_draft: Option<WslConfig>,
+    pub wsl_initial: Option<WslConfig>,
+    pub wsl_config_error: Option<String>,
+    pub wsl_storage_draft: Option<AppSettings>,
+    pub wsl_storage_error: Option<String>,
+    pub wsl_storage_notice: Option<String>,
+    pub wsl_storage_task_retry: bool,
+    pub wsl_recovery_status: Option<String>,
     pub helps_search: String,
     pub selected_trace_key: Option<String>,
     pub show_main_log_detail: bool,
@@ -116,8 +127,17 @@ impl UiState {
             folder_pick_rx: None,
             settings_draft: None,
             settings_error: None,
-            settings_recovery_task_status: None,
+            optional_service_draft: None,
+            optional_service_error: None,
+            optional_service_notice: None,
             wsl_draft: None,
+            wsl_initial: None,
+            wsl_config_error: None,
+            wsl_storage_draft: None,
+            wsl_storage_error: None,
+            wsl_storage_notice: None,
+            wsl_storage_task_retry: false,
+            wsl_recovery_status: None,
             helps_search: String::new(),
             selected_trace_key: None,
             show_main_log_detail: true,

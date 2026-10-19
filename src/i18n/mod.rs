@@ -193,6 +193,21 @@ mod tests {
                 "locale {} has keys missing in English: {extra_keys:?}",
                 lang.code()
             );
+            let missing_keys: Vec<_> = english_keys.difference(&keys).collect();
+            assert!(
+                missing_keys.is_empty(),
+                "locale {} is missing keys: {missing_keys:?}",
+                lang.code()
+            );
+            let empty_keys: Vec<_> = load_locale(*lang)
+                .into_iter()
+                .filter_map(|(key, value)| value.trim().is_empty().then_some(key))
+                .collect();
+            assert!(
+                empty_keys.is_empty(),
+                "locale {} has empty values: {empty_keys:?}",
+                lang.code()
+            );
         }
     }
 
