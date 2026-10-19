@@ -5,7 +5,7 @@
 
 *语言: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*快速链接: [用户指南](../help/user-guide.zh.md) | [迁移地图](../../MIGRATION.md) | [许可](../legal/LICENSE.zh.md) | [Notice](../../NOTICE.md) | [第三方许可](../../THIRD_PARTY_LICENSES.md) | [贡献](../../CONTRIBUTING.md) | [安全](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*快速链接: [用户指南](../help/user-guide.zh.md) | [许可](../legal/LICENSE.zh.md) | [Notice](../../NOTICE.md) | [第三方许可](../../THIRD_PARTY_LICENSES.md) | [贡献](../../CONTRIBUTING.md) | [安全](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [报告问题](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 *Language fallback: English for any missing localized UI/help content.*
 

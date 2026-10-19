@@ -5,7 +5,7 @@ Windows डेस्कटॉप एप्लिकेशन जो Docker क�
 
 *भाषाएँ: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*त्वरित लिंक: [User Guide](../help/user-guide.hi.md) | [माइग्रेशन मैप](../../MIGRATION.md) | [लाइसेंस](../legal/LICENSE.hi.md) | [Notice](../../NOTICE.md) | [Third-Party Licenses](../../THIRD_PARTY_LICENSES.md) | [Contributing](../../CONTRIBUTING.md) | [Security](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [बग रिपोर्ट करें](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*त्वरित लिंक: [User Guide](../help/user-guide.hi.md) | [लाइसेंस](../legal/LICENSE.hi.md) | [Notice](../../NOTICE.md) | [Third-Party Licenses](../../THIRD_PARTY_LICENSES.md) | [Contributing](../../CONTRIBUTING.md) | [Security](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [बग रिपोर्ट करें](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 *Language fallback: English for any missing localized UI/help content.*
 

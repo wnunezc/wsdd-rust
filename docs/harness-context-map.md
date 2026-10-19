@@ -12,7 +12,7 @@ El estado de producto y las pruebas pertenecen a este repositorio. Las notas de 
 | Tarea | Documento propietario |
 |---|---|
 | Uso y entorno | `README.md`, `docs/help/` |
-| Arquitectura heredada C# → Rust | `MIGRATION.md`; la antigua carpeta C# bajo `Finished/` no existe actualmente |
+| Arquitectura heredada C# → Rust | Migración cerrada en `v1.0.0`; el mapa histórico se conserva en Git (`0dea227:MIGRATION.md`). La antigua carpeta C# bajo `Finished/` no existe actualmente |
 | Credenciales de desarrollo y logs | `docs/development-credentials.md`, `docs/maintenance/development-credentials-and-log-suppression-2026-10-17.md` |
 | Etapas y log completo de despliegue | `docs/maintenance/deploy-stage-trace-2026-10-19.md` |
 | Settings, Herramientas y WSL: inventario y acciones | `docs/maintenance/settings-tools-reorganization-2026-10-19.md` |

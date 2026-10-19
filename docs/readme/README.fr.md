@@ -6,7 +6,7 @@ Xdebug et les services optionnels Redis/Memcached/Mailpit.
 
 *Langues: [English](../../README.md) | [Español](README.es.md) | [Français](README.fr.md) | [हिन्दी](README.hi.md) | [中文](README.zh.md)*
 
-*Liens rapides: [Guide utilisateur](../help/user-guide.fr.md) | [Carte de migration](../../MIGRATION.md) | [Licence](../legal/LICENSE.fr.md) | [Notice](../../NOTICE.md) | [Licences tierces](../../THIRD_PARTY_LICENSES.md) | [Contribuer](../../CONTRIBUTING.md) | [Securite](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Signaler un bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
+*Liens rapides: [Guide utilisateur](../help/user-guide.fr.md) | [Licence](../legal/LICENSE.fr.md) | [Notice](../../NOTICE.md) | [Licences tierces](../../THIRD_PARTY_LICENSES.md) | [Contribuer](../../CONTRIBUTING.md) | [Securite](../../SECURITY.md) | [Discussions](https://github.com/wnunezc/wsdd-rust/discussions) | [Signaler un bug](https://github.com/wnunezc/wsdd-rust/issues/new)*
 
 *Fallback de langue: anglais pour tout contenu UI/aide non localise.*
 
