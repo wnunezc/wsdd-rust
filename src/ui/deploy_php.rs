@@ -130,17 +130,40 @@ fn start(ctx: &egui::Context, app: &mut WsddApp, prompt: &DeployPhpPrompt) -> Re
     let runner = app.runner.clone();
     let settings = app.settings.clone();
     let tx = app.main_log_tx.clone();
+    let events = app.trace_tx.clone();
     let key = format!("container:deploy:{}", version.compose_tag());
-    if !app.spawn_blocking_job(ctx, key, "Deploy PHP", move || {
-        crate::handlers::deploy::deploy_php_version(&version, &settings, &runner, &tx).map_err(
-            |e| {
-                let message = format!("[Deploy PHP] Error: {e}");
-                let _ = tx.send(LogLine::error(&message));
-                message
+    let path = crate::handlers::deploy_trace::operation_log_path();
+    let trace_key = format!("{key}:{}", path.display());
+    let worker_key = trace_key.clone();
+    let worker_path = path.clone();
+    if !app.spawn_blocking_job(ctx, key.clone(), "Deploy PHP", move || {
+        crate::handlers::deploy_trace::run_logged(
+            worker_key,
+            worker_path,
+            tx,
+            events,
+            |log, trace| {
+                crate::handlers::deploy::deploy_php_version_traced(
+                    &version,
+                    &settings,
+                    &runner,
+                    log,
+                    Some(trace),
+                )
+                .map_err(|e| {
+                    let message = format!("[Deploy PHP] Error: {e}");
+                    let _ = log.send(LogLine::error(&message));
+                    message
+                })
             },
         )
     }) {
         return Err(tr("deploy_php_busy"));
     }
+    app.track_operation(
+        trace_key,
+        format!("PHP {}", prompt.version.compose_tag()),
+        path,
+    );
     Ok(())
 }

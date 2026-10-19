@@ -15,11 +15,13 @@
 //! Global application state facade.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::mpsc;
 use std::time::{Duration, Instant};
 
 use tokio::runtime::Runtime;
 
+use crate::handlers::deploy_trace::TraceEvent;
 use crate::handlers::docker::{ContainerInfo, ContainerPollSnapshot, DockerDesktopStatus};
 use crate::handlers::log_types::LogLine;
 use crate::handlers::ngrok::NgrokPublication;
@@ -56,6 +58,27 @@ pub struct BackgroundJob {
     pub started_at: Instant,
     pub finished_at: Option<Instant>,
     pub last_error: Option<String>,
+}
+
+/// One confirmed stage of a deployment operation.
+#[derive(Debug, Clone)]
+pub struct OperationStage {
+    pub label: &'static str,
+    pub started_at: Instant,
+    pub finished_at: Option<Instant>,
+    pub success: bool,
+}
+
+/// UI metadata for one operation and its complete, redacted diagnostic file.
+#[derive(Debug, Clone)]
+pub struct OperationTrace {
+    pub key: String,
+    pub label: String,
+    pub log_path: PathBuf,
+    pub stages: Vec<OperationStage>,
+    pub buildkit_step: Option<String>,
+    pub finished_at: Option<Instant>,
+    pub success: bool,
 }
 
 /// One live log line emitted by a Docker container.
@@ -97,6 +120,9 @@ pub struct WsddApp {
     pub containers: Vec<ContainerInfo>,
     pub projects: Vec<Project>,
     pub main_log: Vec<LogLine>,
+    pub operation_traces: Vec<OperationTrace>,
+    pub trace_tx: mpsc::Sender<TraceEvent>,
+    trace_rx: mpsc::Receiver<TraceEvent>,
     pub main_log_tx: mpsc::Sender<LogLine>,
     main_log_rx: mpsc::Receiver<LogLine>,
     pub container_logs: Vec<ContainerLogEntry>,
@@ -151,6 +177,7 @@ impl WsddApp {
         };
 
         let (main_log_tx, main_log_rx) = mpsc::channel::<LogLine>();
+        let (trace_tx, trace_rx) = mpsc::channel::<TraceEvent>();
         let (container_log_tx, container_log_rx) = mpsc::channel::<ContainerLogEntry>();
         let (container_log_done_tx, container_log_done_rx) = mpsc::channel::<String>();
         let (ngrok_publication_tx, ngrok_publication_rx) = mpsc::channel::<NgrokPublicationEvent>();
@@ -172,6 +199,9 @@ impl WsddApp {
             containers: Vec::new(),
             projects: crate::handlers::project::list_all().unwrap_or_default(),
             main_log: Vec::new(),
+            operation_traces: Vec::new(),
+            trace_tx,
+            trace_rx,
             main_log_tx,
             main_log_rx,
             container_logs: Vec::new(),
@@ -197,6 +227,21 @@ impl WsddApp {
             main_window,
             last_main_window_save: Instant::now(),
         }
+    }
+
+    pub fn track_operation(&mut self, key: String, label: String, log_path: PathBuf) {
+        self.ui.selected_trace_key = Some(key.clone());
+        self.ui.show_main_log_detail = false;
+        let label = format!("{label} · #{}", self.operation_traces.len() + 1);
+        self.operation_traces.push(OperationTrace {
+            key,
+            label,
+            log_path,
+            stages: Vec::new(),
+            buildkit_step: None,
+            finished_at: None,
+            success: false,
+        });
     }
 
     fn save_main_window_state(&mut self) {

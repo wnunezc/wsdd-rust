@@ -56,6 +56,20 @@ pub(super) fn remove_projects(
         names,
         container,
     )?;
+    let mut runtime_names: BTreeSet<String> = projects
+        .iter()
+        .map(super::paths::php_container_name)
+        .collect();
+    if let Some(name) = container {
+        runtime_names.insert(name.to_string());
+    }
+    for name in runtime_names {
+        crate::handlers::docker::require_container_project(
+            runner,
+            &name,
+            crate::handlers::docker::WSDD_WEB_PROJECT,
+        )?;
+    }
     execute_removal(
         &projects,
         || {

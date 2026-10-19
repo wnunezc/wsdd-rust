@@ -86,6 +86,11 @@
   "toolbar_reload_projects_hint": "Recharger les projets depuis le disque",
 
   "log_title": "Journal",
+  "trace_title": "Étapes du déploiement",
+  "trace_show_live": "Afficher la sortie en direct",
+  "trace_hide_live": "Masquer la sortie en direct",
+  "trace_open_log": "Ouvrir le journal complet",
+  "trace_copy_log": "Copier le journal complet",
   "container_log_title": "Journaux des conteneurs",
   "status_bar_containers": "Conteneurs",
   "status_bar_running": "Actifs",

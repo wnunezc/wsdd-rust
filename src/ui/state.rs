@@ -82,6 +82,8 @@ pub struct UiState {
     pub settings_recovery_task_status: Option<String>,
     pub wsl_draft: Option<WslConfig>,
     pub helps_search: String,
+    pub selected_trace_key: Option<String>,
+    pub show_main_log_detail: bool,
 }
 
 impl UiState {
@@ -117,6 +119,8 @@ impl UiState {
             settings_recovery_task_status: None,
             wsl_draft: None,
             helps_search: String::new(),
+            selected_trace_key: None,
+            show_main_log_detail: true,
         }
     }
 

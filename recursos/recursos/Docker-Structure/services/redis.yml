@@ -1,3 +1,4 @@
+name: wsdd-tools
 services:
   redis:
     container_name: WSDD-Redis-Server

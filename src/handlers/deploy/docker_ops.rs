@@ -3,7 +3,7 @@ use std::path::Path;
 use crate::config::environment::env_config;
 use crate::errors::InfraError;
 use crate::handlers::docker;
-use crate::handlers::docker::WSDD_PROJECT;
+use crate::handlers::docker::WSDD_WEB_PROJECT;
 use crate::handlers::docker_deploy::{make_docker_progress_bridge, make_log_bridge};
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
@@ -207,6 +207,11 @@ pub(super) fn sync_php_container_tracked(
     build_image: bool,
     runtime_changed: &mut bool,
 ) -> Result<(), InfraError> {
+    docker::require_container_project(
+        runner,
+        &paths::php_container_name(project),
+        WSDD_WEB_PROJECT,
+    )?;
     sync_php_container_with(
         project,
         runner,
@@ -239,7 +244,7 @@ fn sync_php_container_with(
     let options_yml = crate::handlers::yml::options_path(php_dir_name, compose_tag);
 
     let prefix = format!(
-        "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\"",
+        "{} -p {WSDD_WEB_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\"",
         env_config().docker_compose_exe()
     );
     let validation =

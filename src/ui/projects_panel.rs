@@ -306,14 +306,36 @@ pub fn spawn_deploy(ctx: &egui::Context, app: &mut WsddApp, project: Project) {
     let project_name = project.name.clone();
     let job_key = project_job_key(&project_name);
     let label = format!("Deploy project {}", project_name);
+    let events = app.trace_tx.clone();
+    let path = crate::handlers::deploy_trace::operation_log_path();
+    let trace_key = format!("{job_key}:{}", path.display());
+    let worker_key = trace_key.clone();
+    let worker_path = path.clone();
 
-    let _ = app.spawn_blocking_job(ctx, job_key, label, move || {
-        crate::handlers::deploy::deploy_project(&project, &settings, &runner, &tx).map_err(|e| {
-            let message = format!("[Deploy] Error: {e}");
-            let _ = tx.send(LogLine::error(message.clone()));
-            message
-        })
-    });
+    if app.spawn_blocking_job(ctx, job_key.clone(), label, move || {
+        crate::handlers::deploy_trace::run_logged(
+            worker_key,
+            worker_path,
+            tx,
+            events,
+            |log, trace| {
+                crate::handlers::deploy::deploy_project_traced(
+                    &project,
+                    &settings,
+                    &runner,
+                    log,
+                    Some(trace),
+                )
+                .map_err(|e| {
+                    let message = format!("[Deploy] Error: {e}");
+                    let _ = log.send(LogLine::error(message.clone()));
+                    message
+                })
+            },
+        )
+    }) {
+        app.track_operation(trace_key, format!("Proyecto {project_name}"), path);
+    }
 }
 
 pub fn do_remove_projects(

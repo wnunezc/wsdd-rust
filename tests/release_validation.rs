@@ -186,6 +186,77 @@ fn docker_structure_zip_contains_ngrok_service_template() {
 }
 
 #[test]
+fn embedded_compose_groups_match_managed_sources() {
+    use std::io::Read;
+
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let archive_file = fs::File::open(root.join("recursos/docker-structure.zip")).unwrap();
+    let mut archive = zip::ZipArchive::new(archive_file).unwrap();
+    let mut grouped = vec![("init.yml".to_string(), "wsdd-core")];
+    grouped.extend(
+        [
+            "services/redis.yml",
+            "services/memcached.yml",
+            "services/mailpit.yml",
+            "services/ngrok.yml",
+        ]
+        .into_iter()
+        .map(|path| (path.to_string(), "wsdd-tools")),
+    );
+    grouped.extend(
+        [
+            ("5.6", "56"),
+            ("7.2", "72"),
+            ("7.4", "74"),
+            ("8.1", "81"),
+            ("8.2", "82"),
+            ("8.3", "83"),
+            ("8.4", "84"),
+        ]
+        .into_iter()
+        .map(|(version, tag)| {
+            (
+                format!("bin/php{version}/webserver.php{tag}.yml"),
+                "wsdd-web",
+            )
+        }),
+    );
+
+    for (path, project) in grouped {
+        let source = workspace_file(format!("recursos/recursos/Docker-Structure/{path}"));
+        let mut packaged = String::new();
+        archive
+            .by_name(&path)
+            .unwrap()
+            .read_to_string(&mut packaged)
+            .unwrap();
+        assert_eq!(
+            packaged, source,
+            "embedded {path} differs from managed source"
+        );
+        assert!(
+            packaged.starts_with(&format!("name: {project}\n")),
+            "wrong Compose group in {path}"
+        );
+    }
+
+    let source = workspace_file("recursos/recursos/PS-Script/wsdd-runtime-recovery.ps1");
+    let archive_file = fs::File::open(root.join("recursos/ps-script.zip")).unwrap();
+    let mut archive = zip::ZipArchive::new(archive_file).unwrap();
+    let mut packaged = String::new();
+    archive
+        .by_name("PS-Script/wsdd-runtime-recovery.ps1")
+        .unwrap()
+        .read_to_string(&mut packaged)
+        .unwrap();
+    assert_eq!(
+        packaged, source,
+        "embedded WSL recovery worker differs from source"
+    );
+    assert!(packaged.contains("'-p', 'wsdd-web'"));
+}
+
+#[test]
 fn wsl_runtime_recovery_worker_is_packaged() {
     let source = workspace_file("recursos/recursos/PS-Script/wsdd-runtime-recovery.ps1");
     for token in [

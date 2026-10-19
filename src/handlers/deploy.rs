@@ -15,6 +15,7 @@
 //! Project deploy/remove orchestration facade.
 
 use crate::errors::InfraError;
+use crate::handlers::deploy_trace::TraceHandle;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::project as project_handler;
 use crate::handlers::ps_script::PsRunner;
@@ -39,10 +40,21 @@ pub fn deploy_php_version(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    deploy_php_version_traced(version, settings, runner, tx, None)
+}
+
+/// Deploys a PHP runtime with optional structured progress.
+pub fn deploy_php_version_traced(
+    version: &crate::models::project::PhpVersion,
+    settings: &AppSettings,
+    runner: &PsRunner,
+    tx: &LogSender,
+    trace: Option<&TraceHandle>,
+) -> Result<(), InfraError> {
     let _guard = PROJECT_LIFECYCLE.lock().map_err(|_| {
         InfraError::PrerequisiteNotMet("Project lifecycle lock is unavailable".into())
     })?;
-    php_runtime::deploy(version, runner, tx, || {
+    php_runtime::deploy_with_trace(version, runner, tx, trace, || {
         crate::handlers::docker_deploy::sync_php_version_resources_sync(settings, version)?;
         crate::handlers::mkcert::sync_root_ca_to_docker_ssl()
             .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))?;
@@ -75,6 +87,17 @@ pub fn deploy_project(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    deploy_project_traced(project, settings, runner, tx, None)
+}
+
+/// Deploys a project with optional structured progress.
+pub fn deploy_project_traced(
+    project: &Project,
+    settings: &AppSettings,
+    runner: &PsRunner,
+    tx: &LogSender,
+    trace: Option<&TraceHandle>,
+) -> Result<(), InfraError> {
     let _guard = PROJECT_LIFECYCLE.lock().map_err(|_| {
         InfraError::PrerequisiteNotMet("Project lifecycle lock is unavailable".into())
     })?;
@@ -82,6 +105,11 @@ pub fn deploy_project(
         "[Deploy] Iniciando despliegue de '{}'...",
         project.name
     )));
+    crate::handlers::docker::require_container_project(
+        runner,
+        &paths::php_container_name(project),
+        crate::handlers::docker::WSDD_WEB_PROJECT,
+    )?;
 
     let project_snapshot =
         rollback::FileSnapshot::capture(paths::project_file_path(&project.name))?;
@@ -102,41 +130,51 @@ pub fn deploy_project(
         crate::handlers::managed_storage_transfer::ManagedStorageTransition::default();
 
     let result = (|| -> Result<(), InfraError> {
-        storage_transition =
-            crate::handlers::managed_storage::prepare_project_storage(project, runner, tx)?;
-        project_handler::save(project)?;
-        let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
+        traced_stage(trace, "Preparación del proyecto", tx, || {
+            storage_transition =
+                crate::handlers::managed_storage::prepare_project_storage(project, runner, tx)?;
+            project_handler::save(project)?;
+            let _ = tx.send(LogLine::success("[Deploy] Proyecto guardado ✓"));
 
-        let volume_outcome = docker_ops::create_volume(project, runner, tx)?;
-        volume_created = volume_outcome.created;
-        container_rebuilt = volume_outcome.runtime_container_removed;
-        steps::update_options_yml(project, tx)?;
+            let volume_outcome = docker_ops::create_volume(project, runner, tx)?;
+            volume_created = volume_outcome.created;
+            container_rebuilt = volume_outcome.runtime_container_removed;
+            steps::update_options_yml(project, tx)?;
 
-        crate::handlers::docker_deploy::sync_php_version_resources_sync(
-            settings,
-            &project.php_version,
-        )?;
-        let _ = tx.send(LogLine::success(
-            "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
-        ));
-
-        vhost::update(project, tx)?;
-        docker_ops::sync_php_container_tracked(project, runner, tx, true, &mut container_rebuilt)?;
-
-        if project.storage_mode == crate::models::project::StorageMode::ManagedNativeLinuxStorage {
-            crate::handlers::managed_storage::fix_project_permissions(
+            crate::handlers::docker_deploy::sync_php_version_resources_sync(
+                settings,
+                &project.php_version,
+            )?;
+            let _ = tx.send(LogLine::success(
+                "[Deploy] Recursos gestionados de PHP/Webmin sincronizados ✓",
+            ));
+            vhost::update(project, tx)
+        })?;
+        traced_stage(trace, "Imagen y contenedor PHP", tx, || {
+            docker_ops::sync_php_container_tracked(
                 project,
-                settings.wsl_distro.as_deref(),
                 runner,
                 tx,
-            )?;
-        }
-
-        if project.ssl {
-            steps::setup_ssl(project, runner, tx)?;
-        }
-
-        steps::update_hosts(project, tx)?;
+                true,
+                &mut container_rebuilt,
+            )
+        })?;
+        traced_stage(trace, "Configuración del proyecto", tx, || {
+            if project.storage_mode
+                == crate::models::project::StorageMode::ManagedNativeLinuxStorage
+            {
+                crate::handlers::managed_storage::fix_project_permissions(
+                    project,
+                    settings.wsl_distro.as_deref(),
+                    runner,
+                    tx,
+                )?;
+            }
+            if project.ssl {
+                steps::setup_ssl(project, runner, tx)?;
+            }
+            steps::update_hosts(project, tx)
+        })?;
         Ok(())
     })();
 
@@ -166,6 +204,18 @@ pub fn deploy_project(
         project.name
     )));
     Ok(())
+}
+
+fn traced_stage<T>(
+    trace: Option<&TraceHandle>,
+    label: &'static str,
+    tx: &LogSender,
+    task: impl FnOnce() -> Result<T, InfraError>,
+) -> Result<T, InfraError> {
+    match trace {
+        Some(trace) => trace.stage(label, tx, task),
+        None => task(),
+    }
 }
 
 /// Removes a complete WSDD project.

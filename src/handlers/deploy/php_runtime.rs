@@ -2,7 +2,8 @@ use std::time::{Duration, Instant};
 
 use crate::config::environment::{env_config, path_config};
 use crate::errors::InfraError;
-use crate::handlers::docker::WSDD_PROJECT;
+use crate::handlers::deploy_trace::TraceHandle;
+use crate::handlers::docker::WSDD_WEB_PROJECT;
 use crate::handlers::docker_deploy::make_docker_progress_bridge;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::ScriptRunner;
@@ -12,6 +13,16 @@ pub(super) fn deploy(
     version: &PhpVersion,
     runner: &impl ScriptRunner,
     tx: &LogSender,
+    prepare: impl FnOnce() -> Result<(), InfraError>,
+) -> Result<(), InfraError> {
+    deploy_with_trace(version, runner, tx, None, prepare)
+}
+
+pub(super) fn deploy_with_trace(
+    version: &PhpVersion,
+    runner: &impl ScriptRunner,
+    tx: &LogSender,
+    trace: Option<&TraceHandle>,
     prepare: impl FnOnce() -> Result<(), InfraError>,
 ) -> Result<(), InfraError> {
     let name = format!("WSDD-Web-Server-{}", version.runtime_container_tag());
@@ -31,68 +42,88 @@ pub(super) fn deploy(
     }
 
     let _ = tx.send(LogLine::info(format!("[Deploy PHP] Preparando {name}...")));
-    prepare()?;
+    traced_stage(trace, "Preparación PHP", tx, prepare)?;
     let dir = path_config().php_dir(version.dir_name());
     let webserver = format!("webserver.{}.yml", version.compose_tag());
     let options = format!("options.{}.yml", version.compose_tag());
     let service = format!("webserver{}", version.host_suffix());
     // Build before up: a failed build never removes an existing runtime.
-    for command in compose_commands(&webserver, &options, &service) {
-        let bridge = make_docker_progress_bridge(tx);
-        let output = runner.run_ps_sync(&command, Some(&dir), Some(&bridge));
-        bridge.complete(output, "docker-compose PHP")?;
+    for (label, command) in ["Construcción de imagen", "Creación del contenedor"]
+        .into_iter()
+        .zip(compose_commands(&webserver, &options, &service))
+    {
+        traced_stage(trace, label, tx, || {
+            let bridge = make_docker_progress_bridge(tx);
+            let output = runner.run_ps_sync(&command, Some(&dir), Some(&bridge));
+            bridge.complete(output, "docker-compose PHP").map(|_| ())
+        })?;
     }
 
-    let deadline = Instant::now() + Duration::from_secs(90);
-    let apache_probe = format!(
+    traced_stage(trace, "Verificación de Apache", tx, || {
+        let deadline = Instant::now() + Duration::from_secs(90);
+        let apache_probe = format!(
         "apache2ctl -t && curl --fail --silent --max-time 5 --output /dev/null --header 'Host: php{}.wsdd.dock' http://127.0.0.1/",
         version.host_suffix()
     );
-    loop {
-        let state = runner.run_direct_sync(
-            env_config().docker_exe(),
-            &[
-                "inspect",
-                "--format",
-                "{{.State.Running}} {{.State.Restarting}}",
-                &name,
-            ],
-            None,
-            None,
-        )?;
-        if !state.success {
-            return Err(InfraError::UnexpectedOutput(
-                "docker inspect PHP".into(),
-                state.text,
-            ));
-        }
-        if state.text.trim() == "true false" {
-            let check = runner.run_direct_sync(
+        loop {
+            let state = runner.run_direct_sync(
                 env_config().docker_exe(),
-                &["exec", &name, "sh", "-c", &apache_probe],
+                &[
+                    "inspect",
+                    "--format",
+                    "{{.State.Running}} {{.State.Restarting}}",
+                    &name,
+                ],
                 None,
                 None,
             )?;
-            if check.success {
-                break;
+            if !state.success {
+                return Err(InfraError::UnexpectedOutput(
+                    "docker inspect PHP".into(),
+                    state.text,
+                ));
             }
-        }
-        if Instant::now() >= deadline {
-            return Err(InfraError::PrerequisiteNotMet(format!(
+            if state.text.trim() == "true false" {
+                let check = runner.run_direct_sync(
+                    env_config().docker_exe(),
+                    &["exec", &name, "sh", "-c", &apache_probe],
+                    None,
+                    None,
+                )?;
+                if check.success {
+                    break;
+                }
+            }
+            if Instant::now() >= deadline {
+                return Err(InfraError::PrerequisiteNotMet(format!(
                 "{name} no alcanzo disponibilidad Apache en 90 segundos. Revise sus logs; no se eliminaron datos."
             )));
+            }
+            std::thread::sleep(Duration::from_secs(1));
         }
-        std::thread::sleep(Duration::from_secs(1));
-    }
+        Ok(())
+    })?;
     let _ = tx.send(LogLine::success(format!(
         "[Deploy PHP] {name} en ejecucion; Apache responde. No se crearon proyectos."
     )));
     Ok(())
 }
 
+fn traced_stage<T>(
+    trace: Option<&TraceHandle>,
+    label: &'static str,
+    tx: &LogSender,
+    task: impl FnOnce() -> Result<T, InfraError>,
+) -> Result<T, InfraError> {
+    match trace {
+        Some(trace) => trace.stage(label, tx, task),
+        None => task(),
+    }
+}
+
 fn compose_commands(webserver: &str, options: &str, service: &str) -> [String; 2] {
     let prefix = format!(
-        "{} -p {WSDD_PROJECT} -f \"{webserver}\" -f \"{options}\"",
+        "{} -p {WSDD_WEB_PROJECT} -f \"{webserver}\" -f \"{options}\"",
         env_config().docker_compose_exe()
     );
     [

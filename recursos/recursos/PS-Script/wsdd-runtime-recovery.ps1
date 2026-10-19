@@ -381,12 +381,12 @@ function Invoke-ComposeUp {
     $legacy = Get-Command docker-compose -ErrorAction SilentlyContinue
     if ($null -ne $legacy) {
       return Invoke-Captured docker-compose @(
-        '-p', 'wsdd-projects', '-f', $webserver, '-f', $options,
+        '-p', 'wsdd-web', '-f', $webserver, '-f', $options,
         'up', '-d', '--no-build', '--force-recreate'
       )
     }
     Invoke-Captured docker @(
-      'compose', '-p', 'wsdd-projects', '-f', $webserver, '-f', $options,
+      'compose', '-p', 'wsdd-web', '-f', $webserver, '-f', $options,
       'up', '-d', '--no-build', '--force-recreate'
     )
   } finally {

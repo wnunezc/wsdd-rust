@@ -1,3 +1,4 @@
+name: wsdd-web
 services:
   webserver81:
     container_name: WSDD-Web-Server-PHP8.1

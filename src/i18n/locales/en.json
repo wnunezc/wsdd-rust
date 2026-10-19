@@ -86,6 +86,11 @@
   "toolbar_reload_projects_hint": "Reload projects from disk",
 
   "log_title": "Log",
+  "trace_title": "Deployment stages",
+  "trace_show_live": "Show live output",
+  "trace_hide_live": "Hide live output",
+  "trace_open_log": "Open full log",
+  "trace_copy_log": "Copy full log",
   "container_log_title": "Container logs",
   "status_bar_containers": "Containers",
   "status_bar_running": "Running",

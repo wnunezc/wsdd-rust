@@ -1,3 +1,4 @@
+name: wsdd-tools
 services:
   ngrok:
     container_name: WSDD-Ngrok-Server

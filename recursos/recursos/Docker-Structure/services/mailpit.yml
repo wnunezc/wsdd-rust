@@ -1,3 +1,4 @@
+name: wsdd-tools
 services:
   mailpit:
     container_name: WSDD-Mailpit-Server

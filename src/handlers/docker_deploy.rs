@@ -172,6 +172,7 @@ pub fn sync_installed_docker_resources_sync(settings: &AppSettings) -> Result<()
         sync_php_version_resources_sync(&render_settings, &php_version)?;
     }
 
+    optional_services::sync_resources_sync(settings)?;
     sync_registered_project_options_sync()
 }
 
@@ -180,7 +181,7 @@ pub fn sync_optional_service_resources_sync(settings: &AppSettings) -> Result<()
     optional_services::sync_resources_sync(settings)
 }
 
-/// Deploys one optional developer service from its isolated compose file.
+/// Deploys one optional developer service in the shared tools Compose project.
 pub fn deploy_optional_service_sync(
     runner: &PsRunner,
     settings: &AppSettings,

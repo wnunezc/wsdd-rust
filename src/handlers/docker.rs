@@ -18,6 +18,7 @@
 //! delegating lifecycle, infrastructure, container, polling, and status concerns
 //! to focused submodules.
 
+mod compose;
 mod containers;
 mod infra;
 mod lifecycle;
@@ -35,8 +36,13 @@ pub use types::{
 /// Shared Docker network used by all WSDD containers.
 pub const WSDD_NETWORK: &str = "wsdd-network";
 
-/// Docker Compose project name used by WSDD.
-pub const WSDD_PROJECT: &str = "wsdd-projects";
+/// Docker Compose projects grouped by runtime responsibility.
+pub const WSDD_CORE_PROJECT: &str = "wsdd-core";
+pub const WSDD_WEB_PROJECT: &str = "wsdd-web";
+pub const WSDD_TOOLS_PROJECT: &str = "wsdd-tools";
+
+pub use compose::expected_project_for_container;
+pub use compose::require_container_project;
 
 /// Checks whether Docker Desktop is installed.
 pub async fn probe_installed(runner: &PsRunner) -> Result<bool, InfraError> {

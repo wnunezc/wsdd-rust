@@ -65,15 +65,129 @@ fn render_main_log(ui: &mut egui::Ui, app: &mut WsddApp) {
             ui.output_mut(|o| o.copied_text = crate::handlers::diagnostics::redact(&text));
         }
     });
-    render_log_frame(ui, "main_log_scroll", |ui, dark| {
-        for line in &app.main_log {
-            render_log_line(
-                ui,
-                &crate::handlers::diagnostics::redact(&line.text),
-                log_color(&line.level, dark),
-            );
+    render_operation_trace(ui, app);
+    if app.ui.show_main_log_detail {
+        render_log_frame(ui, "main_log_scroll", |ui, dark| {
+            for line in &app.main_log {
+                render_log_line(
+                    ui,
+                    &crate::handlers::diagnostics::redact(&line.text),
+                    log_color(&line.level, dark),
+                );
+            }
+        });
+    }
+}
+
+fn render_operation_trace(ui: &mut egui::Ui, app: &mut WsddApp) {
+    if app.operation_traces.is_empty() {
+        return;
+    }
+    let selected = app.ui.selected_trace_key.as_deref();
+    let current = app
+        .operation_traces
+        .iter()
+        .rev()
+        .find(|trace| Some(trace.key.as_str()) == selected)
+        .or_else(|| app.operation_traces.last());
+    let Some(current) = current else { return };
+    let selected_key = current.key.clone();
+    ui.horizontal(|ui| {
+        ui.label(egui::RichText::new(tr("trace_title")).strong());
+        ui.label(if current.finished_at.is_none() {
+            "◌"
+        } else if current.success {
+            "✓"
+        } else {
+            "✗"
+        });
+        egui::ComboBox::from_id_salt("operation_trace_select")
+            .selected_text(&current.label)
+            .show_ui(ui, |ui| {
+                for trace in app.operation_traces.iter().rev() {
+                    ui.selectable_value(
+                        &mut app.ui.selected_trace_key,
+                        Some(trace.key.clone()),
+                        &trace.label,
+                    );
+                }
+            });
+    });
+    let Some(trace) = app
+        .operation_traces
+        .iter()
+        .rev()
+        .find(|trace| trace.key == selected_key)
+    else {
+        return;
+    };
+    let running = trace.finished_at.is_none();
+    for stage in &trace.stages {
+        let end = stage.finished_at.unwrap_or_else(std::time::Instant::now);
+        let elapsed = end.duration_since(stage.started_at).as_secs_f32();
+        let (symbol, color) = match stage.finished_at {
+            None => ("◌", ui.visuals().strong_text_color()),
+            Some(_) if stage.success => ("✓", egui::Color32::from_rgb(60, 170, 90)),
+            Some(_) => ("✗", egui::Color32::from_rgb(210, 70, 70)),
+        };
+        ui.label(
+            egui::RichText::new(format!("{symbol} {} · {elapsed:.1} s", stage.label)).color(color),
+        );
+    }
+    if let Some(step) = &trace.buildkit_step {
+        ui.label(
+            egui::RichText::new(step)
+                .monospace()
+                .color(ui.visuals().weak_text_color()),
+        );
+    }
+    ui.horizontal(|ui| {
+        if ui
+            .small_button(if app.ui.show_main_log_detail {
+                tr("trace_hide_live")
+            } else {
+                tr("trace_show_live")
+            })
+            .clicked()
+        {
+            app.ui.show_main_log_detail = !app.ui.show_main_log_detail;
+        }
+        let exists = trace.log_path.is_file();
+        if ui
+            .add_enabled(exists, egui::Button::new(tr("trace_open_log")))
+            .clicked()
+        {
+            if let Err(error) = crate::handlers::external_app::open_text_file(&trace.log_path) {
+                let _ = app
+                    .main_log_tx
+                    .send(crate::handlers::log_types::LogLine::warn(format!(
+                        "No se pudo abrir el log: {error}"
+                    )));
+            }
+        }
+        if ui
+            .add_enabled(exists, egui::Button::new(tr("trace_copy_log")))
+            .clicked()
+        {
+            match std::fs::read_to_string(&trace.log_path) {
+                Ok(contents) => ui.output_mut(|output| {
+                    output.copied_text = crate::handlers::diagnostics::redact(&contents)
+                }),
+                Err(error) => {
+                    let _ = app
+                        .main_log_tx
+                        .send(crate::handlers::log_types::LogLine::warn(format!(
+                            "No se pudo leer el log: {error}"
+                        )));
+                }
+            }
         }
     });
+    if running {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_millis(250));
+    }
+    ui.separator();
 }
 
 fn render_container_log(ui: &mut egui::Ui, app: &mut WsddApp) {

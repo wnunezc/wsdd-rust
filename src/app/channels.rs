@@ -1,6 +1,9 @@
 use std::time::Instant;
 
-use super::{BackgroundJobEvent, BackgroundJobStatus, NgrokPublicationEvent, WsddApp};
+use super::{
+    BackgroundJobEvent, BackgroundJobStatus, NgrokPublicationEvent, OperationStage, WsddApp,
+};
+use crate::handlers::deploy_trace::TraceEvent;
 
 impl WsddApp {
     /// Drains pending log, polling, and background job channels.
@@ -57,6 +60,71 @@ impl WsddApp {
                 }
             } else {
                 self.main_log.push(line);
+            }
+        }
+
+        while let Ok(event) = self.trace_rx.try_recv() {
+            match event {
+                TraceEvent::StageStarted { key, label, at } => {
+                    if let Some(trace) = self
+                        .operation_traces
+                        .iter_mut()
+                        .rev()
+                        .find(|trace| trace.key == key)
+                    {
+                        trace.buildkit_step = None;
+                        trace.stages.push(OperationStage {
+                            label,
+                            started_at: at,
+                            finished_at: None,
+                            success: false,
+                        });
+                    }
+                }
+                TraceEvent::StageFinished {
+                    key,
+                    label,
+                    at,
+                    success,
+                } => {
+                    if let Some(trace) = self
+                        .operation_traces
+                        .iter_mut()
+                        .rev()
+                        .find(|trace| trace.key == key)
+                    {
+                        if let Some(stage) = trace
+                            .stages
+                            .iter_mut()
+                            .rev()
+                            .find(|stage| stage.label == label && stage.finished_at.is_none())
+                        {
+                            stage.finished_at = Some(at);
+                            stage.success = success;
+                        }
+                    }
+                }
+                TraceEvent::Buildkit { key, step } => {
+                    if let Some(trace) = self
+                        .operation_traces
+                        .iter_mut()
+                        .rev()
+                        .find(|trace| trace.key == key)
+                    {
+                        trace.buildkit_step = Some(step);
+                    }
+                }
+                TraceEvent::OperationFinished { key, success } => {
+                    if let Some(trace) = self
+                        .operation_traces
+                        .iter_mut()
+                        .rev()
+                        .find(|trace| trace.key == key)
+                    {
+                        trace.finished_at = Some(Instant::now());
+                        trace.success = success;
+                    }
+                }
             }
         }
 

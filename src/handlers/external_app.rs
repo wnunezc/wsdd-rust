@@ -14,6 +14,7 @@
 // Contact: wnunez@lh-2.net
 // Equivalente a Handlers/HandlerExternalApp.cs
 use anyhow::Result;
+use std::path::Path;
 use std::process::Command;
 
 /// Abre una URL en el navegador por defecto.
@@ -27,5 +28,11 @@ pub fn open_url(url: &str) -> Result<()> {
 /// Abre el explorador de archivos en la ruta indicada.
 pub fn open_explorer(path: &str) -> Result<()> {
     Command::new("explorer").arg(path).spawn()?;
+    Ok(())
+}
+
+/// Opens a text log in Windows Notepad.
+pub fn open_text_file(path: &Path) -> Result<()> {
+    Command::new("notepad.exe").arg(path).spawn()?;
     Ok(())
 }

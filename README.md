@@ -98,8 +98,10 @@ Webmin is installed inside PHP containers from the official Webmin APT repositor
 - **WSDD-Memcached-Server** — Memcached legacy cache (`memcached:1.6.39-alpine`)
 - **WSDD-Mailpit-Server** — Local SMTP capture and web UI (`axllent/mailpit:v1.29.7`)
 
-Optional services use isolated compose files under `Docker-Structure/services/`, separate Compose
-projects, and the shared `wsdd-network`. They are not deployed with the base stack.
+Optional services use Compose files under `Docker-Structure/services/` and the shared
+`wsdd-tools` Compose project. WSDD starts only the selected service; each utility can be
+started or stopped independently. The base stack uses `wsdd-core`, while PHP runtimes use
+`wsdd-web`. All three groups share `wsdd-network`.
 
 ## Disk Environment Structure
 
@@ -153,6 +155,13 @@ existing project registrations and volumes, and reports progress in the main log
 Success requires a running container and an Apache HTTP response. A startup failure
 leaves the container available for diagnostics; it does not delete its data.
 This check does not certify PHP-Admin agent/reconciliation readiness.
+
+The lower log panel shows measured deployment stages for **Deploy PHP** and
+project deployment. During an image build it shows the latest observed BuildKit
+step; **Show live output** expands the detailed stream. **Open full log** opens
+that operation's redacted log in Notepad, and **Copy full log** copies the file
+instead of the compacted on-screen buffer. Operation logs are stored under
+`C:\WSDD-Environment\logs\wsdd-operation-*.log`.
 
 - Start / stop individual containers from the main panel
 - Open real-time logs with one click

@@ -1,13 +1,12 @@
 //! Optional developer service compose rendering and lifecycle.
 
-use std::path::PathBuf;
 use std::time::{Duration, Instant};
 
 use super::progress::make_docker_progress_bridge;
 use super::templates;
 use crate::config::environment::{env_config, path_config};
 use crate::errors::InfraError;
-use crate::handlers::docker::WSDD_NETWORK;
+use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_TOOLS_PROJECT};
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
@@ -44,15 +43,6 @@ impl OptionalServiceKind {
         }
     }
 
-    fn project_name(self) -> &'static str {
-        match self {
-            Self::Redis => "wsdd-redis",
-            Self::Mailpit => "wsdd-mailpit",
-            Self::Memcached => "wsdd-memcached",
-            Self::Ngrok => "wsdd-ngrok",
-        }
-    }
-
     pub fn display_name(self) -> &'static str {
         match self {
             Self::Redis => "Redis",
@@ -61,21 +51,10 @@ impl OptionalServiceKind {
             Self::Ngrok => "ngrok",
         }
     }
-
-    fn compose_file(self) -> PathBuf {
-        match self {
-            Self::Redis => path_config().redis_yml(),
-            Self::Mailpit => path_config().mailpit_yml(),
-            Self::Memcached => path_config().memcached_yml(),
-            Self::Ngrok => path_config().ngrok_yml(),
-        }
-    }
 }
 
 /// Writes optional service compose files without deploying them.
 pub(super) fn sync_resources_sync(settings: &AppSettings) -> Result<(), InfraError> {
-    settings.validate_optional_services()?;
-
     let services_dir = path_config().optional_services_dir();
     std::fs::create_dir_all(&services_dir)?;
     std::fs::write(
@@ -105,6 +84,7 @@ pub(super) fn deploy_service_sync(
     tx: &LogSender,
 ) -> Result<(), InfraError> {
     settings.validate_optional_services()?;
+    docker::require_container_project(runner, kind.container_name(), WSDD_TOOLS_PROJECT)?;
 
     ensure_network_sync(runner, tx)?;
     if kind == OptionalServiceKind::Mailpit {
@@ -113,17 +93,25 @@ pub(super) fn deploy_service_sync(
             .map_err(|e| InfraError::PrerequisiteNotMet(e.to_string()))?;
     }
 
-    let compose_file = kind.compose_file();
-    if !compose_file.is_file() {
+    let compose_files = [
+        path_config().redis_yml(),
+        path_config().memcached_yml(),
+        path_config().mailpit_yml(),
+        path_config().ngrok_yml(),
+    ];
+    if compose_files.iter().any(|path| !path.is_file()) {
         sync_resources_sync(settings)?;
     }
 
     let docker_dir = path_config().docker_structure_dir();
     let command = format!(
-        "{} -p {} -f \"{}\" up -d {}",
+        "{} -p {WSDD_TOOLS_PROJECT} {} up -d --no-deps {}",
         env_config().docker_compose_exe(),
-        kind.project_name(),
-        compose_file.display(),
+        compose_files
+            .iter()
+            .map(|path| format!("-f \"{}\"", path.display()))
+            .collect::<Vec<_>>()
+            .join(" "),
         kind.service_name()
     );
 
@@ -161,6 +149,7 @@ pub(super) fn stop_service_sync(
     tx: &LogSender,
 ) -> Result<(), InfraError> {
     let name = kind.container_name();
+    docker::require_container_project(runner, name, WSDD_TOOLS_PROJECT)?;
     if !container_exists_sync(runner, name)? {
         let _ = tx.send(LogLine::info(format!(
             "{} no estaba desplegado.",

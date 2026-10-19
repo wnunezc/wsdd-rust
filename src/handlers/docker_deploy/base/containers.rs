@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 use super::super::progress::{deploy_log_path, make_docker_progress_bridge};
 use crate::config::environment::{env_config, path_config};
 use crate::errors::InfraError;
-use crate::handlers::docker::WSDD_PROJECT;
+use crate::handlers::docker::{self, WSDD_CORE_PROJECT};
 use crate::handlers::log_types::{LogLine, LogSender};
 use crate::handlers::ps_script::{PsRunner, ScriptRunner};
 
@@ -103,6 +103,9 @@ pub(super) fn deploy_base_containers_sync(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    for (container_name, _) in BASE_SERVICES {
+        docker::require_container_project(runner, container_name, WSDD_CORE_PROJECT)?;
+    }
     if check_base_containers_running_sync(runner)? {
         let _ = tx.send(LogLine::success(
             "✓ Contenedores WSDD ya están desplegados y activos",
@@ -115,7 +118,7 @@ pub(super) fn deploy_base_containers_sync(
     let log_path = deploy_log_path();
     let actions = recovery_actions(&base_states_sync(runner)?)?;
     let prefix = format!(
-        "{} -p {WSDD_PROJECT} -f \"{}\"",
+        "{} -p {WSDD_CORE_PROJECT} -f \"{}\"",
         env_config().docker_compose_exe(),
         init_yml.display()
     );
@@ -391,7 +394,7 @@ mod tests {
     #[test]
     fn missing_service_compose_command_never_removes_orphans_or_recreates_dependencies() {
         for (_, service) in BASE_SERVICES {
-            let command = create_command("docker-compose -p wsdd-projects -f init.yml", service);
+            let command = create_command("docker-compose -p wsdd-core -f init.yml", service);
             assert!(command.ends_with(&format!("--no-recreate --no-deps {service}")));
             assert!(!command.contains("--remove-orphans"));
             assert!(!command.contains("--force-recreate"));

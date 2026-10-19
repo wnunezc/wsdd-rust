@@ -21,7 +21,7 @@ use std::path::Path;
 use super::vhost;
 use crate::config::environment::{env_config, path_config, path_to_string};
 use crate::errors::InfraError;
-use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_PROJECT};
+use crate::handlers::docker::{self, WSDD_NETWORK, WSDD_WEB_PROJECT};
 use crate::handlers::docker_deploy;
 use crate::handlers::hosts;
 use crate::handlers::log_types::{LogLine, LogSender};
@@ -143,6 +143,12 @@ pub(super) fn stop_and_remove_wsdd_containers(
         return Ok(());
     }
 
+    for name in &names {
+        if let Some(project) = docker::expected_project_for_container(name) {
+            docker::require_container_project(runner, name, project)?;
+        }
+    }
+
     let _ = tx.send(LogLine::info(
         "[Restore] Deteniendo y eliminando contenedores WSDD actuales...",
     ));
@@ -164,6 +170,14 @@ pub(super) fn rehydrate_project_runtime(
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    docker::require_container_project(
+        runner,
+        &format!(
+            "WSDD-Web-Server-{}",
+            project.php_version.runtime_container_tag()
+        ),
+        WSDD_WEB_PROJECT,
+    )?;
     let _ = tx.send(LogLine::info(format!(
         "[Restore] Rehidratando proyecto '{}'...",
         project.name
@@ -276,7 +290,7 @@ fn rebuild_php_container(
     let docker_dir = path_config().php_dir(php_dir);
     runner.run_ps_sync(
         &format!(
-            "{} -p {WSDD_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
+            "{} -p {WSDD_WEB_PROJECT} -f \"{webserver_yml}\" -f \"{options_yml}\" up -d {}--force-recreate",
             env_config().docker_compose_exe(),
             if should_build { "--build " } else { "" }
         ),
@@ -288,6 +302,7 @@ fn rebuild_php_container(
 }
 
 fn restart_proxy(runner: &PsRunner, tx: &LogSender) -> Result<(), InfraError> {
+    docker::require_container_project(runner, "WSDD-Proxy-Server", docker::WSDD_CORE_PROJECT)?;
     let _ = tx.send(LogLine::info("[Restore] Reiniciando WSDD-Proxy-Server..."));
     runner.run_direct_sync(
         env_config().docker_exe(),

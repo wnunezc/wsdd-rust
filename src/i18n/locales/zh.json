@@ -86,6 +86,11 @@
   "toolbar_reload_projects_hint": "从磁盘重新加载项目",
 
   "log_title": "日志",
+  "trace_title": "部署阶段",
+  "trace_show_live": "显示实时输出",
+  "trace_hide_live": "隐藏实时输出",
+  "trace_open_log": "打开完整日志",
+  "trace_copy_log": "复制完整日志",
   "container_log_title": "容器日志",
   "status_bar_containers": "容器",
   "status_bar_running": "运行中",

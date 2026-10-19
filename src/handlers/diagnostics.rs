@@ -14,10 +14,19 @@ const MAX_TRACE_LINE: usize = 1024 * 1024;
 #[derive(Default)]
 struct Redactor {
     values: Vec<String>,
+    identifiers: Vec<String>,
 }
 
 impl Redactor {
     fn remember(&mut self, value: &str) {
+        Self::remember_in(&mut self.values, value);
+    }
+
+    fn remember_identifier(&mut self, value: &str) {
+        Self::remember_in(&mut self.identifiers, value);
+    }
+
+    fn remember_in(values: &mut Vec<String>, value: &str) {
         if value.is_empty() {
             return;
         }
@@ -32,32 +41,52 @@ impl Redactor {
         ];
         for variant in variants {
             for part in std::iter::once(variant.as_str()).chain(variant.split(['\r', '\n'])) {
-                if !part.is_empty() && part != MASK && !self.values.iter().any(|v| v == part) {
-                    self.values.push(part.to_string());
+                if !part.is_empty() && part != MASK && !values.iter().any(|v| v == part) {
+                    values.push(part.to_string());
                 }
             }
         }
-        self.values
-            .sort_by_key(|value| std::cmp::Reverse(value.len()));
+        values.sort_by_key(|value| std::cmp::Reverse(value.len()));
     }
 
     fn redact(&self, input: &str) -> String {
         let mut result = String::with_capacity(input.len());
         let mut rest = input;
+        let mut previous = None;
         while !rest.is_empty() {
-            if let Some(value) = self.values.iter().find(|value| {
+            let secret = self.values.iter().find(|value| {
                 rest.starts_with(value.as_str())
                     && (!rest.starts_with(MASK)
                         || (value.starts_with(MASK) && value.len() > MASK.len()))
-            }) {
+            });
+            let identifier = self.identifiers.iter().find(|value| {
+                rest.starts_with(value.as_str())
+                    && !rest.starts_with(MASK)
+                    && previous.is_none_or(|ch: char| !ch.is_alphanumeric() && ch != '_')
+                    && rest[value.len()..]
+                        .chars()
+                        .next()
+                        .is_none_or(|ch| !ch.is_alphanumeric() && ch != '_')
+            });
+            let matched = match (secret, identifier) {
+                (Some(secret), Some(identifier)) if identifier.len() > secret.len() => {
+                    Some(identifier)
+                }
+                (Some(secret), _) => Some(secret),
+                (None, identifier) => identifier,
+            };
+            if let Some(value) = matched {
                 result.push_str(MASK);
+                previous = value.chars().last();
                 rest = &rest[value.len()..];
             } else if rest.starts_with(MASK) {
                 result.push_str(MASK);
+                previous = Some(']');
                 rest = &rest[MASK.len()..];
             } else {
                 let ch = rest.chars().next().expect("nonempty diagnostic text");
                 result.push(ch);
+                previous = Some(ch);
                 rest = &rest[ch.len_utf8()..];
             }
         }
@@ -73,15 +102,12 @@ fn registry() -> &'static RwLock<Redactor> {
 /// Retain previous values for late process output and copies of existing UI buffers.
 pub fn register_credentials(prereq: &PrereqCredentials, webmin: &[WebminCredentials], ngrok: &str) {
     if let Ok(mut redactor) = registry().write() {
-        for value in [
-            &prereq.mysql_user,
-            &prereq.mysql_password,
-            &prereq.mysql_root_password,
-        ] {
+        redactor.remember_identifier(&prereq.mysql_user);
+        for value in [&prereq.mysql_password, &prereq.mysql_root_password] {
             redactor.remember(value);
         }
         for credentials in webmin {
-            redactor.remember(&credentials.username);
+            redactor.remember_identifier(&credentials.username);
             redactor.remember(&credentials.password);
         }
         redactor.remember(ngrok);
@@ -231,6 +257,24 @@ mod tests {
     }
 
     #[test]
+    fn username_does_not_disfigure_php_admin_domains() {
+        let mut redactor = Redactor::default();
+        redactor.remember_identifier("admin");
+        assert_eq!(
+            redactor.redact("http://phpadmin56.wsdd.dock"),
+            "http://phpadmin56.wsdd.dock"
+        );
+        assert_eq!(
+            redactor.redact("Webmin user admin"),
+            "Webmin user [REDACTED]"
+        );
+        assert_eq!(
+            redactor.redact("admin@example.test"),
+            "[REDACTED]@example.test"
+        );
+    }
+
+    #[test]
     fn named_fields_cover_buildkit_shell_json_yaml_and_tokens() {
         for line in [
             "#6 RUN USERNAME=fixture-user && PASSWORD='fixture pass'; command",
@@ -338,7 +382,10 @@ mod tests {
                 "mysql_password": "fixture-ps-db",
                 "mysql_root_password": "fixture-ps-root"
             },
-            "webmin_credentials": [{"username": "fixture-ps-webmin", "password": "fixture-ps-webmin-pass"}],
+            "webmin_credentials": [
+                {"username": "fixture-ps-webmin", "password": "fixture-ps-webmin-pass"},
+                {"username": "admin", "password": "fixture-ps-admin-pass"}
+            ],
             "ngrok_authtoken": "fixture-ps-token"
         });
         std::fs::write(
@@ -355,6 +402,7 @@ Initialize-WsddDiagnosticFilter -EnvironmentRoot $env:WSDD_TEST_ROOT
 $text = 'fixture-ps-user fixture-ps-db fixture-ps-root fixture-ps-webmin-pass fixture-ps-token PASSWORD=fixture-unknown'
 $safe = Protect-WsddDiagnosticText $text
 if ($safe.Contains('fixture-') -or -not $safe.Contains('[REDACTED]')) { throw 'PS credential suppression failed' }
+if ((Protect-WsddDiagnosticText 'http://phpadmin56.wsdd.dock user admin') -ne 'http://phpadmin56.wsdd.dock user [REDACTED]') { throw 'PS domain redaction failed' }
 $logFile = Join-Path $env:WSDD_TEST_ROOT 'setting.log'
 $script:LogPath = Join-Path $env:WSDD_TEST_ROOT 'recovery.log'
 foreach ($pair in @(@('dd-setting.ps1', 'Log'), @('wsdd-runtime-recovery.ps1', 'Write-RecoveryLog'))) {

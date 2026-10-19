@@ -1,3 +1,4 @@
+name: wsdd-tools
 services:
   memcached:
     container_name: WSDD-Memcached-Server

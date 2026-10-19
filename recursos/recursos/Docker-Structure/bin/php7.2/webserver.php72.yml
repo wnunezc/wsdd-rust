@@ -1,3 +1,4 @@
+name: wsdd-web
 services:
   webserver72:
     container_name: WSDD-Web-Server-PHP7.2
