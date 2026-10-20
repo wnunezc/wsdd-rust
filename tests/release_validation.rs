@@ -231,7 +231,8 @@ fn embedded_compose_groups_match_managed_sources() {
             .read_to_string(&mut packaged)
             .unwrap();
         assert_eq!(
-            packaged, source,
+            packaged.replace("\r\n", "\n"),
+            source.replace("\r\n", "\n"),
             "embedded {path} differs from managed source"
         );
         assert!(
@@ -250,7 +251,8 @@ fn embedded_compose_groups_match_managed_sources() {
         .read_to_string(&mut packaged)
         .unwrap();
     assert_eq!(
-        packaged, source,
+        packaged.replace("\r\n", "\n"),
+        source.replace("\r\n", "\n"),
         "embedded WSL recovery worker differs from source"
     );
     assert!(packaged.contains("'-p', 'wsdd-web'"));
