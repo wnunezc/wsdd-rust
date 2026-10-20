@@ -16,6 +16,7 @@ El estado de producto y las pruebas pertenecen a este repositorio. Las notas de 
 | Credenciales de desarrollo y logs | `docs/development-credentials.md`, `docs/maintenance/development-credentials-and-log-suppression-2026-10-17.md` |
 | Etapas y log completo de despliegue | `docs/maintenance/deploy-stage-trace-2026-10-19.md` |
 | Settings, Herramientas y WSL: inventario y acciones | `docs/maintenance/settings-tools-reorganization-2026-10-19.md` |
+| Direccion vigente de montajes Windows/WSL 2 e issues relacionados | `docs/maintenance/windows-wsl2-shared-storage-direction-2026-10-19.md` |
 | MSI local de validación, grupos Compose y trazabilidad | `docs/maintenance/local-msi-validation-2026-10-19.md` |
 | Release o MSI | `docs/release/`, especialmente `docs/release/2.1.3-validation.md` para la publicación vigente |
 | Próxima versión: cambios desde v2.1.3 | `docs/release/next-release-changes-since-v2.1.3.md` |
