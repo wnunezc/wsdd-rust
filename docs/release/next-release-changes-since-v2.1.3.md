@@ -1,7 +1,7 @@
 # Cambios acumulados desde la v2.1.3 publicada
 
-Este documento es el registro de entrada para las notas de la próxima versión
-de WSDD. La versión siguiente aún no está definida ni publicada. El punto de
+Este documento es el registro de entrada para las notas de la versión 2.2.0
+de WSDD. La versión 2.2.0 está en preparación y aún no se ha publicado. El punto de
 partida es el tag público `v2.1.3` (commit fuente
 `c75d1493a1c55560ecdb7645cc825fd7e9e14d81`, publicado el 2026-10-15).
 La evidencia y el checksum del MSI público pertenecen a
@@ -18,12 +18,14 @@ reemplaza ese asset**.
 | `a086622` | Commit local, sin push | Crea este registro acumulado de cambios desde v2.1.3. |
 | `53226ea` | Commit local, sin push | Reorganiza Settings y Herramientas; agrega trazabilidad y log de despliegue para las utilidades. |
 | `9094771` | Commit local, sin push | Retira el mapa histórico `MIGRATION.md` y repara enlaces públicos; no cambia el runtime. |
+| `b1fa28b` | Commit local, sin push | Registra la aceptación local de Settings/Herramientas y el cierre del issue #16; no agrega otro cambio de runtime. |
+| `0c9f873` | Commit local firmado, sin push | Documenta el alcance del almacenamiento Windows/WSL 2 y la prueba fallida de VirtioFS; no cambia el programa ni agrega un modo de montaje. |
 
 `origin/main` apunta a `0a4fad6`; los commits locales indicados aún no forman parte
 del repositorio remoto. Al preparar una publicación, volver a comparar el tag
 `v2.1.3` con el commit elegido para la release e incorporar aquí cualquier
-commit posterior. Este inventario no implica que los cambios locales estén
-disponibles en el MSI público actual.
+commit posterior. Este inventario registra el estado del 2026-10-19/20 y no
+implica que los cambios locales estén disponibles en el MSI público 2.1.3.
 
 ## Contenido funcional para las próximas notas de versión
 
@@ -121,10 +123,8 @@ disponibles en el MSI público actual.
 
 ## Al preparar la próxima publicación
 
-Comparar de nuevo `v2.1.3..HEAD` del commit de release, actualizar este registro
-y trasladar **todos los cambios funcionales anteriores más los posteriores** a
-las notas públicas de esa versión. Distinguir código en remoto, cambios sólo
-locales y funciones realmente validadas; asignar la versión nueva sólo cuando
-se decida publicar. Regenerar MSI/checksum desde ese commit y validar instalación
-y despliegue desde WSDD antes de afirmar comportamiento en Docker. Una release
-o push requiere su instrucción específica; este documento no los ejecuta.
+Comparar de nuevo `v2.1.3..HEAD` del commit de release y mantener las notas
+`2.2.0-draft.md` limitadas a los cambios realmente incluidos. Regenerar
+MSI/checksum desde el tag y verificar los assets públicos. La instalación y el
+despliegue de Redis, Memcached y Mailpit siguen pendientes de validación real;
+no afirmar su funcionamiento integral con Docker en las notas públicas.

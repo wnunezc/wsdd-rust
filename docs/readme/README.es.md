@@ -12,8 +12,8 @@ cambiar contrasenas no garantiza por si solo la seguridad de los datos.
 La [guia por escenario y relaciones del stack](../development-credentials.md)
 explica MySQL, phpMyAdmin, Webmin por PHP, aplicaciones y ngrok. No se agrega
 rotacion automatica ni otra mecanica de autenticacion. La supresion de
-credenciales en diagnosticos corresponde al codigo fuente posterior a 2.1.3,
-no al MSI 2.1.3 ya publicado; no modifica logs antiguos ni los propios de Docker.
+credenciales en diagnosticos se incluye en la version 2.2.0; no modifica logs
+antiguos ni los propios de Docker.
 
 Aplicacion de escritorio Windows que automatiza la configuracion de un entorno de desarrollo web
 local usando Docker. Incluye PHP multi-version, SSL local, MySQL, phpMyAdmin, gestion de hosts,
@@ -32,7 +32,7 @@ Automatiza la preparacion inicial del entorno, aprovisiona contenedores PHP por 
 configura SSL local con MKCert, actualiza el archivo `hosts` de Windows y centraliza
 operaciones de contenedores/proyectos en una sola app de escritorio.
 
-- **Etapa actual**: Release estable `2.1.3`
+- **Etapa actual**: Release estable `2.2.0`
 - **Paquete principal de distribucion**: instalador MSI para Windows
 - **Idiomas UI actuales**: ingles, espanol, frances, hindi, chino
 - **Fallback de idioma**: ingles para contenido localizado faltante de UI/ayuda
@@ -121,7 +121,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 2.1.3 (Rust edition)
+- **Version**: 2.2.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

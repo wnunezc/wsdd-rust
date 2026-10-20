@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: `2.1.3` stable release line
+- **Current stage**: `2.2.0` stable release line
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content
@@ -42,8 +42,8 @@ a vault, or a new authentication mechanism.
 The source implementation suppresses known WSDD credentials and recognized
 credential fields in WSDD diagnostics, including copied logs. It does not encrypt
 configuration, sanitize Docker's own retained logs/image metadata, or rewrite old
-logs. This source change is newer than the published 2.1.3 MSI; updating these
-sources does not change an already installed release. Review diagnostics before
+logs. These safeguards are included in version 2.2.0; installing new sources
+does not change an already installed release. Review diagnostics before
 sharing them, especially output from applications with secrets unknown to WSDD.
 
 ## System Requirements
@@ -169,7 +169,7 @@ instead of the compacted on-screen buffer. Operation logs are stored under
 
 ## Technical Information
 
-- **Version**: 2.1.3 (Rust edition)
+- **Version**: 2.2.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`
