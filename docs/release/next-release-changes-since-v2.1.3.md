@@ -1,14 +1,15 @@
 # Cambios acumulados desde la v2.1.3 publicada
 
-Este documento es el registro de entrada para las notas de la versión 2.2.0
-de WSDD. La versión 2.2.0 está en preparación y aún no se ha publicado. El punto de
+Este documento conserva el registro de preparación de la versión 2.2.0
+de WSDD, publicada el 2026-10-20. La evidencia final está en
+`2.2.0-validation.md` y las notas públicas en `2.2.0-draft.md`. El punto de
 partida es el tag público `v2.1.3` (commit fuente
 `c75d1493a1c55560ecdb7645cc825fd7e9e14d81`, publicado el 2026-10-15).
 La evidencia y el checksum del MSI público pertenecen a
 `2.1.3-validation.md`; **un MSI local posterior con ProductVersion 2.1.3 no
 reemplaza ese asset**.
 
-## Inventario posterior al tag (2026-10-19)
+## Inventario posterior al tag (estado registrado el 2026-10-19)
 
 | Commit | Estado | Cambio que debe considerarse |
 | --- | --- | --- |
@@ -21,13 +22,12 @@ reemplaza ese asset**.
 | `b1fa28b` | Commit local, sin push | Registra la aceptación local de Settings/Herramientas y el cierre del issue #16; no agrega otro cambio de runtime. |
 | `0c9f873` | Commit local firmado, sin push | Documenta el alcance del almacenamiento Windows/WSL 2 y la prueba fallida de VirtioFS; no cambia el programa ni agrega un modo de montaje. |
 
-`origin/main` apunta a `0a4fad6`; los commits locales indicados aún no forman parte
-del repositorio remoto. Al preparar una publicación, volver a comparar el tag
-`v2.1.3` con el commit elegido para la release e incorporar aquí cualquier
-commit posterior. Este inventario registra el estado del 2026-10-19/20 y no
-implica que los cambios locales estén disponibles en el MSI público 2.1.3.
+La columna Estado refleja el corte histórico del 2026-10-19. Esos commits ya
+se incluyeron en `v2.2.0`; los commits de publicación `ecd5d9f` y `2fb986f`
+prepararon la versión y ajustaron la comparación de saltos de línea en una
+prueba. El MSI público 2.1.3 sigue correspondiendo a su propio tag.
 
-## Contenido funcional para las próximas notas de versión
+## Contenido funcional trasladado a las notas de v2.2.0
 
 ### Diagnósticos y credenciales
 
@@ -68,7 +68,7 @@ implica que los cambios locales estén disponibles en el MSI público 2.1.3.
   Compose ejecuta `up --build` como una sola operación. No cambian la semántica
   de Deploy ni el orden de rollback.
 
-### Configuración y herramientas (trabajo local posterior)
+### Configuración y herramientas
 
 - Settings muestra únicamente Idioma. Guardar conserva la configuración previa
   y no reescribe secretos, Compose ni `.wslconfig`.
@@ -83,7 +83,7 @@ implica que los cambios locales estén disponibles en el MSI público 2.1.3.
   disponibles para los flujos existentes. Detalle campo por campo:
   `../maintenance/settings-tools-reorganization-2026-10-19.md`.
 - Redis, Memcached y Mailpit aún carecen de validación integral en Docker real.
-  Estas modificaciones locales no forman parte del MSI público 2.1.3.
+  Estos cambios entraron en el MSI público 2.2.0, no en el 2.1.3.
   La ronda local de formato, compilación, Clippy y 222 pruebas pasó. Se generó
   un MSI local posterior para probar este cambio, detallado en
   `../maintenance/settings-tools-reorganization-2026-10-19.md`.
@@ -91,12 +91,11 @@ implica que los cambios locales estén disponibles en el MSI público 2.1.3.
   el [issue #16](https://github.com/wnunezc/wsdd-rust/issues/16) se cerró como
   completado por su solicitud.
   Esta aceptación no cubre Redis, Memcached ni Mailpit: si aparece un fallo al
-  probarlos, se tratará en un issue específico. La próxima release debe incluir
-  los cambios de Settings/Herramientas y la trazabilidad de despliegue de
-  utilidades; el cierre del issue no publica esos commits ni valida esas tres
-  herramientas en Docker real.
+  probarlos, se tratará en un issue específico. La versión 2.2.0 incluye los
+  cambios de Settings/Herramientas y la trazabilidad de despliegue de
+  utilidades; el cierre del issue no valida esas tres herramientas en Docker real.
 
-## Evidencia disponible y límite de distribución
+## Evidencia local previa a la publicación
 
 - El commit `0a4fad6` pasó CI remoto con 211 pruebas. Los cambios locales
   posteriores pasaron formato, `cargo check`, Clippy con advertencias denegadas
@@ -113,18 +112,17 @@ implica que los cambios locales estén disponibles en el MSI público 2.1.3.
   `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-settings-tools-pre-trace-2026-10-19-x86_64.msi`,
   SHA-256 `3D2369FC3055E6041843C97174E5D7E0C80183B1F252BB49EECD3E4FB7930532`.
   No incluye las etapas añadidas después para Deploy de herramientas.
-- MSI **local actual** con esa trazabilidad:
+- MSI **local de pruebas previo a v2.2.0** con esa trazabilidad:
   `D:\OpsZone\DevWorkspace\Engines\Rust-Resource\cargo-targets\WSDD\wix\wsdd-2.1.3-x86_64.msi`,
   SHA-256 `346A2BF679D581C1EF9DC13210C37854FCD6640E5A29DDA7B45FB5D6331586BC`.
-  Es el archivo para las nuevas pruebas; no es una publicación.
+  Se usó para pruebas locales; no es el asset publicado de v2.2.0.
 - El [issue #15](https://github.com/wnunezc/wsdd-rust/issues/15) se cerró por
   el alcance acordado. Desgloses adicionales, resumen específico de hosts y
   otras mejoras propuestas allí no están planificados para la próxima versión.
 
-## Al preparar la próxima publicación
+## Publicación de v2.2.0
 
-Comparar de nuevo `v2.1.3..HEAD` del commit de release y mantener las notas
-`2.2.0-draft.md` limitadas a los cambios realmente incluidos. Regenerar
-MSI/checksum desde el tag y verificar los assets públicos. La instalación y el
-despliegue de Redis, Memcached y Mailpit siguen pendientes de validación real;
-no afirmar su funcionamiento integral con Docker en las notas públicas.
+Las notas `2.2.0-draft.md` se limitaron a los cambios incluidos desde v2.1.3.
+El MSI y checksum se generaron desde el tag firmado y se verificaron tras la
+publicación; detalles en `2.2.0-validation.md`. La instalación y el despliegue
+de Redis, Memcached y Mailpit siguen pendientes de validación real.

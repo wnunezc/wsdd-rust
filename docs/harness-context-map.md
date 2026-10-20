@@ -18,8 +18,8 @@ El estado de producto y las pruebas pertenecen a este repositorio. Las notas de 
 | Settings, Herramientas y WSL: inventario y acciones | `docs/maintenance/settings-tools-reorganization-2026-10-19.md` |
 | Direccion vigente de montajes Windows/WSL 2 e issues relacionados | `docs/maintenance/windows-wsl2-shared-storage-direction-2026-10-19.md` |
 | MSI local de validación, grupos Compose y trazabilidad | `docs/maintenance/local-msi-validation-2026-10-19.md` |
-| Release o MSI | `docs/release/`, especialmente `docs/release/2.1.3-validation.md` para la publicación vigente |
-| Próxima versión: cambios desde v2.1.3 | `docs/release/next-release-changes-since-v2.1.3.md` |
+| Release o MSI | `docs/release/`, especialmente `docs/release/2.2.0-validation.md` para la publicación vigente |
+| Historial de cambios entre v2.1.3 y v2.2.0 | `docs/release/next-release-changes-since-v2.1.3.md` |
 | Remediación WP-01–WP-10 | `REMEDIATION_PLAN.md` |
 | Recursos embebidos y PHP-Admin | `README.md` y el informe concreto de `docs/maintenance/` |
 | Infraestructura Rust compartida local | `D:/OpsZone/DevWorkspace/Engines/Rust-Resource/README.md` si el engine existe; su ruta es una dependencia de este workspace, no del código fuente |
