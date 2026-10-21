@@ -2,7 +2,7 @@
 
 ## Estado y alcance
 
-Integrado en el código de `v2.3.0` tras las pruebas locales posteriores a `v2.2.0`. El usuario instaló el MSI local e inició el Core; la validación operativa y el rendimiento medido se registran abajo. WSDD conserva el servicio Compose `wsdd-core/database`, el contenedor `WSDD-MySql-Server`, el puerto público de desarrollo `127.0.0.1:3306`, la red, phpMyAdmin y la ruta de persistencia `C:\WSDD-Environment\Docker-Structure\bin\mysql\data`. No se habilitó VirtioFS.
+Integrado en `v2.3.0` estable tras las pruebas locales posteriores a `v2.2.0`; evidencia de publicación en `../release/2.3.0-validation.md`. El usuario instaló el MSI local e inició el Core; la validación operativa y el rendimiento medido se registran abajo. WSDD conserva el servicio Compose `wsdd-core/database`, el contenedor `WSDD-MySql-Server`, el puerto público de desarrollo `127.0.0.1:3306`, la red, phpMyAdmin y la ruta de persistencia `C:\WSDD-Environment\Docker-Structure\bin\mysql\data`. No se habilitó VirtioFS.
 
 La nueva imagen fija `mysql:26.7.0` por digest. Ejecuta dos procesos MySQL dentro del **mismo** contenedor: principal en `/opt/wsdd-mysql-primary` (capa Linux efímera, puerto 3306) y réplica en `/var/lib/mysql` (bind NTFS existente, puerto interno 3307). La réplica solo escucha en loopback dentro del contenedor. Ambos usan `lower_case_table_names=1`, GTID y binlog. La réplica guarda su propio binlog para poder servir como fuente de recuperación. `Dockerfile`, `primary.cnf`, `replica.cnf` y `wsdd-mysql` son archivos administrados que WSDD sincroniza; la sincronización no toca `data`. El ZIP embebido contiene los mismos recursos.
 

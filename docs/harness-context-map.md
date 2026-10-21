@@ -20,7 +20,7 @@ El estado de producto y las pruebas pertenecen a este repositorio. Las notas de 
 | MySQL Core replicado, conversión local del datadir, pruebas y límites | `docs/maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md` |
 | Direccion vigente de montajes Windows/WSL 2 e issues relacionados | `docs/maintenance/windows-wsl2-shared-storage-direction-2026-10-19.md` |
 | MSI local de validación, grupos Compose y trazabilidad | `docs/maintenance/local-msi-validation-2026-10-19.md` |
-| Release o MSI | `docs/release/2.3.0-draft.md` y `docs/release/2.3.0-validation.md` tras publicar; historial de v2.2.0 en `docs/release/2.2.0-validation.md` |
+| Release o MSI | Notas `docs/release/2.3.0-draft.md` y evidencia pública `docs/release/2.3.0-validation.md`; historial de v2.2.0 en `docs/release/2.2.0-validation.md` |
 | Historial de cambios entre v2.1.3 y v2.2.0 | `docs/release/next-release-changes-since-v2.1.3.md` |
 | Preparación local de los cambios incluidos en v2.3.0 | `docs/release/post-2.2.0-local-work.md` |
 | Remediación WP-01–WP-10 | `REMEDIATION_PLAN.md` |

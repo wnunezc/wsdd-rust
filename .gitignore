@@ -12,6 +12,9 @@ Cargo.lock
 # Instaladores generados
 /target/wix/
 
+# Archivos de trabajo descartables del proyecto
+/Temporary/
+
 # Logs
 *.log
 
