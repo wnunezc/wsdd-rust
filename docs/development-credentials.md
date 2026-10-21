@@ -56,8 +56,8 @@ para una base nueva. No confundirla con cambiar cuentas de una base ya existente
 2. Identificar las cuentas reales y sus componentes usuario/host desde MySQL.
    El desarrollador aplica los cambios con las herramientas SQL de su version
    del servidor y sus permisos. No asumir un host de cuenta ni renombrar una
-   cuenta sin revisar grants y clientes. El Dockerfile usa `mysql:latest`; verificar
-   la version efectiva, no inferirla del nombre del contenedor.
+   cuenta sin revisar grants y clientes. El Dockerfile de MySQL Core fija
+   `mysql:26.7.0` por digest; verificar la version efectiva del contenedor.
 3. Alinear los valores correspondientes en la configuracion persistida de WSDD
    mediante un procedimiento controlado. La nueva pantalla Settings no edita
    credenciales; cambiar el JSON **no ejecuta ALTER USER ni cambia cuentas en

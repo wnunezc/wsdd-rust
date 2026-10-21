@@ -16,7 +16,7 @@ WSDD Windows-first local stack manager है, PHP + Docker development के �
 MKCert के साथ local SSL configure करता है, Windows `hosts` file update करता है और
 container/project operations को एक desktop app में centralize करता है।
 
-- **Current stage**: `2.2.0` stable release
+- **Current stage**: `2.3.0` stable release
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English for missing localized UI/help content
@@ -44,8 +44,14 @@ container/project operations को एक desktop app में centralize क�
 
 ### बेस सेवाएँ (हमेशा सक्रिय)
 - **WSDD-Proxy-Server** — Nginx reverse proxy (ports 80 / 443)
-- **WSDD-MySql-Server** — MySQL 8 (port 3306)
+- **WSDD-MySql-Server** — MySQL 26.7.0, primary and persistent replica (port 3306)
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
+
+The primary uses the container's Linux filesystem; the replica keeps the
+Windows `bin/mysql/data` directory. Existing data initialized with
+`lower_case_table_names=2` requires a verified logical migration; the MSI does
+not convert it. Full backup requires a clean MySQL stop, and full restore is
+blocked for this layout. See the [MySQL Core report](../maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md).
 
 ### PHP कंटेनर (प्रत्येक उपयोग किए गए संस्करण के लिए एक)
 उपलब्ध संस्करण: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
@@ -101,7 +107,7 @@ C:\WSDD-Environment\
 
 ## तकनीकी जानकारी
 
-- **Version**: 2.2.0 (Rust edition)
+- **Version**: 2.3.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` में JSON

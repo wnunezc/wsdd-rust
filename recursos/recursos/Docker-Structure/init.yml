@@ -40,8 +40,8 @@ services:
       context: ./bin/mysql
       dockerfile: Dockerfile
     restart: always
-    mem_limit: 2g
-    memswap_limit: 3g
+    mem_limit: 3g
+    memswap_limit: 4g
     cpus: 2.00
     networks:
       - wsdd-network
@@ -50,6 +50,13 @@ services:
     volumes:
       - ./bin/mysql/data:/var/lib/mysql:rw
       - ./bin/mysql/log:/var/log/mysql:rw
+    stop_grace_period: 300s
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/wsdd-mysql", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 180s
     environment:
       VIRTUAL_HOST: mysql.wsdd.dock
       MYSQL_ROOT_PASSWORD: __WSDD_MYSQL_ROOT_PASSWORD__

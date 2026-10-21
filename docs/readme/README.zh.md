@@ -15,7 +15,7 @@ WSDD 是面向 Windows 的本地 PHP + Docker 开发 stack 管理器。
 它会自动完成首次环境准备，为每个项目 provision PHP 容器，使用 MKCert 配置本地 SSL，
 更新 Windows `hosts` 文件，并在一个桌面应用中集中管理容器和项目操作。
 
-- **当前阶段**: 稳定版本 `2.2.0`
+- **当前阶段**: 稳定版本 `2.3.0`
 - **主要分发包**: Windows MSI 安装器
 - **当前 UI 语言**: English, Spanish, French, Hindi, Chinese
 - **语言 fallback**: 缺失的 UI/help 本地化内容回退到 English
@@ -43,8 +43,13 @@ WSDD 是面向 Windows 的本地 PHP + Docker 开发 stack 管理器。
 
 ### 基础服务（始终启用）
 - **WSDD-Proxy-Server** — Nginx reverse proxy（端口 80 / 443）
-- **WSDD-MySql-Server** — MySQL 8（端口 3306）
+- **WSDD-MySql-Server** — MySQL 26.7.0，主实例和持久化副本（端口 3306）
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
+
+主实例使用容器的 Linux 文件系统；副本继续使用 Windows 目录 `bin/mysql/data`。
+以 `lower_case_table_names=2` 初始化的现有数据必须先经过验证的逻辑迁移；MSI
+不会自动转换数据。完整备份要求先正常停止 MySQL；此结构暂不支持完整恢复。
+详情见 [MySQL Core 报告](../maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md)。
 
 ### PHP 容器（每个使用中的版本一个）
 可用版本: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
@@ -100,7 +105,7 @@ C:\WSDD-Environment\
 
 ## 技术信息
 
-- **Version**: 2.2.0 (Rust edition)
+- **Version**: 2.3.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json` 中的 JSON

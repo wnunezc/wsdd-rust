@@ -1,0 +1,386 @@
+#!/bin/sh
+set -eu
+
+: "${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD is required}"
+MYSQL_PWD=$MYSQL_ROOT_PASSWORD
+export MYSQL_PWD
+
+primary=/opt/wsdd-mysql-primary
+replica=/var/lib/mysql
+primary_socket=/var/run/mysqld/wsdd-primary.sock
+replica_socket=/var/run/mysqld/wsdd-replica.sock
+secret_file="$replica/.wsdd-core-replication-password"
+prepared_file="$replica/.wsdd-core-prepared"
+state_file="$replica/.wsdd-core-prepared-state.sha256"
+safe_file="$replica/.wsdd-core-clean-stop"
+import_file="$replica/.wsdd-core-import-approved"
+witness_file="$replica/.wsdd-core-last-probe"
+ready_file="$primary/.wsdd-core-ready"
+mode=existing
+
+sql_primary() { mysql --no-defaults --user=root --socket="$primary_socket" --default-character-set=utf8mb4 --batch --skip-column-names; }
+sql_replica() { mysql --no-defaults --user=root --socket="$replica_socket" --default-character-set=utf8mb4 --batch --skip-column-names; }
+sql_replica_status() { mysql --no-defaults --user=root --socket="$replica_socket" --vertical --execute='SHOW REPLICA STATUS'; }
+ping() { mysql --no-defaults --user=root --socket="$1" --execute='SELECT 1' >/dev/null 2>&1; }
+
+wait_ready() {
+    socket=$1
+    child=$2
+    tries=0
+    until ping "$socket"; do
+        tries=$((tries + 1))
+        if ! kill -0 "$child" 2>/dev/null; then
+            echo "MySQL exited before becoming ready: $socket" >&2
+            return 1
+        fi
+        if [ "$tries" -ge 180 ]; then
+            echo "MySQL did not become ready with the configured root password: $socket" >&2
+            return 1
+        fi
+        sleep 1
+    done
+}
+
+start_mysql() {
+    mysqld --defaults-file="/etc/wsdd-mysql/$1.cnf" --user=mysql &
+    child=$!
+    wait_ready "$2" "$child"
+}
+
+seed_or_restore() {
+    mkdir -p "$primary" "$replica" /var/run/mysqld
+    chown mysql:mysql "$primary" /var/run/mysqld
+    find "$replica" ! -user mysql -exec chown --no-dereference mysql '{}' +
+    if [ ! -f "$replica/auto.cnf" ]; then
+        if [ -n "$(ls -A "$replica")" ]; then
+            echo "Replica directory contains unrecognized data; refusing to initialize." >&2
+            exit 1
+        fi
+        echo "[MySQL Core] Initializing the primary with the official MySQL entrypoint."
+        env -u MYSQL_PWD /usr/local/bin/docker-entrypoint.sh mysqld --defaults-file=/etc/wsdd-mysql/primary.cnf --read-only=OFF --super-read-only=OFF &
+        init_pid=$!
+        tries=0
+        until mysql --no-defaults --user=root --host=127.0.0.1 --protocol=TCP --execute='SELECT 1' >/dev/null 2>&1; do
+            tries=$((tries + 1))
+            if ! kill -0 "$init_pid" 2>/dev/null || [ "$tries" -ge 180 ]; then
+                echo "Initial MySQL setup did not complete; persistent replica was not seeded." >&2
+                exit 1
+            fi
+            sleep 1
+        done
+        mysqladmin --no-defaults --user=root --socket="$primary_socket" shutdown
+        wait "$init_pid"
+        cp -a "$primary/." "$replica/"
+        rm -f "$replica/auto.cnf"
+        chown -R mysql:mysql "$replica"
+        umask 077
+        touch "$import_file"
+        mode=fresh
+        echo "[MySQL Core] Persistent replica seeded from the stopped primary."
+    elif [ ! -f "$primary/auto.cnf" ]; then
+        if [ -n "$(ls -A "$primary")" ]; then
+            echo "Primary directory is incomplete; refusing to overwrite it." >&2
+            exit 1
+        fi
+        if [ ! -f "$prepared_file" ] && [ ! -f "$safe_file" ] && [ ! -f "$import_file" ]; then
+            echo "Persistent replica has no verified recovery marker; refusing to restore a potentially stale copy." >&2
+            exit 1
+        fi
+        echo "[MySQL Core] Recovering the persistent replica before copying it."
+        start_mysql replica "$replica_socket"
+        mysqladmin --no-defaults --user=root --socket="$replica_socket" shutdown
+        cp -a "$replica/." "$primary/"
+        rm -f "$primary/auto.cnf" "$primary/.wsdd-core-prepared" "$primary/.wsdd-core-replication-password" "$primary/.wsdd-core-clean-stop" "$primary/.wsdd-core-import-approved"
+        chown -R mysql:mysql "$primary"
+        mode=restored
+        echo "[MySQL Core] Ephemeral primary restored from the stopped replica."
+    fi
+}
+
+ensure_replication_secret() {
+    if [ ! -f "$secret_file" ]; then
+        umask 077
+        openssl rand -hex 16 > "$secret_file"
+        chown mysql:mysql "$secret_file"
+    fi
+    secret=$(cat "$secret_file")
+    case "$secret" in
+        *[!0123456789abcdef]*|'') echo "Invalid core replication secret." >&2; exit 1 ;;
+    esac
+    if [ "${#secret}" -eq 48 ]; then
+        echo "[MySQL Core] Replacing the oversized secret from the incomplete deployment."
+        umask 077
+        replacement="$secret_file.new"
+        openssl rand -hex 16 > "$replacement"
+        chown mysql:mysql "$replacement"
+        mv -f "$replacement" "$secret_file"
+        secret=$(cat "$secret_file")
+    fi
+    if [ "${#secret}" -ne 32 ]; then
+        echo "Invalid core replication secret length; refusing to reconfigure replication." >&2
+        exit 1
+    fi
+}
+
+configure_replication() {
+    if [ "$mode" = restored ]; then
+        if sql_primary <<'SQL' | grep -q .; then
+SHOW REPLICA STATUS;
+SQL
+            printf "RESET REPLICA ALL;\n" | sql_primary
+        fi
+    fi
+    if [ "$mode" = existing ]; then
+        replica_state=$(sql_replica_status)
+        if printf '%s\n' "$replica_state" | grep -Eq '^[[:space:]]*Source_Host:'; then
+            printf 'START REPLICA;\n' | sql_replica
+        else
+            echo "[MySQL Core] Completing replication setup after the interrupted first deployment."
+            mode=unconfigured
+        fi
+    fi
+    if [ "$mode" != existing ]; then
+        ensure_replication_secret
+        if ! MYSQL_PWD=$secret mysql --no-defaults --user=wsdd_core_repl --host=127.0.0.1 --protocol=TCP --execute='SELECT 1' >/dev/null 2>&1; then
+            printf 'SET GLOBAL super_read_only=OFF;\n' | sql_primary
+            if ! printf "CREATE USER IF NOT EXISTS 'wsdd_core_repl'@'127.0.0.1' IDENTIFIED BY '%s';\nALTER USER 'wsdd_core_repl'@'127.0.0.1' IDENTIFIED BY '%s';\nGRANT REPLICATION SLAVE ON *.* TO 'wsdd_core_repl'@'127.0.0.1';\n" "$secret" "$secret" | sql_primary; then
+                printf 'SET GLOBAL super_read_only=ON;\n' | sql_primary || true
+                return 1
+            fi
+            printf 'SET GLOBAL super_read_only=ON;\n' | sql_primary
+        fi
+        printf 'STOP REPLICA;\n' | sql_replica 2>/dev/null || true
+        printf "RESET REPLICA ALL;\nCHANGE REPLICATION SOURCE TO SOURCE_HOST='127.0.0.1', SOURCE_PORT=3306, SOURCE_USER='wsdd_core_repl', SOURCE_PASSWORD='%s', SOURCE_AUTO_POSITION=1, GET_SOURCE_PUBLIC_KEY=1;\nSTART REPLICA;\n" "$secret" | sql_replica
+    fi
+    tries=0
+    until status >/dev/null 2>&1; do
+        tries=$((tries + 1))
+        if [ "$tries" -ge 60 ]; then
+            sql_replica_status | grep -E '^[[:space:]]*(Replica_(IO|SQL)_Running|Last_(IO|SQL)_Errno):' >&2 || true
+            echo "Replication did not become healthy." >&2
+            return 1
+        fi
+        sleep 1
+    done
+    echo "[MySQL Core] Primary and replica are ready."
+}
+
+user_databases() {
+    socket=$1
+    mysql --no-defaults --user=root --socket="$socket" --batch --skip-column-names \
+        --execute="SELECT SCHEMA_NAME FROM information_schema.SCHEMATA WHERE SCHEMA_NAME NOT IN ('information_schema','mysql','performance_schema','sys') ORDER BY SCHEMA_NAME"
+}
+
+state_digest() {
+    socket=$1
+    names=$(user_databases "$socket") || return 1
+    [ -n "$names" ] || { echo "No user databases to compare; run Validate first." >&2; return 1; }
+    set --
+    old_ifs=$IFS
+    IFS='
+'
+    for name in $names; do
+        case "$name" in
+            ''|[-]*|*[!a-zA-Z0-9_-]*) echo "Unsupported database name: $name" >&2; return 1 ;;
+        esac
+        set -- "$@" "$name"
+    done
+    IFS=$old_ifs
+    [ "$#" -gt 0 ] || return 1
+    output=$(bash -o pipefail -c 'socket=$1; shift; mysqldump --no-defaults --user=root --socket="$socket" --single-transaction --skip-lock-tables --order-by-primary --hex-blob --skip-comments --skip-dump-date --set-gtid-purged=OFF --no-tablespaces --routines --events --databases "$@" | sha256sum' wsdd-state "$socket" "$@") || return 1
+    digest=${output%% *}
+    case "$digest" in
+        *[!0123456789abcdef]*|'') return 1 ;;
+    esac
+    [ "${#digest}" -eq 64 ] || return 1
+    printf '%s\n' "$digest"
+}
+
+compare_state() {
+    primary_names=$(user_databases "$primary_socket") || return 1
+    replica_names=$(user_databases "$replica_socket") || return 1
+    [ "$primary_names" = "$replica_names" ] || { echo "Primary and replica database lists differ." >&2; return 1; }
+    primary_hash=$(state_digest "$primary_socket") || return 1
+    replica_hash=$(state_digest "$replica_socket") || return 1
+    [ "$primary_hash" = "$replica_hash" ] || { echo "Primary and replica SQL state differ." >&2; return 1; }
+    printf '%s\n' "$primary_hash"
+}
+
+check_fixture() {
+    socket=$1
+    result=$(printf "SELECT IF((SELECT COUNT(*) FROM wsdd_core_replication_probe.state_parent)=2 AND (SELECT COUNT(*) FROM wsdd_core_replication_probe.state_parent WHERE id=1 AND label='Árbol 漢字' AND amount=12345.67 AND HEX(payload)='00FF10A5' AND note IS NULL)=1 AND (SELECT COUNT(*) FROM wsdd_core_replication_probe.state_parent WHERE id=2 AND label='updated' AND amount=-42.50 AND note='changed')=1 AND (SELECT COUNT(*) FROM wsdd_core_replication_probe.state_parent WHERE id=3)=0 AND (SELECT COUNT(*) FROM wsdd_core_replication_probe.state_child WHERE id=1 AND parent_id=1 AND description='foreign-key')=1,1,0);\n" | mysql --no-defaults --user=root --socket="$socket" --default-character-set=utf8mb4 --batch --skip-column-names) || return 1
+    [ "$result" = 1 ] || { echo "SQL fixture differs from expected values: $socket" >&2; return 1; }
+}
+
+check_witness() {
+    [ -f "$witness_file" ] || return 0
+    witness=$(cat "$witness_file")
+    case "$witness" in
+        *[!0123456789abcdef]*|'') echo "Invalid core witness." >&2; return 1 ;;
+    esac
+    primary_found=$(printf "SELECT COUNT(*) FROM wsdd_core_replication_probe.probe WHERE id='%s';\n" "$witness" | sql_primary)
+    replica_found=$(printf "SELECT COUNT(*) FROM wsdd_core_replication_probe.probe WHERE id='%s';\n" "$witness" | sql_replica)
+    [ "$primary_found" = 1 ] && [ "$replica_found" = 1 ] || {
+        echo "Previously validated data is missing from the primary or replica." >&2
+        return 1
+    }
+}
+
+status() {
+    ping "$primary_socket" && ping "$replica_socket" || return 1
+    state=$(sql_replica_status)
+    printf '%s\n' "$state" | grep -Eq '^[[:space:]]*Replica_IO_Running:[[:space:]]*Yes$' || return 1
+    printf '%s\n' "$state" | grep -Eq '^[[:space:]]*Replica_SQL_Running:[[:space:]]*Yes$' || return 1
+    printf 'primary=ready replica=ready replication=running\n'
+}
+
+health() {
+    [ -f "$ready_file" ] && status
+}
+
+validate() {
+    health
+    check_witness
+    token=$(openssl rand -hex 16)
+    cat <<'SQL' | sql_primary
+CREATE DATABASE IF NOT EXISTS wsdd_core_replication_probe;
+CREATE TABLE IF NOT EXISTS wsdd_core_replication_probe.state_parent (id INT PRIMARY KEY, label VARCHAR(128) NOT NULL, amount DECIMAL(12,2) NOT NULL, payload VARBINARY(16) NOT NULL, note VARCHAR(32) NULL) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS wsdd_core_replication_probe.state_child (id INT PRIMARY KEY, parent_id INT NOT NULL, description VARCHAR(64) NOT NULL, CONSTRAINT fk_wsdd_core_parent FOREIGN KEY (parent_id) REFERENCES wsdd_core_replication_probe.state_parent(id)) ENGINE=InnoDB;
+START TRANSACTION;
+INSERT INTO wsdd_core_replication_probe.state_parent VALUES (1,'Árbol 漢字',12345.67,UNHEX('00FF10A5'),NULL) ON DUPLICATE KEY UPDATE label='Árbol 漢字', amount=12345.67, payload=UNHEX('00FF10A5'), note=NULL;
+INSERT INTO wsdd_core_replication_probe.state_parent VALUES (2,'before',0.00,UNHEX('0102'),'old') ON DUPLICATE KEY UPDATE label='before', amount=0.00, payload=UNHEX('0102'), note='old';
+UPDATE wsdd_core_replication_probe.state_parent SET label='updated', amount=-42.50, note='changed' WHERE id=2;
+INSERT INTO wsdd_core_replication_probe.state_parent VALUES (3,'delete-me',1.00,UNHEX('03'),NULL) ON DUPLICATE KEY UPDATE label='delete-me';
+DELETE FROM wsdd_core_replication_probe.state_parent WHERE id=3;
+INSERT INTO wsdd_core_replication_probe.state_child VALUES (1,1,'foreign-key') ON DUPLICATE KEY UPDATE parent_id=1, description='foreign-key';
+COMMIT;
+SQL
+    printf "CREATE TABLE IF NOT EXISTS wsdd_core_replication_probe.probe (id VARCHAR(32) PRIMARY KEY);\nINSERT INTO wsdd_core_replication_probe.probe (id) VALUES ('%s');\n" "$token" | sql_primary
+    gtid=$(printf 'SELECT @@GLOBAL.gtid_executed;\n' | sql_primary)
+    result=$(printf "SELECT WAIT_FOR_EXECUTED_GTID_SET('%s', 30);\n" "$gtid" | sql_replica)
+    [ "$result" = 0 ] || { echo "Replica did not apply the validation transaction." >&2; return 1; }
+    found=$(printf "SELECT COUNT(*) FROM wsdd_core_replication_probe.probe WHERE id='%s';\n" "$token" | sql_replica)
+    [ "$found" = 1 ] || { echo "Replica readback failed." >&2; return 1; }
+    check_fixture "$primary_socket"
+    check_fixture "$replica_socket"
+    digest=$(compare_state) || return 1
+    printf '%s\n' "$token" > "$witness_file"
+    echo "Replication verified: $token; SQL SHA-256: $digest"
+}
+
+prepare() {
+    health
+    [ -f "$witness_file" ] || { echo "Run Validate before Recreate." >&2; return 1; }
+    check_witness
+    printf 'SET GLOBAL super_read_only=ON;\n' | sql_primary
+    gtid=$(printf 'SELECT @@GLOBAL.gtid_executed;\n' | sql_primary)
+    result=$(printf "SELECT WAIT_FOR_EXECUTED_GTID_SET('%s', 60);\n" "$gtid" | sql_replica) || result=1
+    if [ "$result" != 0 ]; then
+        printf 'SET GLOBAL super_read_only=OFF; SET GLOBAL read_only=OFF;\n' | sql_primary
+        echo "Replica has not applied all primary transactions; recreation refused." >&2
+        return 1
+    fi
+    if ! digest=$(compare_state); then
+        printf 'SET GLOBAL super_read_only=OFF; SET GLOBAL read_only=OFF;\n' | sql_primary
+        echo "SQL state comparison failed; recreation refused." >&2
+        return 1
+    fi
+    umask 077
+    if ! printf '%s\n' "$digest" > "$state_file.new" || ! mv -f "$state_file.new" "$state_file" || ! touch "$prepared_file"; then
+        printf 'SET GLOBAL super_read_only=OFF; SET GLOBAL read_only=OFF;\n' | sql_primary
+        echo "Could not mark the replica as prepared; recreation refused." >&2
+        return 1
+    fi
+    rm -f "$ready_file"
+    if ! printf 'STOP REPLICA;\n' | sql_replica; then
+        rm -f "$prepared_file"
+        printf 'START REPLICA;\n' | sql_replica || true
+        printf 'SET GLOBAL super_read_only=OFF; SET GLOBAL read_only=OFF;\n' | sql_primary || true
+        touch "$ready_file"
+        echo "Could not stop replication; recreation refused." >&2
+        return 1
+    fi
+    mysqladmin --no-defaults --user=root --socket="$replica_socket" shutdown
+    mysqladmin --no-defaults --user=root --socket="$primary_socket" shutdown
+    echo "READY: replica caught up and both instances stopped cleanly."
+}
+
+stop_children() {
+    mysqladmin --no-defaults --user=root --socket="$replica_socket" shutdown >/dev/null 2>&1 || true
+    mysqladmin --no-defaults --user=root --socket="$primary_socket" shutdown >/dev/null 2>&1 || true
+}
+
+graceful_stop() {
+    caught_up=0
+    if [ -f "$ready_file" ] && [ ! -f "$prepared_file" ] && status >/dev/null 2>&1; then
+        if printf 'SET GLOBAL super_read_only=ON;\n' | sql_primary; then
+            gtid=$(printf 'SELECT @@GLOBAL.gtid_executed;\n' | sql_primary)
+            result=$(printf "SELECT WAIT_FOR_EXECUTED_GTID_SET('%s', 60);\n" "$gtid" | sql_replica) || result=1
+            if [ "$result" = 0 ] && printf 'STOP REPLICA;\n' | sql_replica; then
+                caught_up=1
+            else
+                echo "Replica did not catch up before shutdown; a later recreation will be refused." >&2
+            fi
+        fi
+    fi
+    rm -f "$ready_file"
+    replica_stopped=0
+    primary_stopped=0
+    if mysqladmin --no-defaults --user=root --socket="$replica_socket" shutdown; then replica_stopped=1; fi
+    if mysqladmin --no-defaults --user=root --socket="$primary_socket" shutdown; then primary_stopped=1; fi
+    if [ "$caught_up" = 1 ] && [ "$replica_stopped" = 1 ] && [ "$primary_stopped" = 1 ]; then
+        umask 077
+        if printf '%s\n' "$gtid" > "$safe_file.new" && mv -f "$safe_file.new" "$safe_file" && sync -f "$safe_file"; then
+            echo "[MySQL Core] Replica caught up and both instances stopped cleanly."
+        else
+            rm -f "$safe_file" "$safe_file.new"
+            echo "Could not persist the clean-shutdown marker; a later recreation will be refused." >&2
+        fi
+    else
+        rm -f "$safe_file" "$safe_file.new"
+        echo "The clean-shutdown barrier was not completed; a later recreation will be refused." >&2
+    fi
+}
+
+run() {
+    trap 'graceful_stop; exit 0' TERM INT
+    rm -f "$ready_file"
+    seed_or_restore
+    start_mysql primary "$primary_socket"
+    start_mysql replica "$replica_socket"
+    configure_replication
+    check_witness
+    if [ -f "$prepared_file" ]; then
+        [ -f "$state_file" ] || { echo "Prepared state checksum missing; refusing recovery." >&2; exit 1; }
+        expected=$(cat "$state_file")
+        actual=$(compare_state) || exit 1
+        [ "$expected" = "$actual" ] || { echo "Restored SQL state differs from prepared state; refusing recovery." >&2; exit 1; }
+        echo "[MySQL Core] Restored SQL state verified: $actual"
+        rm -f "$prepared_file" "$state_file"
+    fi
+    rm -f "$safe_file" "$import_file"
+    printf 'SET GLOBAL super_read_only=OFF; SET GLOBAL read_only=OFF;\n' | sql_primary
+    touch "$ready_file"
+    while :; do
+        if [ -f "$prepared_file" ]; then
+            sleep 1
+            continue
+        fi
+        if ! status >/dev/null 2>&1; then
+            echo "A core MySQL instance or replication stopped; container exits unhealthy." >&2
+            stop_children
+            exit 1
+        fi
+        sleep 3
+    done
+}
+
+case "${1:-run}" in
+    version) echo 'wsdd-mysql-core:state-v1' ;;
+    run) run ;;
+    status) status ;;
+    health) health ;;
+    validate) validate ;;
+    prepare) prepare ;;
+    *) echo "Usage: wsdd-mysql {run|health|status|validate|prepare|version}" >&2; exit 2 ;;
+esac

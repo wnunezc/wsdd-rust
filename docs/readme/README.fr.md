@@ -17,7 +17,7 @@ Il automatise la preparation initiale de l'environnement, provisionne des conten
 projet, configure le SSL local avec MKCert, met a jour le fichier Windows `hosts` et centralise
 les operations de conteneurs/projets dans une seule application de bureau.
 
-- **Etape actuelle**: version stable `2.2.0`
+- **Etape actuelle**: version stable `2.3.0`
 - **Paquet principal de distribution**: installateur MSI Windows
 - **Langues UI actuelles**: anglais, espagnol, francais, hindi, chinois
 - **Fallback de langue**: anglais pour tout contenu UI/aide localise manquant
@@ -45,8 +45,15 @@ les operations de conteneurs/projets dans une seule application de bureau.
 
 ### Services de base (toujours actifs)
 - **WSDD-Proxy-Server** — Nginx reverse proxy (ports 80 / 443)
-- **WSDD-MySql-Server** — MySQL 8 (port 3306)
+- **WSDD-MySql-Server** — MySQL 26.7.0, primaire et replique persistante (port 3306)
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
+
+Le primaire utilise le filesystem Linux du conteneur ; la replique conserve le
+repertoire Windows `bin/mysql/data`. Un datadir initialise avec
+`lower_case_table_names=2` exige une migration logique verifiee : le MSI ne
+convertit pas les donnees. La sauvegarde complete exige un arret propre de
+MySQL ; la restauration complete est bloquee pour cette structure. Voir le
+[rapport MySQL Core](../maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md).
 
 ### Conteneurs PHP (un par version utilisee)
 Versions disponibles: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
@@ -102,7 +109,7 @@ C:\WSDD-Environment\
 
 ## Informations techniques
 
-- **Version**: 2.2.0 (edition Rust)
+- **Version**: 2.3.0 (edition Rust)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: JSON dans `C:\WSDD-Environment\wsdd-config.json`

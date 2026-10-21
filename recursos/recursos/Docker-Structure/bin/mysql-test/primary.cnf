@@ -1,0 +1,15 @@
+[mysqld]
+mysqlx=OFF
+lower-case-table-names=1
+datadir=/opt/wsdd-mysql-primary
+socket=/var/run/mysqld/wsdd-primary.sock
+pid-file=/var/run/mysqld/wsdd-primary.pid
+port=3306
+bind-address=127.0.0.1
+server-id=101001
+log-bin=binlog
+relay-log=relay-bin
+relay-log-recovery=ON
+gtid-mode=ON
+enforce-gtid-consistency=ON
+skip-replica-start=ON

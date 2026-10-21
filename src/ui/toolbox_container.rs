@@ -69,7 +69,11 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
                 let running = container_info.is_running();
                 let container_busy = app
                     .is_job_running(&containers_panel::container_job_key(&container_info.name))
-                    || app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB);
+                    || app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB)
+                    || (name == crate::handlers::mysql_test::CONTAINER
+                        && app.is_job_running(crate::ui::mysql_test::JOB_KEY))
+                    || (name == crate::handlers::mysql_core::CONTAINER
+                        && app.is_job_running(crate::ui::mysql_core::JOB_KEY));
 
                 ui.horizontal(|ui| {
                     if ui

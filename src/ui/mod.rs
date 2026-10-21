@@ -21,6 +21,8 @@ pub(crate) mod deploy_php;
 pub mod helps;
 pub mod loader;
 pub mod main_window;
+pub mod mysql_core;
+pub mod mysql_test;
 pub mod optional_service;
 pub mod projects_panel;
 pub mod settings;
@@ -55,6 +57,14 @@ pub fn render(ctx: &egui::Context, app: &mut WsddApp) {
         ActiveView::OptionalService(kind) => {
             main_window::render(ctx, app);
             optional_service::render(ctx, app, *kind);
+        }
+        ActiveView::MysqlTest => {
+            main_window::render(ctx, app);
+            mysql_test::render(ctx, app);
+        }
+        ActiveView::MysqlCore => {
+            main_window::render(ctx, app);
+            mysql_core::render(ctx, app);
         }
         ActiveView::About => {
             main_window::render(ctx, app);

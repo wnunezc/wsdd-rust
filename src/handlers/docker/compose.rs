@@ -13,6 +13,7 @@ pub fn expected_project_for_container(name: &str) -> Option<&'static str> {
         | "WSDD-Memcached-Server"
         | "WSDD-Mailpit-Server"
         | "WSDD-Ngrok-Server" => Some(WSDD_TOOLS_PROJECT),
+        "WSDD-MySql-Server-Test" => Some("wsdd-mysql-test"),
         _ if crate::models::project::PhpVersion::all()
             .into_iter()
             .any(|version| {

@@ -107,6 +107,7 @@ pub(super) fn deploy_base_containers_sync(
         docker::require_container_project(runner, container_name, WSDD_CORE_PROJECT)?;
     }
     if check_base_containers_running_sync(runner)? {
+        crate::handlers::mysql_core::wait_healthy(runner, tx)?;
         let _ = tx.send(LogLine::success(
             "✓ Contenedores WSDD ya están desplegados y activos",
         ));
@@ -149,6 +150,9 @@ pub(super) fn deploy_base_containers_sync(
         let bridge = make_docker_progress_bridge(tx);
         match action {
             RecoveryAction::Start(name) => {
+                if *name == crate::handlers::mysql_core::CONTAINER {
+                    crate::handlers::mysql_core::require_managed_image(runner)?;
+                }
                 let _ = tx.send(LogLine::info(format!(
                     "[Runtime] Iniciando {name} existente..."
                 )));
@@ -212,6 +216,8 @@ pub(super) fn deploy_base_containers_sync(
             "los servicios base no alcanzaron estado running".to_string(),
         ));
     }
+
+    crate::handlers::mysql_core::wait_healthy(runner, tx)?;
 
     let _ = tx.send(LogLine::success(
         "✓ Contenedores WSDD desplegados correctamente",

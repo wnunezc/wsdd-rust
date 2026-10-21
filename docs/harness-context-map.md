@@ -16,10 +16,13 @@ El estado de producto y las pruebas pertenecen a este repositorio. Las notas de 
 | Credenciales de desarrollo y logs | `docs/development-credentials.md`, `docs/maintenance/development-credentials-and-log-suppression-2026-10-17.md` |
 | Etapas y log completo de despliegue | `docs/maintenance/deploy-stage-trace-2026-10-19.md` |
 | Settings, Herramientas y WSL: inventario y acciones | `docs/maintenance/settings-tools-reorganization-2026-10-19.md` |
+| Experimento manual MySQL principal efímero + réplica NTFS en un contenedor | `docs/maintenance/mysql-test-single-container-replication-2026-10-20.md` |
+| MySQL Core replicado, conversión local del datadir, pruebas y límites | `docs/maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md` |
 | Direccion vigente de montajes Windows/WSL 2 e issues relacionados | `docs/maintenance/windows-wsl2-shared-storage-direction-2026-10-19.md` |
 | MSI local de validación, grupos Compose y trazabilidad | `docs/maintenance/local-msi-validation-2026-10-19.md` |
-| Release o MSI | `docs/release/`, especialmente `docs/release/2.2.0-validation.md` para la publicación vigente |
+| Release o MSI | `docs/release/2.3.0-draft.md` y `docs/release/2.3.0-validation.md` tras publicar; historial de v2.2.0 en `docs/release/2.2.0-validation.md` |
 | Historial de cambios entre v2.1.3 y v2.2.0 | `docs/release/next-release-changes-since-v2.1.3.md` |
+| Preparación local de los cambios incluidos en v2.3.0 | `docs/release/post-2.2.0-local-work.md` |
 | Remediación WP-01–WP-10 | `REMEDIATION_PLAN.md` |
 | Recursos embebidos y PHP-Admin | `README.md` y el informe concreto de `docs/maintenance/` |
 | Infraestructura Rust compartida local | `D:/OpsZone/DevWorkspace/Engines/Rust-Resource/README.md` si el engine existe; su ruta es una dependencia de este workspace, no del código fuente |

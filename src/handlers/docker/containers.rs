@@ -25,6 +25,9 @@ pub async fn start_container(
     container_name: &str,
     tx: Option<OutputSender>,
 ) -> Result<(), InfraError> {
+    if container_name == crate::handlers::mysql_core::CONTAINER {
+        crate::handlers::mysql_core::require_managed_image_async().await?;
+    }
     let args = vec!["start".to_string(), container_name.to_string()];
     let out = run_docker(args, tx).await?;
     if out.success {
@@ -42,7 +45,16 @@ pub async fn stop_container(
     container_name: &str,
     tx: Option<OutputSender>,
 ) -> Result<(), InfraError> {
-    let args = vec!["stop".to_string(), container_name.to_string()];
+    let args = if container_name == crate::handlers::mysql_core::CONTAINER {
+        vec![
+            "stop".to_string(),
+            "-t".to_string(),
+            "300".to_string(),
+            container_name.to_string(),
+        ]
+    } else {
+        vec!["stop".to_string(), container_name.to_string()]
+    };
     let out = run_docker(args, tx).await?;
     if out.success {
         Ok(())
@@ -59,7 +71,19 @@ pub async fn restart_container(
     container_name: &str,
     tx: Option<OutputSender>,
 ) -> Result<(), InfraError> {
-    let args = vec!["restart".to_string(), container_name.to_string()];
+    if container_name == crate::handlers::mysql_core::CONTAINER {
+        crate::handlers::mysql_core::require_managed_image_async().await?;
+    }
+    let args = if container_name == crate::handlers::mysql_core::CONTAINER {
+        vec![
+            "restart".to_string(),
+            "-t".to_string(),
+            "300".to_string(),
+            container_name.to_string(),
+        ]
+    } else {
+        vec!["restart".to_string(), container_name.to_string()]
+    };
     let out = run_docker(args, tx).await?;
     if out.success {
         Ok(())
@@ -121,6 +145,9 @@ pub fn gather_poll_snapshot_sync(runner: &PsRunner) -> ContainerPollSnapshot {
 
 /// Starts a container by name synchronously.
 pub fn start_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
+    if name == crate::handlers::mysql_core::CONTAINER {
+        crate::handlers::mysql_core::require_managed_image(runner)?;
+    }
     let out = runner.run_direct_sync(env_config().docker_exe(), &["start", name], None, None)?;
     if out.success {
         Ok(())
@@ -134,7 +161,12 @@ pub fn start_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraEr
 
 /// Stops a container by name synchronously.
 pub fn stop_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
-    let out = runner.run_direct_sync(env_config().docker_exe(), &["stop", name], None, None)?;
+    let args: &[&str] = if name == crate::handlers::mysql_core::CONTAINER {
+        &["stop", "-t", "300", name]
+    } else {
+        &["stop", name]
+    };
+    let out = runner.run_direct_sync(env_config().docker_exe(), args, None, None)?;
     if out.success {
         Ok(())
     } else {
@@ -147,7 +179,15 @@ pub fn stop_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraErr
 
 /// Restarts a container by name synchronously.
 pub fn restart_container_sync(runner: &PsRunner, name: &str) -> Result<(), InfraError> {
-    let out = runner.run_direct_sync(env_config().docker_exe(), &["restart", name], None, None)?;
+    if name == crate::handlers::mysql_core::CONTAINER {
+        crate::handlers::mysql_core::require_managed_image(runner)?;
+    }
+    let args: &[&str] = if name == crate::handlers::mysql_core::CONTAINER {
+        &["restart", "-t", "300", name]
+    } else {
+        &["restart", name]
+    };
+    let out = runner.run_direct_sync(env_config().docker_exe(), args, None, None)?;
     if out.success {
         Ok(())
     } else {

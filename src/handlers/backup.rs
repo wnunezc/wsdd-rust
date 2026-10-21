@@ -62,12 +62,68 @@ const PROJECT_VHOST_FILE: &str = "project/vhost.conf";
 const PROJECT_OPTIONS_FILE: &str = "project/options-snapshot.txt";
 const PROJECT_CERTS_DIR: &str = "project/certs";
 
+fn uses_replicated_mysql_layout(data: &Path) -> bool {
+    (data.join("auto.cnf").exists()
+        && data
+            .parent()
+            .is_some_and(|parent| parent.join("wsdd-mysql").exists()))
+        || [
+            ".wsdd-core-replication-password",
+            ".wsdd-core-import-approved",
+            ".wsdd-core-clean-stop",
+            ".wsdd-core-prepared",
+        ]
+        .iter()
+        .any(|name| data.join(name).exists())
+}
+
+fn require_consistent_mysql_core_for_backup(runner: &PsRunner) -> Result<(), InfraError> {
+    let data = crate::handlers::mysql_core::data_dir();
+    if !uses_replicated_mysql_layout(&data) {
+        return Ok(());
+    }
+    let out = runner.run_direct_sync(
+        env_config().docker_exe(),
+        &[
+            "ps",
+            "-a",
+            "--filter",
+            "name=WSDD-MySql-Server",
+            "--format",
+            "{{.Names}}|{{.State}}",
+        ],
+        None,
+        None,
+    )?;
+    if !out.success {
+        return Err(InfraError::DockerUnreachable(out.text));
+    }
+    if out.text.lines().any(|line| {
+        line.split_once('|')
+            .is_some_and(|(name, state)| name == "WSDD-MySql-Server" && state != "exited")
+    }) {
+        return Err(InfraError::PrerequisiteNotMet(
+            "Detén MySQL Core desde WSDD y espera el apagado limpio antes de crear un backup completo; copiar la réplica activa no es consistente".into(),
+        ));
+    }
+    if !data.join(".wsdd-core-clean-stop").exists()
+        && !data.join(".wsdd-core-prepared").exists()
+        && !data.join(".wsdd-core-import-approved").exists()
+    {
+        return Err(InfraError::PrerequisiteNotMet(
+            "La réplica MySQL no tiene un marcador de apagado limpio; se rechazó el backup para evitar una copia inconsistente".into(),
+        ));
+    }
+    Ok(())
+}
+
 /// Creates a full WSDD environment backup.
 pub fn backup_environment(
     destination_zip: &Path,
     runner: &PsRunner,
     tx: &LogSender,
 ) -> Result<(), InfraError> {
+    require_consistent_mysql_core_for_backup(runner)?;
     let _ = tx.send(LogLine::info(format!(
         "[Backup] Creando backup completo: {}",
         destination_zip.display()
@@ -132,6 +188,18 @@ pub fn restore_environment(
         return Err(InfraError::UnexpectedOutput(
             source_zip.display().to_string(),
             "el backup no es de entorno completo".to_string(),
+        ));
+    }
+
+    let archived_mysql = extracted
+        .path()
+        .join(FULL_ENV_DIR)
+        .join("Docker-Structure/bin/mysql/data");
+    if uses_replicated_mysql_layout(&archived_mysql)
+        || uses_replicated_mysql_layout(&crate::handlers::mysql_core::data_dir())
+    {
+        return Err(InfraError::PrerequisiteNotMet(
+            "La restauración completa todavía no garantiza reemplazo atómico del datadir replicado. No se detuvieron contenedores ni se sobrescribieron datos; conserva el ZIP y usa una recuperación MySQL verificada".into(),
         ));
     }
 

@@ -85,7 +85,10 @@ pub(crate) fn spawn_container_op(
     action: &'static str,
     name: String,
 ) {
-    if app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB) {
+    if app.is_job_running(crate::ui::projects_panel::REMOVE_PROJECTS_JOB)
+        || (name == crate::handlers::mysql_core::CONTAINER
+            && app.is_job_running(crate::ui::mysql_core::JOB_KEY))
+    {
         return;
     }
     let tx = app.main_log_tx.clone();

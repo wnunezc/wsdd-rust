@@ -15,7 +15,7 @@ first-run environment setup, provisions per-project PHP containers, configures l
 MKCert, updates the Windows `hosts` file, and centralizes container/project operations in a
 single desktop app.
 
-- **Current stage**: `2.2.0` stable release line
+- **Current stage**: `2.3.0` stable release line
 - **Primary distribution package**: Windows MSI installer
 - **Current UI languages**: English, Spanish, French, Hindi, Chinese
 - **Language fallback**: English is the fallback for any missing localized UI/help content
@@ -72,8 +72,15 @@ sharing them, especially output from applications with secrets unknown to WSDD.
 
 ### Base Services (always active)
 - **WSDD-Proxy-Server** — Nginx reverse proxy (ports 80 / 443)
-- **WSDD-MySql-Server** — MySQL 8 (port 3306)
+- **WSDD-MySql-Server** — MySQL 26.7.0, primary and persistent replica (port 3306)
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
+
+The MySQL primary uses the container's Linux filesystem; the replica keeps the
+existing Windows bind-mounted `bin/mysql/data` directory. Existing datadirs
+initialized with `lower_case_table_names=2` require a separate, verified logical
+migration before this Core can use them. The MSI does not migrate database data.
+Full backup requires a clean MySQL stop; full restore is currently blocked for
+this replicated layout. See the [MySQL Core report](docs/maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md).
 
 ### PHP Containers (one per version used)
 Available versions: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
@@ -169,7 +176,7 @@ instead of the compacted on-screen buffer. Operation logs are stored under
 
 ## Technical Information
 
-- **Version**: 2.2.0 (Rust edition)
+- **Version**: 2.3.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuration**: `C:\WSDD-Environment\wsdd-config.json`

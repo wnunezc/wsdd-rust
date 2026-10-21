@@ -70,6 +70,11 @@ pub(super) fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                         });
 
                         ui.menu_button(menu_docker, |ui| {
+                            if ui.button(tr("mysql_core_title")).clicked() {
+                                app.ui.active = ActiveView::MysqlCore;
+                                ui.close_menu();
+                            }
+                            ui.separator();
                             if ui.button(&refresh_containers).clicked() {
                                 actions::force_poll(ctx, app);
                                 ui.close_menu();
@@ -97,6 +102,10 @@ pub(super) fn render_menu_bar(ctx: &egui::Context, app: &mut WsddApp) {
                                     app.ui.active = ActiveView::OptionalService(kind);
                                     ui.close_menu();
                                 }
+                            }
+                            if ui.button(tr("mysql_test_title")).clicked() {
+                                app.ui.active = ActiveView::MysqlTest;
+                                ui.close_menu();
                             }
                             ui.separator();
                             if ui.button(&backup_environment).clicked() {

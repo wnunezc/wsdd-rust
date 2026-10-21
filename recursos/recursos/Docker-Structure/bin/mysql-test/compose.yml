@@ -1,0 +1,19 @@
+name: wsdd-mysql-test
+services:
+  database-test:
+    container_name: WSDD-MySql-Server-Test
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: "no"
+    stop_grace_period: 120s
+    volumes:
+      - ./data:/var/lib/mysql:rw
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/wsdd-mysql-test", "health"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 90s
+    labels:
+      - "wsdd.database.role=test"

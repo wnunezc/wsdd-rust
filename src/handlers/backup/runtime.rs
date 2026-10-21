@@ -154,8 +154,15 @@ pub(super) fn stop_and_remove_wsdd_containers(
     ));
 
     for name in &names {
-        let _ = runner.run_direct_sync(env_config().docker_exe(), &["stop", name], None, None);
-        let _ = runner.run_direct_sync(env_config().docker_exe(), &["rm", name], None, None);
+        docker::stop_container_sync(runner, name)?;
+        let removed =
+            runner.run_direct_sync(env_config().docker_exe(), &["rm", name], None, None)?;
+        if !removed.success {
+            return Err(InfraError::DockerUnreachable(format!(
+                "No se pudo retirar {name} durante la restauración: {}",
+                removed.text
+            )));
+        }
     }
 
     let _ = tx.send(LogLine::success(

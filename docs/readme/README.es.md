@@ -32,7 +32,7 @@ Automatiza la preparacion inicial del entorno, aprovisiona contenedores PHP por 
 configura SSL local con MKCert, actualiza el archivo `hosts` de Windows y centraliza
 operaciones de contenedores/proyectos en una sola app de escritorio.
 
-- **Etapa actual**: Release estable `2.2.0`
+- **Etapa actual**: Release estable `2.3.0`
 - **Paquete principal de distribucion**: instalador MSI para Windows
 - **Idiomas UI actuales**: ingles, espanol, frances, hindi, chino
 - **Fallback de idioma**: ingles para contenido localizado faltante de UI/ayuda
@@ -62,8 +62,15 @@ operaciones de contenedores/proyectos en una sola app de escritorio.
 
 ### Servicios base (siempre activos)
 - **WSDD-Proxy-Server** — Nginx reverse proxy (puertos 80 / 443)
-- **WSDD-MySql-Server** — MySQL 8 (puerto 3306)
+- **WSDD-MySql-Server** — MySQL 26.7.0, principal y réplica persistente (puerto 3306)
 - **WSDD-phpMyAdmin-Server** — phpMyAdmin
+
+El principal usa el filesystem Linux del contenedor y la réplica conserva el
+directorio `bin/mysql/data` montado desde Windows. Los datos inicializados con
+`lower_case_table_names=2` requieren una migración lógica verificada; el MSI no
+convierte datos. El backup completo exige detener MySQL limpiamente y la
+restauración completa está bloqueada para esta estructura. Ver el
+[informe de MySQL Core](../maintenance/mysql-core-replicated-datadir-cutover-2026-10-20.md).
 
 ### Contenedores PHP (uno por version usada)
 Versiones disponibles: 5.6 - 7.2 - 7.4 - 8.1 - 8.2 - 8.3 - 8.4
@@ -121,7 +128,7 @@ C:\WSDD-Environment\
 
 ## Informacion tecnica
 
-- **Version**: 2.2.0 (Rust edition)
+- **Version**: 2.3.0 (Rust edition)
 - **GUI**: egui / eframe (immediate-mode)
 - **Async**: tokio
 - **Configuracion**: JSON en `C:\WSDD-Environment\wsdd-config.json`

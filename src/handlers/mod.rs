@@ -28,6 +28,8 @@ pub mod log_viewer;
 pub mod managed_storage;
 mod managed_storage_transfer;
 pub mod mkcert;
+pub mod mysql_core;
+pub mod mysql_test;
 pub mod ngrok;
 pub mod output;
 pub mod powershell;

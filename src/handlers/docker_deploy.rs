@@ -165,6 +165,7 @@ pub fn sync_prerequisite_compose_sync(settings: &AppSettings) -> Result<(), Infr
 /// volume mounts, global volume declarations, and `extra_hosts` entries.
 pub fn sync_installed_docker_resources_sync(settings: &AppSettings) -> Result<(), InfraError> {
     sync_prerequisite_compose_sync(settings)?;
+    crate::handlers::mysql_core::sync_resources()?;
 
     let mut render_settings = settings.clone();
     for php_version in PhpVersion::all() {

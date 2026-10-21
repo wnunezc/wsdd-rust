@@ -15,6 +15,8 @@ pub enum ActiveView {
     Main,
     Settings,
     OptionalService(OptionalServiceKind),
+    MysqlCore,
+    MysqlTest,
     AddProject,
     About,
     Helps,
